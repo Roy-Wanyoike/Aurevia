@@ -65,13 +65,15 @@ export function Sidebar() {
         sidebarCollapsed ? "w-16" : "w-60"
       )}
     >
-      <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
-        <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <Activity className="h-4 w-4" />
-        </div>
+      <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
+        <img
+          src="/branding/aurevia-logo.svg"
+          alt="Aurevia"
+          className="h-8 w-8 shrink-0"
+        />
         {!sidebarCollapsed && (
           <div className="flex flex-col leading-none">
-            <span className="text-sm font-semibold text-sidebar-foreground">Aurevia</span>
+            <span className="text-sm font-semibold tracking-tight text-sidebar-foreground">Aurevia</span>
             <span className="text-[10px] uppercase tracking-wider text-muted-foreground">Market Intel</span>
           </div>
         )}
