@@ -14,6 +14,8 @@ export type ViewKey =
   | "risk"
   | "portfolio"
   | "orders"
+  | "ml"
+  | "brokers"
   | "system"
   | "settings";
 

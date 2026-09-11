@@ -7,6 +7,8 @@ import { STRATEGIES, evaluateAll, toSignal } from "./strategies";
 import { runBacktest } from "./backtest/engine";
 import { DEFAULT_RISK_PROFILE, evaluateRisk, nextBreakerState } from "./risk/engine";
 import { PaperBroker, PortfolioManager } from "./execution/paper-broker";
+import { BrokerRouter } from "./brokers/router";
+import { ML_MODELS, ML_MODEL_MAP, mlPredictionToSignal, type MLPrediction } from "./ml/models";
 import type {
   AssetInfo,
   BacktestResult,
@@ -45,6 +47,8 @@ class AureviaStore {
   riskProfile: RiskProfile = { ...DEFAULT_RISK_PROFILE };
   broker: PaperBroker = new PaperBroker();
   portfolio: PortfolioManager = new PortfolioManager(INITIAL_CASH);
+  brokerRouter: BrokerRouter = new BrokerRouter();
+  mlPredictions: Map<string, MLPrediction> = new Map(); // keyed by `${modelKey}:${symbol}`
   startedAt: number = Date.now();
   dayStartEquity: number = INITIAL_CASH;
   weekStartEquity: number = INITIAL_CASH;
@@ -62,6 +66,12 @@ class AureviaStore {
     apiErrors: 0,
     brokerConnected: true,
   };
+
+  constructor() {
+    // Register the paper broker with the router. Real brokers (Alpaca/IBKR)
+    // are registered on-demand via /api/v1/brokers/connect.
+    this.brokerRouter.registerPaper(this.broker);
+  }
 
   // --- Market data ----------------------------------------------------------
   getCandles(symbol: string, bars: number = 300): Candle[] {
@@ -94,19 +104,91 @@ class AureviaStore {
   }
 
   // --- Signal scan ----------------------------------------------------------
-  // Run every strategy against every asset and append any new signals.
+  // Run every strategy AND every ML model against every asset.
   scanSignals(): Signal[] {
     const newSignals: Signal[] = [];
     for (const asset of this.assetCatalog) {
       const ctx = this.buildContext(asset.symbol, 300);
       if (!ctx) continue;
+      // Rule-based strategies
       const sigs = evaluateAll(ctx);
       for (const s of sigs) newSignals.push(s);
+      // ML models — plug into the SAME contract
+      for (const model of ML_MODELS) {
+        const pred = model.predict(ctx);
+        if (!pred) continue;
+        this.mlPredictions.set(`${model.key}:${asset.symbol}`, pred);
+        const mlSignal = mlPredictionToSignal(pred);
+        if (mlSignal) {
+          // Fill in the current price (mlPredictionToSignal leaves it 0)
+          mlSignal.price = ctx.quote.price;
+          const wrapped = toSignal(mlSignal);
+          if (wrapped) newSignals.push(wrapped);
+        }
+      }
     }
     // Keep latest SIGNAL_RETENTION signals.
     this.signals = [...newSignals, ...this.signals].slice(0, SIGNAL_RETENTION);
     this.lastSignalScan = Date.now();
     return newSignals;
+  }
+
+  // --- ML predictions -------------------------------------------------------
+  getMLPredictions(symbol?: string): MLPrediction[] {
+    const all = Array.from(this.mlPredictions.values());
+    return symbol ? all.filter((p) => p.symbol === symbol.toUpperCase()) : all;
+  }
+
+  runMLPrediction(modelKey: string, symbol: string): MLPrediction | null {
+    const model = ML_MODEL_MAP[modelKey];
+    if (!model) return null;
+    const ctx = this.buildContext(symbol, 300);
+    if (!ctx) return null;
+    const pred = model.predict(ctx);
+    if (!pred) return null;
+    this.mlPredictions.set(`${modelKey}:${symbol}`, pred);
+    return pred;
+  }
+
+  // --- Brokers --------------------------------------------------------------
+  listBrokers() {
+    return this.brokerRouter.listBrokers().map((e) => ({
+      kind: e.kind,
+      connected: e.connected,
+      healthy: e.healthy,
+      lastHealthCheck: e.lastHealthCheck,
+    }));
+  }
+
+  async connectBroker(kind: "alpaca" | "ibkr", config: { apiKey: string; apiSecret: string; accountId?: string; mode?: "PAPER" | "SANDBOX" | "LIVE" }) {
+    if (kind === "alpaca") {
+      this.brokerRouter.registerAlpaca({
+        brokerId: "alpaca",
+        brokerName: "Alpaca",
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
+        accountId: config.accountId,
+        mode: config.mode ?? "PAPER",
+        baseUrl: config.mode === "LIVE" ? "https://api.alpaca.markets" : "https://paper-api.alpaca.markets",
+      });
+      await this.brokerRouter.connect("alpaca");
+    } else if (kind === "ibkr") {
+      this.brokerRouter.registerIBKR({
+        brokerId: "ibkr",
+        brokerName: "Interactive Brokers",
+        apiKey: config.apiKey,
+        apiSecret: config.apiSecret,
+        accountId: config.accountId,
+        mode: config.mode ?? "PAPER",
+      });
+      await this.brokerRouter.connect("ibkr");
+    }
+    this.recordRiskEvent("BROKER_CONNECT", "INFO", `Connected to ${kind} broker (mode: ${config.mode ?? "PAPER"})`);
+    return this.listBrokers();
+  }
+
+  routeOrder(symbol: string, side: "BUY" | "SELL", quantity: number) {
+    return this.brokerRouter.route(symbol, side, quantity);
   }
 
   // --- Risk -----------------------------------------------------------------

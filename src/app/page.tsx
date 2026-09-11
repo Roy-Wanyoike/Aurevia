@@ -14,6 +14,8 @@ import { RegimesView } from "@/components/aurevia/views/regimes-view";
 import { RiskView } from "@/components/aurevia/views/risk-view";
 import { PortfolioView } from "@/components/aurevia/views/portfolio-view";
 import { OrdersView } from "@/components/aurevia/views/orders-view";
+import { MLView } from "@/components/aurevia/views/ml-view";
+import { BrokersView } from "@/components/aurevia/views/brokers-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
 import { SettingsView } from "@/components/aurevia/views/settings-view";
 
@@ -47,6 +49,8 @@ function ViewRouter() {
     case "risk": return <RiskView />;
     case "portfolio": return <PortfolioView />;
     case "orders": return <OrdersView />;
+    case "ml": return <MLView />;
+    case "brokers": return <BrokersView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
     default: return <DashboardView />;

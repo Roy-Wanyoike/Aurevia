@@ -15,7 +15,8 @@ import {
   HeartPulse,
   Settings,
   ChevronLeft,
-  CircleDot,
+  Brain,
+  Plug,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -36,11 +37,13 @@ const NAV: NavItem[] = [
   { key: "trends", label: "Trends", icon: TrendingUp, group: "intelligence" },
   { key: "regimes", label: "Regimes", icon: Activity, group: "intelligence" },
   { key: "signals", label: "Signals", icon: Radio, group: "intelligence" },
+  { key: "ml", label: "ML Predictions", icon: Brain, group: "intelligence" },
   { key: "strategies", label: "Strategies", icon: Cpu, group: "trading" },
   { key: "backtests", label: "Backtests", icon: FlaskConical, group: "trading" },
   { key: "portfolio", label: "Portfolio", icon: Wallet, group: "trading" },
   { key: "orders", label: "Orders", icon: ScrollText, group: "trading" },
   { key: "risk", label: "Risk Engine", icon: ShieldAlert, group: "trading" },
+  { key: "brokers", label: "Brokers", icon: Plug, group: "trading" },
   { key: "system", label: "System Health", icon: HeartPulse, group: "system" },
   { key: "settings", label: "Settings", icon: Settings, group: "system" },
 ];
@@ -63,7 +66,7 @@ export function Sidebar() {
     >
       <div className="flex h-14 items-center gap-2 border-b border-sidebar-border px-4">
         <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <CircleDot className="h-4 w-4" />
+          <Activity className="h-4 w-4" />
         </div>
         {!sidebarCollapsed && (
           <div className="flex flex-col leading-none">
