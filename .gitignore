@@ -52,3 +52,22 @@ prompt
 server.log
 # Skills directory
 /skills/
+
+# Database files (SQLite runtime data — must never be committed)
+/db/*.db
+/db/*.db-journal
+/db/*.db-wal
+/db/*.db-shm
+
+# Agent context (local working files)
+/agent-ctx/
+
+# Upload / scratch directories
+/upload/
+/tool-results/
+
+# Downloaded screenshots / generated artifacts (kept locally only)
+/download/*.png
+/download/*.pdf
+/download/*.csv
+/download/*.json
