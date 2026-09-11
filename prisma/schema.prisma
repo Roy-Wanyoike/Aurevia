@@ -1,0 +1,141 @@
+// Aurevia — Market Intelligence Infrastructure
+// Prisma schema. SQLite for dev/demo. Durable records: backtests, signals,
+// orders, positions, risk events. Market data is ephemeral (in-memory simulated feed).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  role         String   @default("trader") // trader | admin | viewer
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Catalog of tradeable assets (seeded).
+model Asset {
+  id        String   @id @default(cuid())
+  symbol    String   @unique
+  name      String
+  exchange  String
+  assetType String // equity | crypto | fx | etf
+  sector    String?
+  currency  String   @default("USD")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
+
+// A strategy plugin that generates signals.
+model Strategy {
+  id          String   @id @default(cuid())
+  key         String   @unique // momentum | trend-following | ...
+  name        String
+  description String
+  category    String   // momentum | trend | mean-reversion | breakout | regime
+  version     String   @default("1.0.0")
+  params      String   // JSON string
+  enabled     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// Signals emitted by strategies.
+model Signal {
+  id         String   @id @default(cuid())
+  strategyKey String
+  symbol     String
+  action     String   // BUY | SELL | HOLD | CLOSE
+  confidence Float    // 0..1
+  price      Float
+  reasons    String   // JSON array
+  timestamp  DateTime @default(now())
+  status     String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXPIRED
+  riskReason String?
+}
+
+// Backtest run metadata + result metrics.
+model Backtest {
+  id            String   @id @default(cuid())
+  strategyKey   String
+  symbol        String
+  timeframe     String   @default("1d")
+  startDate     DateTime
+  endDate       DateTime
+  initialCapital Float
+  status        String   @default("COMPLETED") // PENDING | RUNNING | COMPLETED | FAILED
+  totalReturn   Float?
+  annualReturn  Float?
+  sharpe        Float?
+  sortino       Float?
+  maxDrawdown   Float?
+  winRate       Float?
+  trades        Int?
+  exposure      Float?
+  equityCurve   String?  // JSON array of {t, equity}
+  tradesJson    String?  // JSON array of trade objects
+  createdAt     DateTime @default(now())
+}
+
+// Paper-broker orders.
+model Order {
+  id           String   @id @default(cuid())
+  symbol       String
+  side         String   // BUY | SELL
+  quantity     Float
+  orderType    String   @default("MARKET") // MARKET | LIMIT | STOP
+  limitPrice   Float?
+  status       String   @default("CREATED") // CREATED -> SUBMITTED -> ACKNOWLEDGED -> FILLED | REJECTED | CANCELLED
+  filledPrice  Float?
+  filledQty    Float?
+  strategyKey  String?
+  reason       String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+// Risk profile + circuit breaker state.
+model RiskProfile {
+  id                String   @id @default(cuid())
+  name              String   @unique
+  maxPositionPct    Float    @default(0.25)
+  maxPortfolioPct   Float    @default(1.0)
+  maxLeverage       Float    @default(1.0)
+  maxDailyLossPct   Float    @default(0.03)
+  maxWeeklyLossPct  Float    @default(0.06)
+  maxDrawdownPct    Float    @default(0.10)
+  maxSpread         Float    @default(0.005)
+  maxVolatility     Float    @default(0.05)
+  minLiquidity      Float    @default(10000)
+  cooldownMinutes   Int      @default(15)
+  circuitBreakerState String @default("NORMAL") // NORMAL | CAUTION | TRADING_PAUSED | RE_EVALUATING
+  tradingMode       String   @default("PAPER") // ANALYSIS_ONLY | PAPER | SANDBOX | LIVE
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+}
+
+model RiskEvent {
+  id         String   @id @default(cuid())
+  type       String   // CIRCUIT_BREAKER_TRIGGER | LIMIT_BREACH | STALE_DATA | ...
+  severity   String   // INFO | WARNING | CRITICAL
+  message    String
+  context    String?  // JSON
+  timestamp  DateTime @default(now())
+}
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  actor      String
+  action     String
+  entity     String
+  entityId   String?
+  detail     String?
+  timestamp  DateTime @default(now())
+}
