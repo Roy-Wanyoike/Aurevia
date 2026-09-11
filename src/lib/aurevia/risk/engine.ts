@@ -174,15 +174,31 @@ export function nextBreakerState(
     triggers.dailyLossHit ||
     triggers.maxDrawdownHit;
 
+  // LATCHING (BE-P0-006): once the breaker reaches TRADING_PAUSED, it does
+  // NOT auto-recover on empty triggers. A human operator must explicitly
+  // move it to RE_EVALUATING, then to NORMAL. The previous implementation
+  // auto-recovered from TRADING_PAUSED → NORMAL on the first empty-trigger
+  // call, making the breaker a no-op. RE_EVALUATING is now reachable only
+  // via explicit operator action from TRADING_PAUSED.
   if (!any) {
-    if (current === "TRADING_PAUSED" || current === "RE_EVALUATING" || current === "CAUTION") {
-      // Auto-recover to NORMAL when conditions clear.
+    if (current === "TRADING_PAUSED") {
+      return {
+        next: "TRADING_PAUSED",
+        reason: "Trading remains paused — operator must explicitly move to RE_EVALUATING to begin recovery",
+      };
+    }
+    if (current === "RE_EVALUATING") {
+      // Auto-recover from RE_EVALUATING only — operator has acknowledged the
+      // incident and is ready to resume.
+      return { next: "NORMAL", reason: "Re-evaluation complete — resuming normal operation" };
+    }
+    if (current === "CAUTION") {
       return { next: "NORMAL", reason: "Conditions normalized — resuming normal operation" };
     }
     return { next: "NORMAL", reason: "No triggers" };
   }
 
-  // Severe triggers escalate to TRADING_PAUSED immediately.
+  // Severe triggers escalate to TRADING_PAUSED immediately (latched).
   const severe =
     triggers.crashDetected ||
     triggers.brokerDisconnect ||
@@ -191,7 +207,7 @@ export function nextBreakerState(
     triggers.liquidityCollapse;
 
   if (severe) {
-    return { next: "TRADING_PAUSED", reason: "Severe trigger — trading paused, positions protected" };
+    return { next: "TRADING_PAUSED", reason: "Severe trigger — trading paused, positions protected. Operator action required to resume." };
   }
   // Moderate triggers move to CAUTION (still allows trading, more conservative).
   if (current === "NORMAL") {

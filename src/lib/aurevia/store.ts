@@ -142,6 +142,11 @@ class AureviaStore {
   }
 
   // --- Orders & execution ---------------------------------------------------
+  // CRITICAL (BE-P0-001): submitOrder is the SINGLE enforcement point for
+  // the risk engine. No order reaches the broker without passing all risk
+  // rules + circuit breaker state. If evaluateRisk returns REJECTED or
+  // PAUSED, the order is recorded with status=REJECTED and a risk event
+  // is logged. The broker is NEVER called for rejected orders.
   submitOrder(order: Omit<OrderRecord, "id" | "createdAt" | "updatedAt" | "status">): OrderRecord {
     const rec: OrderRecord = {
       ...order,
@@ -150,13 +155,50 @@ class AureviaStore {
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
+
+    // Step 1: Build a synthetic Signal so the risk engine can evaluate the
+    // proposed order against all 11 rules + circuit breaker.
+    const proposedSignal: Signal = {
+      id: `sig-order-${rec.id}`,
+      strategyKey: order.strategyKey ?? "manual",
+      symbol: order.symbol,
+      action: order.side === "BUY" ? "BUY" : "SELL",
+      confidence: 1.0,
+      price: this.getQuote(order.symbol).price,
+      reasons: [order.reason ?? "Manual order"],
+      timestamp: Date.now(),
+    };
+
+    // Step 2: Run the risk evaluation. This is the gate.
+    const riskEval = this.evaluateSignal(proposedSignal);
+
+    // Step 3: Enforce. Only APPROVED orders proceed to the broker.
+    if (riskEval.decision !== "APPROVED") {
+      rec.status = "REJECTED";
+      rec.reason = `Risk engine: ${riskEval.decision} — ${riskEval.reasons.join("; ")}`;
+      rec.updatedAt = Date.now();
+      this.orders.unshift(rec);
+      this.orders = this.orders.slice(0, ORDER_RETENTION);
+      this.recordRiskEvent(
+        "ORDER_REJECTED",
+        riskEval.decision === "REJECTED" ? "WARNING" : "CRITICAL",
+        `Order ${rec.id} ${rec.symbol} ${rec.side} ${rec.quantity} rejected: ${riskEval.reasons.join("; ")}`,
+        { orderId: rec.id, decision: riskEval.decision, breaker: riskEval.circuitBreakerState }
+      );
+      return rec;
+    }
+
+    // Step 4: Approved — submit to the paper broker.
     rec.status = "SUBMITTED";
     const quote = this.getQuote(rec.symbol);
     const fill = this.broker.fillMarketOrder(rec, quote);
     if (!fill) {
       rec.status = "REJECTED";
+      rec.reason = "Broker rejected order (no fill available)";
+      rec.updatedAt = Date.now();
       this.orders.unshift(rec);
       this.orders = this.orders.slice(0, ORDER_RETENTION);
+      this.recordRiskEvent("ORDER_REJECTED", "WARNING", `Broker rejected order ${rec.id}: no fill`, { orderId: rec.id });
       return rec;
     }
     rec.status = "FILLED";
@@ -172,6 +214,18 @@ class AureviaStore {
     const quotes = new Map<string, Quote>();
     for (const a of this.assetCatalog) quotes.set(a.symbol, this.getQuote(a.symbol));
     this.portfolio.markToMarket(quotes);
+
+    // Step 5: Post-fill risk check. If the fill pushed the portfolio past
+    // any hard limit, escalate the circuit breaker (latched).
+    const postPortfolio = this.portfolio.state();
+    if (postPortfolio.drawdown > this.riskProfile.maxDrawdownPct) {
+      this.setBreakerState("TRADING_PAUSED", `Post-fill drawdown ${(postPortfolio.drawdown * 100).toFixed(2)}% exceeds max ${this.riskProfile.maxDrawdownPct * 100}%`);
+    }
+    const dayLossPct = this.dayStartEquity > 0 ? (postPortfolio.equity - this.dayStartEquity) / this.dayStartEquity : 0;
+    if (dayLossPct < -this.riskProfile.maxDailyLossPct) {
+      this.setBreakerState("TRADING_PAUSED", `Post-fill daily loss ${(dayLossPct * 100).toFixed(2)}% exceeds max -${this.riskProfile.maxDailyLossPct * 100}%`);
+    }
+
     return rec;
   }
 

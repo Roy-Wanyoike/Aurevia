@@ -71,7 +71,10 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
   const takeProfitPct = cfg.takeProfitPct ?? 0;
 
   let cash = cfg.initialCapital;
-  let position: OpenPosition | null = null;
+  // Wrap position in a holder object so TypeScript can track mutations across
+  // the open/close helper functions. A bare `let position: OpenPosition | null`
+  // gets narrowed to `never` inside hoisted function declarations.
+  const state: { position: OpenPosition | null } = { position: null };
   let realizedPnl = 0;
   let feesPaid = 0;
   let peakEquity = cfg.initialCapital;
@@ -84,141 +87,10 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
   const benchmarkFirst = candles[60].close;
   const benchmarkQty = cfg.initialCapital / benchmarkFirst;
 
-  for (let i = 60; i < candles.length; i++) {
-    const prefix = candles.slice(0, i + 1);
-    const indicators = computeIndicators(prefix);
-    const trend = detectTrend(prefix);
-    const regime = detectRegime(prefix);
-    const bar = candles[i];
-
-    // Mark-to-market equity at this bar's close.
-    const unrealized =
-      position != null
-        ? position.side === "LONG"
-          ? (bar.close - position.entryPrice) * position.quantity
-          : (position.entryPrice - bar.close) * position.quantity
-        : 0;
-    const equity = cash + unrealized;
-    if (equity > peakEquity) peakEquity = equity;
-    const dd = peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0;
-    if (dd > maxDrawdown) maxDrawdown = dd;
-
-    equityCurve.push({
-      t: bar.time,
-      equity: round2(equity),
-      benchmark: round2(benchmarkQty * bar.close),
-    });
-
-    // Update trailing stop / take-profit trackers.
-    if (position) {
-      position.highSince = Math.max(position.highSince, bar.high);
-      position.lowSince = Math.min(position.lowSince, bar.low);
-      // Stop loss / take profit checks (only after entry bar).
-      if (position.entryBar !== i) {
-        if (position.side === "LONG") {
-          if (stopLossPct > 0 && position.entryPrice > 0) {
-            const stop = position.entryPrice * (1 - stopLossPct);
-            if (bar.low <= stop) {
-              const exitPrice = applySlippage(stop, "SELL", slippageBps);
-              close(position, exitPrice, bar.time, i, "Stop loss hit", bar);
-              continue;
-            }
-          }
-          if (takeProfitPct > 0 && position.entryPrice > 0) {
-            const target = position.entryPrice * (1 + takeProfitPct);
-            if (bar.high >= target) {
-              const exitPrice = applySlippage(target, "SELL", slippageBps);
-              close(position, exitPrice, bar.time, i, "Take profit hit", bar);
-              continue;
-            }
-          }
-        } else {
-          if (stopLossPct > 0 && position.entryPrice > 0) {
-            const stop = position.entryPrice * (1 + stopLossPct);
-            if (bar.high >= stop) {
-              const exitPrice = applySlippage(stop, "BUY", slippageBps);
-              close(position, exitPrice, bar.time, i, "Stop loss hit (short)", bar);
-              continue;
-            }
-          }
-          if (takeProfitPct > 0 && position.entryPrice > 0) {
-            const target = position.entryPrice * (1 - takeProfitPct);
-            if (bar.low <= target) {
-              const exitPrice = applySlippage(target, "BUY", slippageBps);
-              close(position, exitPrice, bar.time, i, "Take profit hit (short)", bar);
-              continue;
-            }
-          }
-        }
-      }
-    }
-
-    // Run strategy at this bar.
-    const quote = buildQuote(cfg.symbol, prefix);
-    const ctx = {
-      asset: { symbol: cfg.symbol, name: cfg.symbol, exchange: "", assetType: "equity" as const, currency: "USD" },
-      candles: prefix,
-      quote,
-      indicators,
-      trend,
-      regime,
-    };
-    const rawSignal = strategy.evaluate(ctx);
-    if (!rawSignal) continue;
-
-    const action = rawSignal.action;
-
-    // Position management.
-    if (action === "BUY") {
-      if (position && position.side === "SHORT") {
-        close(position, applySlippage(bar.close, "BUY", slippageBps), bar.time, i, "Signal flipped to BUY", bar);
-      }
-      if (!position) {
-        open("LONG", bar, i, positionPct, cash, commissionBps, slippageBps);
-      }
-    } else if (action === "SELL") {
-      if (position && position.side === "LONG") {
-        close(position, applySlippage(bar.close, "SELL", slippageBps), bar.time, i, "Signal flipped to SELL", bar);
-      }
-      if (!position && allowShort) {
-        open("SHORT", bar, i, positionPct, cash, commissionBps, slippageBps);
-      }
-    } else if (action === "CLOSE") {
-      if (position) {
-        const side = position.side === "LONG" ? "SELL" : "BUY";
-        close(position, applySlippage(bar.close, side, slippageBps), bar.time, i, "Signal requested close", bar);
-      }
-    }
-  }
-
-  // Close any remaining position at the last bar for clean metrics.
-  if (position) {
-    const lastBar = candles[candles.length - 1];
-    const side = position.side === "LONG" ? "SELL" : "BUY";
-    close(position, applySlippage(lastBar.close, side, slippageBps), lastBar.time, candles.length - 1, "Backtest end", lastBar);
-  }
-
-  const finalEquity = round2(cash);
-  const metrics = computeMetrics(equityCurve, trades, cfg.initialCapital, finalEquity);
-
-  return {
-    id: `bt-${createdAt}-${Math.floor(Math.random() * 1e6)}`,
-    strategyKey: cfg.strategyKey,
-    symbol: cfg.symbol,
-    timeframe: cfg.timeframe,
-    startDate: candles[60].time,
-    endDate: candles[candles.length - 1].time,
-    initialCapital: cfg.initialCapital,
-    finalEquity,
-    metrics,
-    equityCurve,
-    trades,
-    status: "COMPLETED",
-    createdAt,
-  };
-
-  // Local closures over loop state. Using function-hoisting for clarity.
-  function open(
+  // Arrow-function closures that mutate `state.position`. Declared BEFORE the
+  // loop so they're initialized (no TDZ). TypeScript tracks mutations through
+  // the holder object, fixing the `never`-narrowing from hoisted functions.
+  const openPosition = (
     side: "LONG" | "SHORT",
     bar: Candle,
     i: number,
@@ -226,7 +98,7 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
     equity: number,
     commBps: number,
     slipBps: number
-  ) {
+  ) => {
     const price = applySlippage(bar.close, side === "LONG" ? "BUY" : "SELL", slipBps);
     const qty = (equity * pct) / price;
     if (qty <= 0) return;
@@ -238,7 +110,7 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
     } else {
       cash += price * qty;
     }
-    position = {
+    state.position = {
       side,
       entryPrice: price,
       quantity: qty,
@@ -247,16 +119,15 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
       highSince: bar.high,
       lowSince: bar.low,
     };
-  }
+  };
 
-  function close(
+  const closePosition = (
     pos: OpenPosition,
     exitPrice: number,
     exitTime: number,
     exitBar: number,
-    reason: string,
-    bar: Candle
-  ) {
+    reason: string
+  ) => {
     const commission = (exitPrice * pos.quantity * commissionBps) / 10000;
     feesPaid += commission;
     cash -= commission;
@@ -283,8 +154,141 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
       barsHeld: exitBar - pos.entryBar,
       reason,
     });
-    position = null;
+    state.position = null;
+  };
+
+  for (let i = 60; i < candles.length; i++) {
+    const prefix = candles.slice(0, i + 1);
+    const indicators = computeIndicators(prefix);
+    const trend = detectTrend(prefix);
+    const regime = detectRegime(prefix);
+    const bar = candles[i];
+    const position = state.position;
+
+    // Mark-to-market equity at this bar's close.
+    const unrealized = position
+      ? position.side === "LONG"
+        ? (bar.close - position.entryPrice) * position.quantity
+        : (position.entryPrice - bar.close) * position.quantity
+      : 0;
+    const equity = cash + unrealized;
+    if (equity > peakEquity) peakEquity = equity;
+    const dd = peakEquity > 0 ? (peakEquity - equity) / peakEquity : 0;
+    if (dd > maxDrawdown) maxDrawdown = dd;
+
+    equityCurve.push({
+      t: bar.time,
+      equity: round2(equity),
+      benchmark: round2(benchmarkQty * bar.close),
+    });
+
+    // Update trailing stop / take-profit trackers.
+    if (position) {
+      position.highSince = Math.max(position.highSince, bar.high);
+      position.lowSince = Math.min(position.lowSince, bar.low);
+      // Stop loss / take profit checks (only after entry bar).
+      if (position.entryBar !== i) {
+        if (position.side === "LONG") {
+          if (stopLossPct > 0 && position.entryPrice > 0) {
+            const stop = position.entryPrice * (1 - stopLossPct);
+            if (bar.low <= stop) {
+              const exitPrice = applySlippage(stop, "SELL", slippageBps);
+              closePosition(position, exitPrice, bar.time, i, "Stop loss hit");
+              continue;
+            }
+          }
+          if (takeProfitPct > 0 && position.entryPrice > 0) {
+            const target = position.entryPrice * (1 + takeProfitPct);
+            if (bar.high >= target) {
+              const exitPrice = applySlippage(target, "SELL", slippageBps);
+              closePosition(position, exitPrice, bar.time, i, "Take profit hit");
+              continue;
+            }
+          }
+        } else {
+          if (stopLossPct > 0 && position.entryPrice > 0) {
+            const stop = position.entryPrice * (1 + stopLossPct);
+            if (bar.high >= stop) {
+              const exitPrice = applySlippage(stop, "BUY", slippageBps);
+              closePosition(position, exitPrice, bar.time, i, "Stop loss hit (short)");
+              continue;
+            }
+          }
+          if (takeProfitPct > 0 && position.entryPrice > 0) {
+            const target = position.entryPrice * (1 - takeProfitPct);
+            if (bar.low <= target) {
+              const exitPrice = applySlippage(target, "BUY", slippageBps);
+              closePosition(position, exitPrice, bar.time, i, "Take profit hit (short)");
+              continue;
+            }
+          }
+        }
+      }
+    }
+
+    // Run strategy at this bar.
+    const quote = buildQuote(cfg.symbol, prefix);
+    const ctx = {
+      asset: { symbol: cfg.symbol, name: cfg.symbol, exchange: "", assetType: "equity" as const, currency: "USD" },
+      candles: prefix,
+      quote,
+      indicators,
+      trend,
+      regime,
+    };
+    const rawSignal = strategy.evaluate(ctx);
+    if (!rawSignal) continue;
+
+    const action = rawSignal.action;
+
+    // Position management.
+    if (action === "BUY") {
+      if (state.position && state.position.side === "SHORT") {
+        closePosition(state.position, applySlippage(bar.close, "BUY", slippageBps), bar.time, i, "Signal flipped to BUY");
+      }
+      if (!state.position) {
+        openPosition("LONG", bar, i, positionPct, cash, commissionBps, slippageBps);
+      }
+    } else if (action === "SELL") {
+      if (state.position && state.position.side === "LONG") {
+        closePosition(state.position, applySlippage(bar.close, "SELL", slippageBps), bar.time, i, "Signal flipped to SELL");
+      }
+      if (!state.position && allowShort) {
+        openPosition("SHORT", bar, i, positionPct, cash, commissionBps, slippageBps);
+      }
+    } else if (action === "CLOSE") {
+      if (state.position) {
+        const side = state.position.side === "LONG" ? "SELL" : "BUY";
+        closePosition(state.position, applySlippage(bar.close, side, slippageBps), bar.time, i, "Signal requested close");
+      }
+    }
   }
+
+  // Close any remaining position at the last bar for clean metrics.
+  if (state.position) {
+    const lastBar = candles[candles.length - 1];
+    const side = state.position.side === "LONG" ? "SELL" : "BUY";
+    closePosition(state.position, applySlippage(lastBar.close, side, slippageBps), lastBar.time, candles.length - 1, "Backtest end");
+  }
+
+  const finalEquity = round2(cash);
+  const metrics = computeMetrics(equityCurve, trades, cfg.initialCapital, finalEquity);
+
+  return {
+    id: `bt-${createdAt}-${Math.floor(Math.random() * 1e6)}`,
+    strategyKey: cfg.strategyKey,
+    symbol: cfg.symbol,
+    timeframe: cfg.timeframe,
+    startDate: candles[60].time,
+    endDate: candles[candles.length - 1].time,
+    initialCapital: cfg.initialCapital,
+    finalEquity,
+    metrics,
+    equityCurve,
+    trades,
+    status: "COMPLETED",
+    createdAt,
+  };
 }
 
 function applySlippage(price: number, side: "BUY" | "SELL", bps: number): number {

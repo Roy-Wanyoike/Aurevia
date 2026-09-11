@@ -1,4 +1,4 @@
-import type { MarketContext } from "../types";
+import type { MarketContext, Signal } from "../types";
 import { Strategy, toSignal, ACTION, clamp01 } from "./base";
 
 export const momentumStrategy: Strategy = {

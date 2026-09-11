@@ -147,9 +147,20 @@ export class PortfolioManager {
       if (existing.quantity < 1e-9) {
         this.positions.delete(fill.symbol);
       } else if (fill.filledQty > closeQty) {
-        // Flipped direction.
+        // Flipped direction. The `closeQty` portion closed the existing
+        // position (cash already adjusted above). The `leftover` portion
+        // opens a NEW position in the opposite direction — cash MUST be
+        // adjusted for that leftover too, otherwise the cash ledger drifts
+        // on every flip (BE-P0-004).
         const leftover = fill.filledQty - closeQty;
         const newSide = fill.side === "BUY" ? "LONG" : "SHORT";
+        if (newSide === "LONG") {
+          // Buying to open a long: cash decreases by the cost.
+          this.cash -= fill.filledPrice * leftover;
+        } else {
+          // Selling to open a short: cash increases by the proceeds.
+          this.cash += fill.filledPrice * leftover;
+        }
         this.positions.set(fill.symbol, {
           symbol: fill.symbol,
           side: newSide,
@@ -180,18 +191,30 @@ export class PortfolioManager {
 
   state(): PortfolioState {
     const positions = Array.from(this.positions.values());
-    const marketValue = positions.reduce((a, b) => a + b.marketValue, 0);
+    // Equity = cash + (long market value) − (short market value).
+    // A SHORT position's marketValue is the current cost to buy back the
+    // borrowed shares — it's a liability, not an asset. The previous
+    // implementation added all marketValues, inflating equity by 2× per
+    // short (BE-P0-003). grossExposure (for risk caps) is the sum of
+    // absolute market values across both directions.
+    const longMarketValue = positions
+      .filter((p) => p.side === "LONG")
+      .reduce((a, b) => a + b.marketValue, 0);
+    const shortMarketValue = positions
+      .filter((p) => p.side === "SHORT")
+      .reduce((a, b) => a + b.marketValue, 0);
+    const netMarketValue = longMarketValue - shortMarketValue;
+    const grossExposure = longMarketValue + shortMarketValue;
     const unrealizedPnl = positions.reduce((a, b) => a + b.unrealizedPnl, 0);
-    const equity = this.cash + marketValue;
+    const equity = this.cash + netMarketValue;
     if (equity > this.peakEquity) this.peakEquity = equity;
     const drawdown = this.peakEquity > 0 ? (this.peakEquity - equity) / this.peakEquity : 0;
-    const grossExposure = positions.reduce((a, b) => a + b.marketValue, 0);
     const exposure = equity > 0 ? grossExposure / equity : 0;
     const leverage = exposure; // no margin in paper; = gross/equity
     return {
       cash: round2(this.cash),
       equity: round2(equity),
-      marketValue: round2(marketValue),
+      marketValue: round2(netMarketValue),
       unrealizedPnl: round2(unrealizedPnl),
       realizedPnl: round2(this.realizedPnl),
       feesPaid: round2(this.feesPaid),

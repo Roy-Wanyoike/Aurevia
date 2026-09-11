@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { Toaster } from "@/components/ui/toaster";
+import { Toaster as SonnerToaster } from "sonner";
 import { ThemeProvider } from "@/components/aurevia/theme-provider";
 
 const geistSans = Geist({
@@ -35,7 +35,21 @@ export default function RootLayout({
       >
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false}>
           {children}
-          <Toaster />
+          {/* Sonner toaster — REQUIRED for toast() calls from views (FE-P0-001).
+              The previous layout mounted the shadcn Toaster from @/components/ui/toaster,
+              but every view imports { toast } from "sonner" — so toasts were silently dropped. */}
+          <SonnerToaster
+            position="bottom-right"
+            richColors
+            closeButton
+            toastOptions={{
+              style: {
+                background: "oklch(0.205 0.014 250)",
+                border: "1px solid oklch(1 0 0 / 10%)",
+                color: "oklch(0.95 0.005 250)",
+              },
+            }}
+          />
         </ThemeProvider>
       </body>
     </html>

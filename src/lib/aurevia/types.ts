@@ -229,3 +229,14 @@ export interface OrderRecord {
   createdAt: number;
   updatedAt: number;
 }
+
+// Risk event log entry — used by the circuit breaker state machine and the
+// risk cockpit view. Stored in-memory in the singleton store.
+export interface RiskEvent {
+  id: string;
+  type: string; // CIRCUIT_BREAKER_TRIGGER | LIMIT_BREACH | STALE_DATA | RISK_PROFILE_UPDATE | ORDER_REJECTED | ...
+  severity: "INFO" | "WARNING" | "CRITICAL";
+  message: string;
+  context?: string; // JSON string of additional context
+  timestamp: number;
+}
