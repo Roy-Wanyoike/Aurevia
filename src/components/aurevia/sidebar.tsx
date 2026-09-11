@@ -20,6 +20,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
+import { useAureviaStream } from "@/lib/aurevia/hooks/use-aurevia-stream";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
@@ -126,6 +127,9 @@ export function Sidebar() {
 export function Topbar() {
   const { view } = useUI();
   const current = NAV.find((n) => n.key === view);
+  const { connected, ticks } = useAureviaStream();
+  const tickArr = Array.from(ticks.values()).slice(0, 6);
+
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/80 px-6 backdrop-blur">
       <div className="flex items-center gap-3">
@@ -134,10 +138,27 @@ export function Topbar() {
           <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
           PAPER MODE
         </Badge>
+        {connected && (
+          <Badge variant="outline" className="border-cyan-500/30 bg-cyan-500/10 text-cyan-400">
+            <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+            LIVE
+          </Badge>
+        )}
+      </div>
+      {/* Live ticker bar — streaming prices from WebSocket */}
+      <div className="hidden items-center gap-3 overflow-hidden lg:flex">
+        {tickArr.map((t) => (
+          <div key={t.symbol} className="flex items-center gap-1.5 text-xs">
+            <span className="font-medium text-muted-foreground">{t.symbol}</span>
+            <span className="tabular text-foreground">{t.price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <span className={`tabular ${t.changePct >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+              {t.changePct >= 0 ? "+" : ""}{t.changePct.toFixed(2)}%
+            </span>
+          </div>
+        ))}
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline" className="font-mono">v0.1.0</Badge>
-        <span className="hidden md:inline">Aurevia Market Intelligence Infrastructure</span>
       </div>
     </header>
   );
