@@ -8,9 +8,6 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
-  eslint: {
-    ignoreDuringBuilds: false,
-  },
   reactStrictMode: true,
   // Security headers (FE-P1-008) — basic CSP, frame-ancestors to prevent
   // clickjacking, and X-Content-Type-Options to prevent MIME sniffing.

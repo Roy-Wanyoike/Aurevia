@@ -12,12 +12,88 @@ datasource db {
 }
 
 model User {
+  id            String   @id @default(cuid())
+  email         String   @unique
+  name          String?
+  hashedPassword String?
+  role          String   @default("trader") // trader | admin | viewer
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  memberships   Membership[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+// --- NextAuth required models ---
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
   id           String   @id @default(cuid())
-  email        String   @unique
-  name         String?
-  role         String   @default("trader") // trader | admin | viewer
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// --- Multi-tenant: Organizations + Teams + Memberships ---
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  slug        String   @unique
+  plan        String   @default("free") // free | pro | enterprise
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  memberships Membership[]
+  teams       Team[]
+}
+
+model Team {
+  id              String   @id @default(cuid())
+  name            String
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  memberships     Membership[]
+  createdAt       DateTime @default(now())
+
+  @@unique([organizationId, name])
+}
+
+model Membership {
+  id              String   @id @default(cuid())
+  userId          String
+  organizationId  String
+  teamId          String?
+  role            String   @default("member") // owner | admin | member | viewer
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  team            Team?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  createdAt       DateTime @default(now())
+
+  @@unique([userId, organizationId])
 }
 
 // Catalog of tradeable assets (seeded).
