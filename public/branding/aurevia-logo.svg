@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <!-- Aurevia brand mark — golden ratio spiral meeting candlestick geometry -->
+  <rect width="512" height="512" rx="96" fill="#0A0E1A"/>
+  <defs>
+    <radialGradient id="glow" cx="50%" cy="45%" r="55%">
+      <stop offset="0%" stop-color="#10B981" stop-opacity="0.12"/>
+      <stop offset="60%" stop-color="#0A0E1A" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="emerald" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#10B981"/>
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#F59E0B"/>
+      <stop offset="100%" stop-color="#FBBF24"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#glow)"/>
+  <path d="M 128 360 Q 160 200 320 168 Q 376 160 384 216 Q 388 264 340 280 Q 304 288 296 256"
+        stroke="url(#emerald)" stroke-width="6" stroke-linecap="round" fill="none" opacity="0.85"/>
+  <g transform="translate(196, 256)">
+    <line x1="0" y1="-80" x2="0" y2="80" stroke="url(#emerald)" stroke-width="3" stroke-linecap="round"/>
+    <rect x="-12" y="-44" width="24" height="88" rx="3" fill="url(#emerald)"/>
+  </g>
+  <g transform="translate(288, 288)">
+    <line x1="0" y1="-56" x2="0" y2="56" stroke="url(#gold)" stroke-width="3" stroke-linecap="round"/>
+    <rect x="-12" y="-28" width="24" height="48" rx="3" fill="url(#gold)" opacity="0.92"/>
+  </g>
+  <path d="M 340 176 L 376 140 L 358 188 Z" fill="url(#emerald)" opacity="0.95"/>
+  <path d="M 196 232 L 288 260 L 376 168" stroke="url(#emerald)" stroke-width="2" stroke-linecap="round" fill="none" opacity="0.4" stroke-dasharray="4 6"/>
+</svg>
