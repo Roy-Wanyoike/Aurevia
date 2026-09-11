@@ -25,12 +25,21 @@ export function fmtCompact(n: number | undefined | null): string {
 
 export function fmtTime(ms: number | undefined | null): string {
   if (!ms) return "—";
-  return new Date(ms).toLocaleTimeString("en-US", { hour12: false });
+  // Fixed UTC timezone — prevents SSR/client hydration mismatch when the
+  // server and browser are in different timezones.
+  return new Date(ms).toLocaleTimeString("en-US", { hour12: false, timeZone: "UTC" });
 }
 
 export function fmtDateTime(ms: number | undefined | null): string {
   if (!ms) return "—";
-  return new Date(ms).toLocaleString("en-US", { hour12: false, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  return new Date(ms).toLocaleString("en-US", {
+    hour12: false,
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "UTC",
+  });
 }
 
 export function fmtDuration(ms: number): string {

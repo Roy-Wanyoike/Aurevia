@@ -22,7 +22,11 @@ export async function GET(req: Request) {
 
 // POST /api/v1/signals — run a fresh scan across the universe.
 export async function POST() {
-  const newSignals = store.scanSignals();
-  const enriched = newSignals.map((s) => ({ ...s, risk: store.evaluateSignal(s) }));
-  return NextResponse.json({ scanned: store.assetCatalog.length, newSignals: enriched });
+  try {
+    const newSignals = store.scanSignals();
+    const enriched = newSignals.map((s) => ({ ...s, risk: store.evaluateSignal(s) }));
+    return NextResponse.json({ scanned: store.assetCatalog.length, newSignals: enriched });
+  } catch (e: any) {
+    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+  }
 }

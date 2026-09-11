@@ -1,5 +1,6 @@
 "use client";
 
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 
 interface SparklineProps {
@@ -11,6 +12,8 @@ interface SparklineProps {
 }
 
 export function Sparkline({ data, width = 120, height = 32, className, positive }: SparklineProps) {
+  // useId() gives a stable SSR/client ID — fixes hydration mismatch from Math.random().
+  const reactId = useId();
   if (!data || data.length < 2) {
     return <div className={cn("h-8 w-full", className)} />;
   }
@@ -23,7 +26,7 @@ export function Sparkline({ data, width = 120, height = 32, className, positive 
     .join(" ");
   const isPos = positive ?? data[data.length - 1] >= data[0];
   const color = isPos ? "oklch(0.72 0.17 162)" : "oklch(0.65 0.21 25)";
-  const fillId = `spark-${isPos ? "g" : "r"}-${Math.random().toString(36).slice(2, 8)}`;
+  const fillId = `spark-${isPos ? "g" : "r"}-${reactId.replace(/:/g, "")}`;
   const areaPoints = `0,${height} ${points} ${width},${height}`;
   return (
     <svg
