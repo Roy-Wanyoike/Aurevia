@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +10,16 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+  // Issue #97 — resolve tenant context at the API boundary. The store is
+  // currently a singleton, so `tenant` is a passthrough here; once per-tenant
+  // facades exist, the caller's organization will scope the signal log.
+  const tenant = await requireTenant();
   try {
+    logger.debug("Signals list requested", {
+      requestId: req.headers.get("x-request-id") ?? "unknown",
+      userId: tenant.userId,
+      organizationId: tenant.organizationId,
+    });
     const url = new URL(req.url);
     const symbol = url.searchParams.get("symbol");
     const strategy = url.searchParams.get("strategy");

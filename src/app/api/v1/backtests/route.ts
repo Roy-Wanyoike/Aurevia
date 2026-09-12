@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { z } from "zod";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 
 export const dynamic = "force-dynamic";
@@ -24,7 +25,16 @@ const RunSchema = z.object({
 export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+  // Issue #97 — resolve tenant context at the API boundary. The store is
+  // currently a singleton, so `tenant` is a passthrough here; once per-tenant
+  // facades exist, the caller's organization will scope the backtest list.
+  const tenant = await requireTenant();
   try {
+    logger.debug("Backtest history requested", {
+      requestId: req.headers.get("x-request-id") ?? "unknown",
+      userId: tenant.userId,
+      organizationId: tenant.organizationId,
+    });
     return NextResponse.json({
       backtests: store.backtests.map((b) => ({
         id: b.id,
