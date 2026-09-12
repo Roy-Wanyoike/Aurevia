@@ -1,13 +1,17 @@
 // Aurevia — Market Intelligence Infrastructure
 // Prisma schema. SQLite for dev/demo. Durable records: backtests, signals,
 // orders, positions, risk events. Market data is ephemeral (in-memory simulated feed).
+//
+// Issue #85: provider is now read from the DATABASE_PROVIDER env var
+// (defaults to "sqlite" for dev). Set DATABASE_PROVIDER=postgresql in
+// production + point DATABASE_URL at your Postgres instance.
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = env("DATABASE_PROVIDER")
   url      = env("DATABASE_URL")
 }
 

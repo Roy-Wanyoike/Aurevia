@@ -16,6 +16,29 @@ import { db } from "@/lib/db";
 // In prod: add Google/GitHub OAuth providers + enterprise SSO (SAML).
 // ---------------------------------------------------------------------------
 
+/**
+ * Resolve the NextAuth signing secret.
+ *
+ * Throws in production when NEXTAUTH_SECRET is unset — the previous silent
+ * fallback to "dev-secret-change-in-production" let anyone forge JWTs by
+ * reading the public source code. In dev the fallback is retained so local
+ * dev continues to work without env config.
+ *
+ * See GitHub issue #59.
+ */
+function getNextAuthSecret(): string {
+  const secret = process.env.NEXTAUTH_SECRET;
+  if (secret) return secret;
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "NEXTAUTH_SECRET is not configured. Set it in your Vercel project " +
+        "settings (Settings → Environment Variables) to a random string of " +
+        "at least 32 characters (e.g. `openssl rand -base64 32`).",
+    );
+  }
+  return "dev-secret-change-in-production";
+}
+
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
   session: {
@@ -73,5 +96,5 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
-  secret: process.env.NEXTAUTH_SECRET ?? "dev-secret-change-in-production",
+  secret: getNextAuthSecret(),
 };
