@@ -210,27 +210,6 @@ export function useSetBreaker() {
 }
 
 // --- Market Pulse (issue #43) ---
-// Global market health snapshot — advancers/decliners, sector performance,
-// market breadth vs SMA50/SMA200, regime distribution, and a composite
-// Fear & Greed score (0..100). Computed server-side from the same
-// `store.buildContext()` data the rest of the app trusts.
-export interface MarketPulse {
-  advancers: number;
-  decliners: number;
-  unchanged: number;
-  sectors: { name: string; avgChange: number; count: number }[];
-  breadth: { aboveSma50Pct: number; aboveSma200Pct: number };
-  regimeDist: Record<string, number>;
-  fearGreed: number;
-  totalAssets: number;
-}
-export function useMarketPulse() {
-  return useQuery({
-    queryKey: ["market-pulse"],
-    queryFn: () => fetchJson<MarketPulse>("/api/v1/market-pulse"),
-    refetchInterval: 60_000,
-  });
-}
 
 // --- Correlation Matrix (issue #44) ---
 // N×N Pearson correlation matrix across the tradeable universe, computed
@@ -302,5 +281,156 @@ export function useRegimes() {
     queryKey: ["regimes"],
     queryFn: () => fetchJson<{ distribution: Record<string, any[]>; summary: any[] }>("/api/v1/regimes"),
     refetchInterval: 60_000,
+  });
+}
+
+// --- Watchlists (issue #41) ---
+// Each watchlist row carries the live quote + a 30-bar sparkline of closes,
+// so the view can render the table without a second /api/v1/sparklines fetch.
+export interface WatchlistQuoteRow {
+  symbol: string;
+  name: string;
+  assetType: string;
+  sector?: string;
+  exchange: string;
+  price: number;
+  changePct: number;
+  volume24h: number;
+  spread: number;
+  bid: number;
+  ask: number;
+  timestamp: number;
+  sparkline: number[];
+}
+export interface WatchlistData {
+  id: string;
+  name: string;
+  symbols: string[];
+  rows: WatchlistQuoteRow[];
+}
+export function useWatchlists() {
+  return useQuery({
+    queryKey: ["watchlists"],
+    queryFn: () => fetchJson<{ watchlists: WatchlistData[]; total: number }>("/api/v1/watchlists").then((d) => d.watchlists),
+    refetchInterval: 30_000,
+  });
+}
+export interface WatchlistActionResponse {
+  ok: boolean;
+  watchlists: WatchlistData[];
+  deleted?: boolean;
+  mutated?: WatchlistData;
+}
+export function useWatchlistAction() {
+  return useMutation({
+    mutationFn: (input: {
+      action: "create" | "addSymbol" | "removeSymbol" | "rename" | "delete";
+      watchlistId?: string;
+      name?: string;
+      symbol?: string;
+    }) => fetchJson<WatchlistActionResponse>("/api/v1/watchlists", {
+      method: "POST",
+      body: JSON.stringify(input),
+    }),
+  });
+}
+
+// --- Screener (issue #42) ---
+// Multi-factor asset filter — POST a filter JSON, get a ranked list of assets
+// that match, each with quote + the indicators needed to render the table.
+export interface ScreenerFilter {
+  assetType?: string;
+  sector?: string;
+  priceMin?: number;
+  priceMax?: number;
+  volumeMin?: number;
+  rsiMin?: number;
+  rsiMax?: number;
+  trendDirection?: string;
+  regime?: string;
+  volatilityMax?: number;
+  changePctMin?: number;
+  changePctMax?: number;
+  adxMin?: number;
+}
+export interface ScreenerResultRow {
+  symbol: string;
+  name: string;
+  assetType: string;
+  sector?: string;
+  exchange: string;
+  price: number;
+  changePct: number;
+  volume24h: number;
+  rsi14: number;
+  adx14: number;
+  volatility: number;
+  trendDirection: string;
+  trendStrength: number;
+  regime: string;
+  macdHist: number;
+}
+export interface ScreenerRunResponse {
+  results: ScreenerResultRow[];
+  total: number;
+  universeSize: number;
+  applied: ScreenerFilter;
+}
+export interface ScreenerOptions {
+  assetTypes: string[];
+  sectors: string[];
+  trendDirections: string[];
+  regimes: string[];
+  universeSize: number;
+}
+export function useScreener() {
+  return useMutation({
+    mutationFn: (filter: ScreenerFilter) =>
+      fetchJson<ScreenerRunResponse>("/api/v1/screener", {
+        method: "POST",
+        body: JSON.stringify(filter),
+      }),
+  });
+}
+export function useScreenerOptions() {
+  return useQuery({
+    queryKey: ["screener-options"],
+    queryFn: () => fetchJson<ScreenerOptions>("/api/v1/screener"),
+    staleTime: 5 * 60_000, // universe rarely changes
+  });
+}
+
+// --- Market Pulse (issue #43) ---
+// Global market health snapshot — advancers/decliners, regime distribution,
+// sector performance, market breadth vs SMA50/SMA200, fear/greed composite.
+export interface MarketPulseData {
+  advancers: number;
+  decliners: number;
+  unchanged: number;
+  total: number;
+  breadth: {
+    aboveSma50: number;
+    aboveSma200: number;
+    pctAboveSma50: number;
+    pctAboveSma200: number;
+  };
+  regimeDistribution: { regime: string; count: number; pct: number }[];
+  sectorPerformance: { sector: string; avgChangePct: number; count: number }[];
+  fearGreed: {
+    score: number;
+    label: string;
+    components: {
+      breadth: number;       // 0..100 — % above SMA50 (smoothed)
+      momentum: number;      // 0..100 — avg changePct scaled
+      volatility: number;    // 0..100 — inverse of avg volatility
+    };
+  };
+  computedAt: number;
+}
+export function useMarketPulse() {
+  return useQuery({
+    queryKey: ["market-pulse"],
+    queryFn: () => fetchJson<MarketPulseData>("/api/v1/market-pulse"),
+    refetchInterval: 30_000,
   });
 }

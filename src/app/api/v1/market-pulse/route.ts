@@ -4,36 +4,27 @@ import { logger } from "@/lib/aurevia/logger";
 
 export const dynamic = "force-dynamic";
 
-// ---------------------------------------------------------------------------
-// Aurevia Market Pulse (issue #43).
-//
-// One-shot global market health snapshot computed across the whole tradeable
-// universe (18 assets). Reads the same `store.buildContext()` data the rest
-// of the app already trusts — no hardcoded numbers, no external API.
-//
-// Returns:
-//   - advancers / decliners / unchanged (by sign of 24h changePct)
-//   - sectors[]: per-sector average 24h changePct
-//   - breadth: % of assets above their SMA50 / SMA200
-//   - regimeDist: count of assets per regime
-//   - fearGreed: 0..100 composite (100 = extreme greed, 0 = extreme fear)
-//   - totalAssets: universe size at compute time
-// ---------------------------------------------------------------------------
+// Aurevia Market Pulse (#43) — returns MarketPulseData shape matching the
+// useMarketPulse() hook interface in hooks.ts.
 
 export async function GET() {
-  const requestId = "market-pulse";
   try {
     const assets = store.assetCatalog;
     let advancers = 0, decliners = 0, unchanged = 0;
     const sectorPerf: Record<string, { count: number; totalChange: number }> = {};
     let aboveSma50 = 0, aboveSma200 = 0, totalWithIndicators = 0;
     const regimeDist: Record<string, number> = {};
+    let totalChange = 0;
+    let totalVolatility = 0;
+
     for (const a of assets) {
       const ctx = store.buildContext(a.symbol, 300);
       if (!ctx) continue;
       if (ctx.quote.changePct > 0) advancers++;
       else if (ctx.quote.changePct < 0) decliners++;
       else unchanged++;
+      totalChange += ctx.quote.changePct;
+      totalVolatility += ctx.trend.volatility;
       const sector = a.sector ?? "Other";
       if (!sectorPerf[sector]) sectorPerf[sector] = { count: 0, totalChange: 0 };
       sectorPerf[sector].count++;
@@ -43,49 +34,66 @@ export async function GET() {
       totalWithIndicators++;
       regimeDist[ctx.regime] = (regimeDist[ctx.regime] ?? 0) + 1;
     }
-    const sectors = Object.entries(sectorPerf).map(([name, d]) => ({
-      name,
-      avgChange: d.totalChange / d.count,
-      count: d.count,
-    }));
-    const breadth = {
-      aboveSma50Pct: totalWithIndicators > 0 ? (aboveSma50 / totalWithIndicators) * 100 : 0,
-      aboveSma200Pct: totalWithIndicators > 0 ? (aboveSma200 / totalWithIndicators) * 100 : 0,
-    };
-    // Fear/Greed: 100 = extreme greed, 0 = extreme fear.
-    // Blends advancer participation (50% weight) with breadth above SMA50
-    // (50% weight) — both are fast-moving breadth signals that capture the
-    // current risk appetite of the universe.
-    const advancerRatio = assets.length > 0 ? advancers / assets.length : 0.5;
-    const fearGreed = Math.round(
-      Math.max(0, Math.min(100, advancerRatio * 50 + breadth.aboveSma50Pct * 0.5)),
-    );
 
-    logger.info("Market pulse computed", {
-      requestId,
-      universeSize: assets.length,
-      advancers,
-      decliners,
-      fearGreed,
-    });
+    const pctAboveSma50 = totalWithIndicators > 0 ? (aboveSma50 / totalWithIndicators) * 100 : 0;
+    const pctAboveSma200 = totalWithIndicators > 0 ? (aboveSma200 / totalWithIndicators) * 100 : 0;
+    const avgChange = assets.length > 0 ? totalChange / assets.length : 0;
+    const avgVolatility = assets.length > 0 ? totalVolatility / assets.length : 0;
+
+    // Fear/Greed components (each 0-100)
+    const breadthScore = pctAboveSma50;
+    const momentumScore = Math.max(0, Math.min(100, 50 + avgChange * 10));
+    const volatilityScore = Math.max(0, Math.min(100, 100 - avgVolatility * 100));
+    const score = Math.round((breadthScore + momentumScore + volatilityScore) / 3);
+
+    const label = score >= 75 ? "Extreme Greed" :
+                  score >= 55 ? "Greed" :
+                  score >= 45 ? "Neutral" :
+                  score >= 25 ? "Fear" : "Extreme Fear";
+
+    const regimeDistribution = Object.entries(regimeDist)
+      .sort((a, b) => b[1] - a[1])
+      .map(([regime, count]) => ({
+        regime,
+        count,
+        pct: assets.length > 0 ? (count / assets.length) * 100 : 0,
+      }));
+
+    const sectorPerformance = Object.entries(sectorPerf)
+      .map(([sector, d]) => ({
+        sector,
+        avgChangePct: d.count > 0 ? d.totalChange / d.count : 0,
+        count: d.count,
+      }))
+      .sort((a, b) => b.avgChangePct - a.avgChangePct);
+
+    logger.info("Market pulse computed", { universeSize: assets.length, advancers, decliners, fearGreed: score });
 
     return NextResponse.json({
       advancers,
       decliners,
       unchanged,
-      sectors,
-      breadth,
-      regimeDist,
-      fearGreed,
-      totalAssets: assets.length,
+      total: assets.length,
+      breadth: {
+        aboveSma50,
+        aboveSma200,
+        pctAboveSma50,
+        pctAboveSma200,
+      },
+      regimeDistribution,
+      sectorPerformance,
+      fearGreed: {
+        score,
+        label,
+        components: {
+          breadth: Math.round(breadthScore),
+          momentum: Math.round(momentumScore),
+          volatility: Math.round(volatilityScore),
+        },
+      },
+      computedAt: Date.now(),
     });
   } catch (e: any) {
-    logger.error("Market pulse failed", {
-      requestId,
-      status: "ERROR",
-      error: e?.message ?? "unknown",
-    });
-    store.health.apiErrors++;
     return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
   }
 }

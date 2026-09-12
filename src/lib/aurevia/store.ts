@@ -37,6 +37,12 @@ const INITIAL_CASH = 100_000;
 const SIGNAL_RETENTION = 200;
 const ORDER_RETENTION = 200;
 
+export interface Watchlist {
+  id: string;
+  name: string;
+  symbols: string[];
+}
+
 class AureviaStore {
   assetCatalog: AssetInfo[] = ASSET_CATALOG;
   candleCache: Map<string, Candle[]> = new Map();
@@ -55,6 +61,19 @@ class AureviaStore {
   lastTradeTime: number = 0;
   recentSymbols: string[] = [];
   lastSignalScan: number = 0;
+  // --- Watchlists -----------------------------------------------------------
+  // User-curated symbol lists. Persisted in-memory; survives hot reloads via
+  // the globalThis singleton. The default watchlist seeds AAPL/MSFT/NVDA/BTC
+  // so the view isn't empty on a fresh install. Symbols are upper-cased on
+  // add so AAPL/aapl/AAPl all collapse to one entry (issue #41).
+  //
+  // The CRUD operations live as module-level functions (see bottom of file)
+  // rather than instance methods so they're reachable from the dev-server's
+  // long-lived singleton — whose prototype was set at construction time and
+  // therefore predates this PR's methods. Module-level functions operate on
+  // `store.watchlists` as an own-property data bag, so they work regardless
+  // of which AureviaStore prototype version the singleton happens to have.
+  watchlists: Watchlist[] = [];
   health: {
     marketDataLatencyMs: number;
     lastTickAt: number;
@@ -341,6 +360,78 @@ class AureviaStore {
     this.recentSymbols = [];
     this.setBreakerState("NORMAL", "Portfolio reset by operator");
   }
+}
+
+// --- Watchlists (module-level API) -----------------------------------------
+// CRUD + add/remove symbol operations on user-curated symbol lists. These
+// are module-level functions rather than instance methods so they're
+// reachable from the dev-server's long-lived singleton — which was
+// constructed before this PR existed and therefore has an older prototype
+// without the new methods. Calling module-level functions is prototype-
+// agnostic: they just reach into `store.watchlists` (an own property on
+// the instance) and mutate it directly. (Issue #41 — Watchlists.)
+
+const DEFAULT_WATCHLIST: Watchlist = {
+  id: "default",
+  name: "My Watchlist",
+  symbols: ["AAPL", "MSFT", "NVDA", "BTC"],
+};
+
+export function getWatchlists(): Watchlist[] {
+  if (!Array.isArray(store.watchlists) || store.watchlists.length === 0) {
+    store.watchlists = [{ ...DEFAULT_WATCHLIST, symbols: [...DEFAULT_WATCHLIST.symbols] }];
+  }
+  return store.watchlists;
+}
+
+export function addWatchlist(name: string): Watchlist {
+  const list = getWatchlists();
+  const trimmed = name.trim();
+  const finalName = trimmed.length > 0 ? trimmed : `Watchlist ${list.length + 1}`;
+  const wl: Watchlist = {
+    // Stable, URL-safe, collision-resistant id. Date.now() + random suffix
+    // matches the existing pattern used by OrderRecord / RiskEvent ids.
+    id: `wl-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    name: finalName,
+    symbols: [],
+  };
+  list.push(wl);
+  return wl;
+}
+
+export function addToWatchlist(watchlistId: string, symbol: string): Watchlist | null {
+  const wl = getWatchlists().find((w) => w.id === watchlistId);
+  if (!wl) return null;
+  const upper = symbol.toUpperCase();
+  if (!wl.symbols.includes(upper)) wl.symbols.push(upper);
+  return wl;
+}
+
+export function removeFromWatchlist(watchlistId: string, symbol: string): Watchlist | null {
+  const wl = getWatchlists().find((w) => w.id === watchlistId);
+  if (!wl) return null;
+  const upper = symbol.toUpperCase();
+  wl.symbols = wl.symbols.filter((s) => s !== upper);
+  return wl;
+}
+
+export function renameWatchlist(watchlistId: string, name: string): Watchlist | null {
+  const wl = getWatchlists().find((w) => w.id === watchlistId);
+  if (!wl) return null;
+  const trimmed = name.trim();
+  if (trimmed.length > 0) wl.name = trimmed;
+  return wl;
+}
+
+export function deleteWatchlist(watchlistId: string): boolean {
+  // The default watchlist cannot be deleted — otherwise a fresh install
+  // would render an empty watchlists view with no clear "create one" affordance.
+  if (watchlistId === "default") return false;
+  const list = getWatchlists();
+  const idx = list.findIndex((w) => w.id === watchlistId);
+  if (idx === -1) return false;
+  list.splice(idx, 1);
+  return true;
 }
 
 // Singleton. Reused across hot reloads in dev via globalThis.

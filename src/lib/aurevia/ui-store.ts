@@ -16,6 +16,8 @@ export type ViewKey =
   | "orders"
   | "ml"
   | "brokers"
+  | "watchlists"
+  | "screener"
   | "market-pulse"
   | "correlation"
   | "system"
@@ -41,7 +43,8 @@ interface UIState {
 const VALID_VIEWS: ReadonlySet<ViewKey> = new Set<ViewKey>([
   "dashboard", "markets", "asset", "strategies", "backtests",
   "signals", "trends", "regimes", "risk", "portfolio",
-  "orders", "ml", "brokers", "market-pulse", "correlation", "system", "settings",
+  "orders", "ml", "brokers", "watchlists", "screener",
+  "market-pulse", "correlation", "system", "settings",
 ]);
 
 export const useUI = create<UIState>((set) => ({

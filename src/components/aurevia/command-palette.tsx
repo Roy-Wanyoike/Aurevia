@@ -37,6 +37,9 @@ import {
   Clock,
   ArrowUp,
   ArrowDown,
+  Star,
+  Filter,
+  Gauge,
   type LucideIcon,
 } from "lucide-react";
 
@@ -65,9 +68,12 @@ interface NavCommand {
 // trends/regimes/orders are reachable from the sidebar; the palette stays
 // focused on the primary destinations).
 const NAV_COMMANDS: NavCommand[] = [
+  { key: "market-pulse", label: "Market Pulse", icon: Gauge },
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { key: "markets", label: "Markets", icon: LineChart },
   { key: "asset", label: "Asset Analysis", icon: CandlestickChart },
+  { key: "watchlists", label: "Watchlists", icon: Star },
+  { key: "screener", label: "Screener", icon: Filter },
   { key: "signals", label: "Signals", icon: Radio },
   { key: "strategies", label: "Strategies", icon: Cpu },
   { key: "backtests", label: "Backtests", icon: FlaskConical },

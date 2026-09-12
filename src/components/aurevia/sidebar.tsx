@@ -20,8 +20,9 @@ import {
   Brain,
   Plug,
   Menu,
+  Star,
+  Filter,
   Gauge,
-  Grid3x3,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -40,14 +41,14 @@ interface NavItem {
 
 const NAV: NavItem[] = [
   // Market Pulse leads the intelligence group — it's the at-a-glance global
-  // health view (advancers/decliners, breadth, fear/greed gauge) the user
-  // lands on to decide where to drill next. (Issue #43 — Market Pulse.)
+  // health view (advancers/decliners, breadth, fear/greed) the user lands on
+  // to decide where to drill next. (Issue #43 — Market Pulse.)
   { key: "market-pulse", label: "Market Pulse", icon: Gauge, group: "intelligence" },
-  // Correlation Matrix — 18×18 return-correlation heatmap. (Issue #44.)
-  { key: "correlation", label: "Correlation", icon: Grid3x3, group: "intelligence" },
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "intelligence" },
   { key: "markets", label: "Markets", icon: LineChart, group: "intelligence" },
   { key: "asset", label: "Asset Analysis", icon: CandlestickChart, group: "intelligence" },
+  { key: "watchlists", label: "Watchlists", icon: Star, group: "intelligence" },
+  { key: "screener", label: "Screener", icon: Filter, group: "intelligence" },
   { key: "trends", label: "Trends", icon: TrendingUp, group: "intelligence" },
   { key: "regimes", label: "Regimes", icon: Activity, group: "intelligence" },
   { key: "signals", label: "Signals", icon: Radio, group: "intelligence" },
