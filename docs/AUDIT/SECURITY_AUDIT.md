@@ -56,16 +56,18 @@
 
 ## 6. HTTP security headers
 
+`next.config.ts` defines a `headers()` function that sets the full strict header set on every route (`source: "/(.*)"`). Verified by direct read of the file.
+
 | Header | Status | Notes |
 |---|---|---|
-| `Content-Security-Policy` | ❌ | Not set. |
-| `Strict-Transport-Security` | ❌ | Delegated to Caddyfile in production (acceptable). |
-| `X-Frame-Options` / `frame-ancestors` | ❌ | Dashboard could be iframed. |
-| `X-Content-Type-Options: nosniff` | ❌ | — |
-| `Referrer-Policy` | ❌ | — |
-| `Permissions-Policy` | ❌ | — |
+| `Content-Security-Policy` | ✅ | `default-src 'self'`; `script-src 'self' 'unsafe-inline' 'unsafe-eval'` (Next.js 16 RSC payload + Turbopack HMR require these); `frame-ancestors 'none'`; `base-uri 'self'`; `form-action 'self'`. |
+| `Strict-Transport-Security` | ✅ | `max-age=63072000; includeSubDomains; preload` |
+| `X-Frame-Options` | ✅ | `DENY` (defense-in-depth alongside `frame-ancestors 'none'`) |
+| `X-Content-Type-Options` | ✅ | `nosniff` |
+| `Referrer-Policy` | ✅ | `strict-origin-when-cross-origin` |
+| `Permissions-Policy` | ✅ | `camera=(), microphone=(), geolocation=()` |
 
-`next.config.ts` does not define a `headers()` function. Add one before production.
+**Caveat:** `script-src 'unsafe-inline' 'unsafe-eval'` is permissive — required by Next.js 16 RSC payload + Turbopack HMR. Tightening requires nonce-based CSP (a follow-up hardening task).
 
 ## 7. Secrets handling
 
@@ -124,6 +126,6 @@
 1. **Add `requireAuth()` to every route that returns tenant data** (`/orders`, `/portfolio/analytics`, `/journal`, `/watchlists`, `/ml`, `/copilot`, `/replay`, `/scenario`, `/screener`, `/backtests/[id]`, `/backtests/[id]/monte-carlo`). 27 routes need wrapping.
 2. **Add role enforcement** to `requireAuth` (return `role: "viewer"` → block POST `/portfolio`, `/risk`, `/brokers`).
 3. **Add tenant filtering** to every Prisma query in the durable record paths.
-4. **Add `headers()` in `next.config.ts`** for CSP/HSTS/X-Frame-Options/nosniff.
+4. **Tighten CSP** — switch `script-src 'unsafe-inline' 'unsafe-eval'` to a nonce-based policy once Next.js 16 nonce support is wired up.
 5. **Add `clientOrderId`** generation on `POST /api/v1/portfolio` order placement.
 6. **Sanitize 5xx error responses** to return a generic message, not `e.message`.

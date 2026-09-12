@@ -13,7 +13,7 @@
 | R-05 | No tenant row-level filtering | High | Likely | `userId` + `organizationId` columns exist (#71) but unused | High |
 | R-06 | `requireAuth()` on only 6/33 routes | High | Likely | Public + requireAuth on critical paths | High |
 | R-07 | No role enforcement on mutating routes | High | Likely | Role propagated to session but not checked | High |
-| R-08 | No CSP / HTTP security headers | High | Likely | Caddyfile handles TLS; no CSP | High |
+| R-08 | CSP allows `unsafe-inline` script-src | Medium | Likely | Strict CSP set in `next.config.ts`; `script-src` still permissive for Next.js 16 RSC | Medium |
 | R-09 | No client-order idempotency | Medium | Possible | BrokerAdapter contract accepts `clientOrderId` | Medium |
 | R-10 | In-memory store loses state on restart | High | Likely | None today | High |
 | R-11 | No reconciliation between internal state and broker | Medium | Possible | `PaperBroker.reconcile` interface defined; real adapters stubbed | Medium |
@@ -69,10 +69,11 @@
 - **Current state:** `requireAuth()` returns `ok: boolean`; does not inspect role.
 - **Mitigation path:** Add `requireRole(req, role)` helper; gate `/portfolio` POST, `/risk` POST, `/brokers` POST by minimum role `trader`; LIVE arming requires `admin`.
 
-### R-08 — No CSP / HTTP security headers
+### R-08 — CSP allows `unsafe-inline` script-src
 - **Owner:** Engineering / Security
-- **Current state:** `next.config.ts` does not define `headers()`.
-- **Mitigation path:** Add strict CSP `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' wss://aurevia.io https://api.alpaca.markets;` + HSTS + `X-Frame-Options: DENY` + `X-Content-Type-Options: nosniff` + `Referrer-Policy: strict-origin-when-cross-origin`.
+- **Current state:** `next.config.ts` sets `Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`, and `frame-ancestors: 'none'`. The remaining gap is `script-src 'unsafe-inline' 'unsafe-eval'`, required by Next.js 16 RSC payload + Turbopack HMR.
+- **Why it's a risk:** Inline-script XSS attacks are not blocked by CSP. The Copilot markdown render path (`react-markdown` without `rehype-sanitize`) is the closest vector.
+- **Mitigation path:** Migrate to nonce-based CSP — Next.js 16 supports per-request nonces via the `nonce` option on `headers()`. Add `rehype-sanitize` to the copilot markdown pipeline.
 
 ### R-09 — No client-order idempotency
 - **Owner:** Engineering
@@ -127,7 +128,7 @@
 ### R-19 — Copilot markdown output not sanitized
 - **Owner:** Engineering / Security
 - **Current state:** `react-markdown` renders the ZAI chat response. No `rehype-sanitize` plugin.
-- **Mitigation path:** Add `rehype-sanitize` to the markdown pipeline; add CSP header (see R-08).
+- **Mitigation path:** Add `rehype-sanitize` to the markdown pipeline; tighten CSP to nonce-based (see R-08).
 
 ### R-20 — Prisma prod schema drift
 - **Owner:** Engineering / SRE

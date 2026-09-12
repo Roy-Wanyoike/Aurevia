@@ -42,13 +42,13 @@
 
 **Remediation:** Add `requireRole(req, "admin" | "trader")` helper; gate every mutating route by minimum role.
 
-## 6. No HTTP security headers
+## 6. CSP `unsafe-inline` / `unsafe-eval` in script-src
 
-**Where:** `next.config.ts` has no `headers()` function.
+**Where:** `next.config.ts` `headers()` — the CSP `script-src` allows `'unsafe-inline' 'unsafe-eval'`.
 
-**Impact:** No CSP, no HSTS, no `X-Frame-Options`, no `X-Content-Type-Options`. XSS risk if any user-supplied HTML is rendered (the Copilot markdown rendering is the closest vector).
+**Impact:** Next.js 16 RSC payload + Turbopack HMR require inline scripts; this is the documented workaround. The trade-off is reduced XSS protection until nonce-based CSP is wired up. The `frame-ancestors 'none'` + `X-Frame-Options: DENY` defenses are still active.
 
-**Remediation:** Add a `headers()` export in `next.config.ts` with the standard strict header set. Verify the Copilot response path uses `react-markdown` with `rehype-sanitize`.
+**Remediation:** Migrate to nonce-based CSP — Next.js 16 supports per-request nonces via the `nonce` option on `headers()`. Requires moving inline scripts to nonced `<script>` tags.
 
 ## 7. In-memory store loses state on restart
 
@@ -82,13 +82,13 @@
 
 **Remediation:** Strip portfolio/equity fields from the public response; keep only `status`, `uptimeHours`, `tradingMode`, `circuitBreakerState`, `dataSource`, `dataIsLive`, `version`. Move the full snapshot behind a `/api/v1/health/full` route protected by `requireAuth()`.
 
-## 11. No CSP / sanitization on Copilot markdown output
+## 11. No sanitization on Copilot markdown output
 
 **Where:** `src/app/api/v1/copilot/route.ts` + the copilot view rendering.
 
-**Impact:** The ZAI chat model's response is rendered as markdown. If a user can prompt-inject the model into emitting raw HTML, an XSS vector exists.
+**Impact:** The ZAI chat model's response is rendered as markdown via `react-markdown`. The CSP `default-src 'self'` blocks external resource loads, and `script-src 'unsafe-inline'` is the remaining XSS vector if the model emits a raw `<script>` tag.
 
-**Remediation:** Add `rehype-sanitize` to the `react-markdown` pipeline in `copilot-view.tsx`. Add a CSP header (`default-src 'self'; script-src 'self'`).
+**Remediation:** Add `rehype-sanitize` to the `react-markdown` pipeline in `copilot-view.tsx`. Tighten CSP to nonce-based (see debt #6).
 
 ## 12. No distributed rate-limit backend
 

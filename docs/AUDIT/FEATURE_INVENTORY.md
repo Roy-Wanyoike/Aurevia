@@ -97,7 +97,7 @@
 | Per-IP rate limit + GC (#79) | IMPLEMENTED | `rate-limit.ts` + `middleware.ts` | 60/min default; 1% sweep |
 | EventLog model | IMPLEMENTED | `prisma/schema.prisma` | Schema + types defined (#93 adds emitter) |
 | Typed event emitter | IMPLEMENTED | `events/types.ts`, `events/emitter.ts` | Added by #93 |
-| CSP headers | DEFERRED | — | Not set in `next.config.ts` |
+| CSP + HTTP security headers | IMPLEMENTED | `next.config.ts` `headers()` | `default-src 'self'`, `frame-ancestors 'none'`, HSTS preload, `X-Frame-Options: DENY`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`. CSP `script-src` still allows `'unsafe-inline' 'unsafe-eval'` (Next.js 16 RSC requirement). |
 | OpenTelemetry traces | DEFERRED | — | — |
 
 ## Dashboard Views

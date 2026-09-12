@@ -71,7 +71,7 @@
 ## Gaps
 
 1. **Auth coverage is incomplete.** Only 6 of 33 v1 paths actually call `requireAuth()` (alerts, backtests, brokers, portfolio, risk, signals). Read-only routes that surface portfolio state (`/orders`, `/portfolio/analytics`, `/journal`, `/watchlists`) and mutating routes (`/ml` POST, `/copilot`, `/watchlists`, `/replay`, `/scenario`, `/screener`) are **open in production**. This is the highest-priority security debt — tracked in `SECURITY_AUDIT.md`.
-2. **No CSP, no `helmet`-equivalent headers.** `next.config.ts` does not set `Content-Security-Policy`, `Strict-Transport-Security`, `X-Frame-Options`, or `Referrer-Policy`.
+2. **CSP `script-src` allows `unsafe-inline` `unsafe-eval`.** Required by Next.js 16 RSC payload + Turbopack HMR; tighten to nonce-based CSP. Other headers (HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy, frame-ancestors) are all set in `next.config.ts`.
 3. **CORS** — not configured; same-origin only (acceptable for the dashboard; needs revisiting if a mobile/desktop client is added).
 4. **No idempotency keys** on `POST /api/v1/portfolio` (order placement) or `POST /api/v1/backtests`. A retried network call can place duplicate orders.
 5. **Health endpoint leaks operational data** (`portfolioEquity`, `portfolioDrawdown`, `signalsTracked`, `backtestsRun`, `ordersPlaced`). Acceptable behind a load balancer; remove from public response or gate behind auth.
