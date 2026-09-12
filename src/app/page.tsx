@@ -5,62 +5,44 @@ import dynamic from "next/dynamic";
 import { Sidebar, Topbar } from "@/components/aurevia/sidebar";
 import { QueryProvider } from "@/components/aurevia/query-provider";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { DashboardView } from "@/components/aurevia/views/dashboard-view";
-import { MarketsView } from "@/components/aurevia/views/markets-view";
-import { AssetDetailView } from "@/components/aurevia/views/asset-detail-view";
-import { StrategiesView } from "@/components/aurevia/views/strategies-view";
-import { SignalsView } from "@/components/aurevia/views/signals-view";
-import { TrendsView } from "@/components/aurevia/views/trends-view";
-import { RegimesView } from "@/components/aurevia/views/regimes-view";
-import { RiskView } from "@/components/aurevia/views/risk-view";
-import { PortfolioView } from "@/components/aurevia/views/portfolio-view";
-import { OrdersView } from "@/components/aurevia/views/orders-view";
-import { BrokersView } from "@/components/aurevia/views/brokers-view";
-import { MarketPulseView } from "@/components/aurevia/views/market-pulse-view";
-import { CorrelationView } from "@/components/aurevia/views/correlation-view";
-import { HistoricalMemoryView } from "@/components/aurevia/views/historical-memory-view";
-import { AlertsView } from "@/components/aurevia/views/alerts-view";
-import { RadarView } from "@/components/aurevia/views/radar-view";
-import { NewsView } from "@/components/aurevia/views/news-view";
-import { EventsView } from "@/components/aurevia/views/events-view";
-import { WatchlistsView } from "@/components/aurevia/views/watchlists-view";
-import { ScreenerView } from "@/components/aurevia/views/screener-view";
-import { WhatIfView } from "@/components/aurevia/views/what-if-view";
-import { PortfolioAnalyticsView } from "@/components/aurevia/views/portfolio-analytics-view";
-import { RiskCockpitView } from "@/components/aurevia/views/risk-cockpit-view";
-import { JournalView } from "@/components/aurevia/views/journal-view";
-import { SystemView } from "@/components/aurevia/views/system-view";
-import { SettingsView } from "@/components/aurevia/views/settings-view";
 import { CommandPalette } from "@/components/aurevia/command-palette";
 
-// ---------------------------------------------------------------------------
-// Issue #75 — bundle size. These five views pull in heavy charting (Recharts),
-// ML model code, the Copilot (z-ai SDK client), the replay renderer, the
-// Monte Carlo + strategy-builder evaluators. Lazy-loading them with
-// next/dynamic keeps them out of the initial bundle (~200KB saved) and only
-// pays the cost when the user actually navigates to them. Each one renders
-// a small skeleton via `loading.tsx`-style fallback while the chunk downloads.
-// ---------------------------------------------------------------------------
-const BacktestsView = dynamic(
-  () => import("@/components/aurevia/views/backtests-view").then((m) => ({ default: m.BacktestsView })),
-  { ssr: false },
-);
-const MLView = dynamic(
-  () => import("@/components/aurevia/views/ml-view").then((m) => ({ default: m.MLView })),
-  { ssr: false },
-);
-const CopilotView = dynamic(
-  () => import("@/components/aurevia/views/copilot-view").then((m) => ({ default: m.CopilotView })),
-  { ssr: false },
-);
-const ReplayView = dynamic(
-  () => import("@/components/aurevia/views/replay-view").then((m) => ({ default: m.ReplayView })),
-  { ssr: false },
-);
-const StrategyBuilderView = dynamic(
-  () => import("@/components/aurevia/views/strategy-builder-view").then((m) => ({ default: m.StrategyBuilderView })),
-  { ssr: false },
-);
+// Dashboard is the landing page — load eagerly for instant first paint.
+import { DashboardView } from "@/components/aurevia/views/dashboard-view";
+
+// All other views are lazy-loaded to reduce the initial bundle.
+// Each pays its cost only when the user navigates to it.
+// ~400KB+ saved on initial JS payload.
+const MarketsView = dynamic(() => import("@/components/aurevia/views/markets-view").then((m) => ({ default: m.MarketsView })), { ssr: false });
+const AssetDetailView = dynamic(() => import("@/components/aurevia/views/asset-detail-view").then((m) => ({ default: m.AssetDetailView })), { ssr: false });
+const StrategiesView = dynamic(() => import("@/components/aurevia/views/strategies-view").then((m) => ({ default: m.StrategiesView })), { ssr: false });
+const BacktestsView = dynamic(() => import("@/components/aurevia/views/backtests-view").then((m) => ({ default: m.BacktestsView })), { ssr: false });
+const SignalsView = dynamic(() => import("@/components/aurevia/views/signals-view").then((m) => ({ default: m.SignalsView })), { ssr: false });
+const TrendsView = dynamic(() => import("@/components/aurevia/views/trends-view").then((m) => ({ default: m.TrendsView })), { ssr: false });
+const RegimesView = dynamic(() => import("@/components/aurevia/views/regimes-view").then((m) => ({ default: m.RegimesView })), { ssr: false });
+const RiskView = dynamic(() => import("@/components/aurevia/views/risk-view").then((m) => ({ default: m.RiskView })), { ssr: false });
+const PortfolioView = dynamic(() => import("@/components/aurevia/views/portfolio-view").then((m) => ({ default: m.PortfolioView })), { ssr: false });
+const OrdersView = dynamic(() => import("@/components/aurevia/views/orders-view").then((m) => ({ default: m.OrdersView })), { ssr: false });
+const MLView = dynamic(() => import("@/components/aurevia/views/ml-view").then((m) => ({ default: m.MLView })), { ssr: false });
+const BrokersView = dynamic(() => import("@/components/aurevia/views/brokers-view").then((m) => ({ default: m.BrokersView })), { ssr: false });
+const MarketPulseView = dynamic(() => import("@/components/aurevia/views/market-pulse-view").then((m) => ({ default: m.MarketPulseView })), { ssr: false });
+const CorrelationView = dynamic(() => import("@/components/aurevia/views/correlation-view").then((m) => ({ default: m.CorrelationView })), { ssr: false });
+const HistoricalMemoryView = dynamic(() => import("@/components/aurevia/views/historical-memory-view").then((m) => ({ default: m.HistoricalMemoryView })), { ssr: false });
+const AlertsView = dynamic(() => import("@/components/aurevia/views/alerts-view").then((m) => ({ default: m.AlertsView })), { ssr: false });
+const RadarView = dynamic(() => import("@/components/aurevia/views/radar-view").then((m) => ({ default: m.RadarView })), { ssr: false });
+const NewsView = dynamic(() => import("@/components/aurevia/views/news-view").then((m) => ({ default: m.NewsView })), { ssr: false });
+const EventsView = dynamic(() => import("@/components/aurevia/views/events-view").then((m) => ({ default: m.EventsView })), { ssr: false });
+const WatchlistsView = dynamic(() => import("@/components/aurevia/views/watchlists-view").then((m) => ({ default: m.WatchlistsView })), { ssr: false });
+const ScreenerView = dynamic(() => import("@/components/aurevia/views/screener-view").then((m) => ({ default: m.ScreenerView })), { ssr: false });
+const WhatIfView = dynamic(() => import("@/components/aurevia/views/what-if-view").then((m) => ({ default: m.WhatIfView })), { ssr: false });
+const PortfolioAnalyticsView = dynamic(() => import("@/components/aurevia/views/portfolio-analytics-view").then((m) => ({ default: m.PortfolioAnalyticsView })), { ssr: false });
+const RiskCockpitView = dynamic(() => import("@/components/aurevia/views/risk-cockpit-view").then((m) => ({ default: m.RiskCockpitView })), { ssr: false });
+const JournalView = dynamic(() => import("@/components/aurevia/views/journal-view").then((m) => ({ default: m.JournalView })), { ssr: false });
+const CopilotView = dynamic(() => import("@/components/aurevia/views/copilot-view").then((m) => ({ default: m.CopilotView })), { ssr: false });
+const ReplayView = dynamic(() => import("@/components/aurevia/views/replay-view").then((m) => ({ default: m.ReplayView })), { ssr: false });
+const StrategyBuilderView = dynamic(() => import("@/components/aurevia/views/strategy-builder-view").then((m) => ({ default: m.StrategyBuilderView })), { ssr: false });
+const SystemView = dynamic(() => import("@/components/aurevia/views/system-view").then((m) => ({ default: m.SystemView })), { ssr: false });
+const SettingsView = dynamic(() => import("@/components/aurevia/views/settings-view").then((m) => ({ default: m.SettingsView })), { ssr: false });
 
 export default function Home() {
   const { view, selectedSymbol, selectedBacktestId, syncFromUrl } = useUI();
@@ -135,11 +117,11 @@ function ViewRouter() {
     case "watchlists": return <WatchlistsView />;
     case "screener": return <ScreenerView />;
     case "what-if": return <WhatIfView />;
-    case "replay": return <ReplayView />;
     case "portfolio-analytics": return <PortfolioAnalyticsView />;
     case "risk-cockpit": return <RiskCockpitView />;
     case "journal": return <JournalView />;
     case "copilot": return <CopilotView />;
+    case "replay": return <ReplayView />;
     case "strategy-builder": return <StrategyBuilderView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
