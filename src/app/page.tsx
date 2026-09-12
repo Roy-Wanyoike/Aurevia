@@ -29,6 +29,7 @@ import { ScreenerView } from "@/components/aurevia/views/screener-view";
 import { WhatIfView } from "@/components/aurevia/views/what-if-view";
 import { ReplayView } from "@/components/aurevia/views/replay-view";
 import { PortfolioAnalyticsView } from "@/components/aurevia/views/portfolio-analytics-view";
+import { RiskCockpitView } from "@/components/aurevia/views/risk-cockpit-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
 import { SettingsView } from "@/components/aurevia/views/settings-view";
 import { CommandPalette } from "@/components/aurevia/command-palette";
@@ -108,6 +109,7 @@ function ViewRouter() {
     case "what-if": return <WhatIfView />;
     case "replay": return <ReplayView />;
     case "portfolio-analytics": return <PortfolioAnalyticsView />;
+    case "risk-cockpit": return <RiskCockpitView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
     default: return <DashboardView />;
