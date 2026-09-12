@@ -209,6 +209,29 @@ export function useSetBreaker() {
   });
 }
 
+// --- Market Pulse (issue #43) ---
+// Global market health snapshot — advancers/decliners, sector performance,
+// market breadth vs SMA50/SMA200, regime distribution, and a composite
+// Fear & Greed score (0..100). Computed server-side from the same
+// `store.buildContext()` data the rest of the app trusts.
+export interface MarketPulse {
+  advancers: number;
+  decliners: number;
+  unchanged: number;
+  sectors: { name: string; avgChange: number; count: number }[];
+  breadth: { aboveSma50Pct: number; aboveSma200Pct: number };
+  regimeDist: Record<string, number>;
+  fearGreed: number;
+  totalAssets: number;
+}
+export function useMarketPulse() {
+  return useQuery({
+    queryKey: ["market-pulse"],
+    queryFn: () => fetchJson<MarketPulse>("/api/v1/market-pulse"),
+    refetchInterval: 60_000,
+  });
+}
+
 // --- Health ---
 export function useHealth() {
   return useQuery({

@@ -20,6 +20,7 @@ import {
   Brain,
   Plug,
   Menu,
+  Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -37,6 +38,10 @@ interface NavItem {
 }
 
 const NAV: NavItem[] = [
+  // Market Pulse leads the intelligence group — it's the at-a-glance global
+  // health view (advancers/decliners, breadth, fear/greed gauge) the user
+  // lands on to decide where to drill next. (Issue #43 — Market Pulse.)
+  { key: "market-pulse", label: "Market Pulse", icon: Gauge, group: "intelligence" },
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard, group: "intelligence" },
   { key: "markets", label: "Markets", icon: LineChart, group: "intelligence" },
   { key: "asset", label: "Asset Analysis", icon: CandlestickChart, group: "intelligence" },
