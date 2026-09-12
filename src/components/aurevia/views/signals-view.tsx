@@ -99,11 +99,11 @@ export function SignalsView() {
             {symbol ? `symbol=${symbol}` : "all symbols"} · {strategy ? `strategy=${strategy}` : "all strategies"}
           </div>
         </div>
-        <div className="max-h-[60vh] overflow-y-auto">
+        <div className="max-h-[60vh] overflow-auto">
           <Table>
             <TableHeader className="sticky top-0 bg-card">
               <TableRow>
-                <TableHead>Time</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card">Time</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>Action</TableHead>
                 <TableHead>Strategy</TableHead>
@@ -118,7 +118,7 @@ export function SignalsView() {
                 const conf = Math.min(100, Math.max(0, s.confidence * 100));
                 return (
                   <TableRow key={s.id}>
-                    <TableCell className="text-xs text-muted-foreground">{fmtTime(s.timestamp)}</TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-card text-xs text-muted-foreground">{fmtTime(s.timestamp)}</TableCell>
                     <TableCell>
                       <button onClick={() => openAsset(s.symbol)} className="font-medium text-foreground hover:text-emerald-400">
                         {s.symbol}

@@ -138,7 +138,7 @@ export function PortfolioView() {
             <Table>
               <TableHeader className="sticky top-0 bg-card">
                 <TableRow>
-                  <TableHead>Symbol</TableHead>
+                  <TableHead className="sticky left-0 z-10 bg-card">Symbol</TableHead>
                   <TableHead>Side</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
                   <TableHead className="text-right">Avg Entry</TableHead>
@@ -154,7 +154,7 @@ export function PortfolioView() {
                   const pnlPct = p.unrealizedPnlPct ?? (p.avgEntryPrice ? (pnl / (p.avgEntryPrice * p.quantity)) * 100 : 0);
                   return (
                     <TableRow key={p.symbol} onClick={() => openAsset(p.symbol)} className="cursor-pointer">
-                      <TableCell className="font-semibold">{p.symbol}</TableCell>
+                      <TableCell className="sticky left-0 z-10 bg-card font-semibold">{p.symbol}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={p.side === "LONG" || p.side === "BUY" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}>
                           {p.side}

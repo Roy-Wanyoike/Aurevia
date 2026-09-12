@@ -106,60 +106,62 @@ export function MarketsView() {
 
       {/* Table */}
       <Card className="p-0">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>
-                <button onClick={() => toggleSort("symbol")} className="inline-flex items-center gap-1 hover:text-foreground">
-                  Symbol <ArrowUpDown className="h-3 w-3 opacity-50" />
-                </button>
-              </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Exchange</TableHead>
-              <TableHead>Type</TableHead>
-              <TableHead>Sector</TableHead>
-              <TableHead className="text-right">Price</TableHead>
-              <TableHead>
-                <button onClick={() => toggleSort("changePct")} className="inline-flex items-center gap-1 hover:text-foreground">
-                  24h % <ArrowUpDown className="h-3 w-3 opacity-50" />
-                </button>
-              </TableHead>
-              <TableHead className="text-right">Volume</TableHead>
-              <TableHead className="text-right">Spread</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((a: MarketAsset) => {
-              const up = a.quote.changePct >= 0;
-              return (
-                <TableRow
-                  key={a.symbol}
-                  onClick={() => openAsset(a.symbol)}
-                  className="cursor-pointer"
-                >
-                  <TableCell className="font-semibold">{a.symbol}</TableCell>
-                  <TableCell className="text-muted-foreground">{a.name}</TableCell>
-                  <TableCell>
-                    <Badge variant="secondary" className="text-xs">{a.exchange}</Badge>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className="text-xs">{a.assetType}</Badge>
-                  </TableCell>
-                  <TableCell className="text-xs text-muted-foreground">{a.sector ?? "—"}</TableCell>
-                  <TableCell className="text-right font-medium tabular">{fmtPrice(a.quote.price)}</TableCell>
-                  <TableCell>
-                    <Badge variant="outline" className={`gap-1 ${gainBg(a.quote.changePct)}`}>
-                      {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                      <span className="tabular">{fmtPct(a.quote.changePct)}</span>
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right tabular text-muted-foreground">{fmtCompact(a.quote.volume24h)}</TableCell>
-                  <TableCell className="text-right tabular text-muted-foreground">{fmtPrice(a.quote.spread, 4)}</TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+        <div className="overflow-x-auto">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="sticky left-0 z-10 bg-card">
+                  <button onClick={() => toggleSort("symbol")} className="inline-flex items-center gap-1 hover:text-foreground">
+                    Symbol <ArrowUpDown className="h-3 w-3 opacity-50" />
+                  </button>
+                </TableHead>
+                <TableHead>Name</TableHead>
+                <TableHead>Exchange</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Sector</TableHead>
+                <TableHead className="text-right">Price</TableHead>
+                <TableHead>
+                  <button onClick={() => toggleSort("changePct")} className="inline-flex items-center gap-1 hover:text-foreground">
+                    24h % <ArrowUpDown className="h-3 w-3 opacity-50" />
+                  </button>
+                </TableHead>
+                <TableHead className="text-right">Volume</TableHead>
+                <TableHead className="text-right">Spread</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((a: MarketAsset) => {
+                const up = a.quote.changePct >= 0;
+                return (
+                  <TableRow
+                    key={a.symbol}
+                    onClick={() => openAsset(a.symbol)}
+                    className="cursor-pointer"
+                  >
+                    <TableCell className="sticky left-0 z-10 bg-card font-semibold">{a.symbol}</TableCell>
+                    <TableCell className="text-muted-foreground">{a.name}</TableCell>
+                    <TableCell>
+                      <Badge variant="secondary" className="text-xs">{a.exchange}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="text-xs">{a.assetType}</Badge>
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{a.sector ?? "—"}</TableCell>
+                    <TableCell className="text-right font-medium tabular">{fmtPrice(a.quote.price)}</TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className={`gap-1 ${gainBg(a.quote.changePct)}`}>
+                        {up ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                        <span className="tabular">{fmtPct(a.quote.changePct)}</span>
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-right tabular text-muted-foreground">{fmtCompact(a.quote.volume24h)}</TableCell>
+                    <TableCell className="text-right tabular text-muted-foreground">{fmtPrice(a.quote.spread, 4)}</TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </div>
         {isLoading && (
           <div className="py-12 text-center text-sm text-muted-foreground">Loading market data…</div>
         )}

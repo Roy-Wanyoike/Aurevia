@@ -192,7 +192,7 @@ export function MLView() {
         <div className="border-b border-border/60 px-4 py-2">
           <h3 className="text-sm font-semibold">Recent Predictions</h3>
         </div>
-        <div className="max-h-96 overflow-y-auto">
+        <div className="max-h-96 overflow-auto">
           <table className="w-full text-sm">
             <thead className="sticky top-0 bg-card">
               <tr className="border-b border-border/60 text-xs text-muted-foreground">

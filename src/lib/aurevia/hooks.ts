@@ -196,6 +196,33 @@ export function useHealth() {
   });
 }
 
+// --- Orders ---
+export interface OrderRow {
+  id: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  orderType: string;
+  status: string;
+  filledPrice?: number;
+  filledQty?: number;
+  strategyKey?: string;
+  reason?: string;
+  createdAt: number;
+  updatedAt: number;
+}
+export function useOrders(status?: string, symbol?: string) {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (symbol) params.set("symbol", symbol);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ["orders", status, symbol],
+    queryFn: () => fetchJson<{ orders: OrderRow[]; total: number }>(`/api/v1/orders${qs ? `?${qs}` : ""}`).then((d) => d.orders),
+    refetchInterval: 15_000,
+  });
+}
+
 // --- Trends & Regimes ---
 export function useTrends() {
   return useQuery({
