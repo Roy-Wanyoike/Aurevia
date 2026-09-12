@@ -40,6 +40,8 @@ import {
   Star,
   Filter,
   Gauge,
+  Newspaper,
+  Calendar,
   type LucideIcon,
 } from "lucide-react";
 
@@ -81,6 +83,8 @@ const NAV_COMMANDS: NavCommand[] = [
   { key: "risk", label: "Risk", icon: ShieldAlert },
   { key: "ml", label: "ML Predictions", icon: Brain },
   { key: "brokers", label: "Brokers", icon: Plug },
+  { key: "news", label: "News", icon: Newspaper },
+  { key: "events", label: "Events", icon: Calendar },
   { key: "system", label: "System Health", icon: HeartPulse },
   { key: "settings", label: "Settings", icon: Settings },
 ];

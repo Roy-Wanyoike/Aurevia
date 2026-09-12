@@ -1460,3 +1460,102 @@ screener / market-pulse / correlation work.
   badge color (emerald / cyan / amber / purple / red per category) —
   consistent with the existing color helpers in `format.ts`.
 
+
+## phase2/news-events — Z.ai Code — COMPLETED
+
+### Summary
+Implemented two Phase 2 intelligence features on branch `phase2/news-events`:
+
+1. **News Intelligence (#46)** — `/api/v1/news` generates market-aware synthetic
+   news from the current market data (regime, change%, RSI, trend strength,
+   volatility). Each article carries a headline, summary, source, symbol,
+   sentiment (-1..1), importance (high/medium/low) and `isSynthetic: true`.
+   Output is clearly labeled as "AI-generated market commentary based on
+   current data, not real news articles" — both in the API response `source`
+   field and in an amber disclaimer banner on the view. Sorted by importance
+   then abs(sentiment) so the most actionable commentary floats to the top.
+
+2. **Market Events (#47)** — `/api/v1/events` generates upcoming synthetic
+   calendar events from the asset catalog: equities get earnings + dividend
+   events, crypto gets halving + upgrade events. Each event carries a type,
+   symbol, title, description, importance, scheduled-at timestamp and
+   `isSynthetic: true`. Per-asset deterministic date offsets (hash-based, not
+   `Math.random()`) keep the calendar stable across 60s refetches so the UI
+   doesn't jitter. Sorted chronologically.
+
+Both views use the existing `fetchJson<T>` + `useQuery` pattern, the shadcn/ui
+component set, lucide icons (`Newspaper`, `Calendar`), the format helpers
+(`fmtDateTime`, `fmtPct`), and the `useUI().openAsset(symbol)` action for
+drill-through to the asset-detail view.
+
+### Branch
+- `phase2/news-events`
+- 2 commits:
+  1. `0d8fc9e` — feat(aurevia): News Intelligence (#46)
+  2. `2a39b6e` — feat(aurevia): Market Events (#47)
+
+### Files created
+1. `src/app/api/v1/news/route.ts` — synthetic news generator.
+2. `src/app/api/v1/events/route.ts` — synthetic events calendar generator.
+3. `src/components/aurevia/views/news-view.tsx` — list view with amber banner,
+   symbol filter, sentiment/importance badges, click-through to asset detail.
+4. `src/components/aurevia/views/events-view.tsx` — timeline view grouped by
+   UTC day, type filter (earnings/dividend/halving/upgrade), symbol filter,
+   type-colored badges (emerald/cyan/amber/purple), click-through to asset
+   detail.
+
+### Files modified
+1. `src/lib/aurevia/hooks.ts` — added `NewsArticle`, `NewsResponse`,
+   `useNews(symbol?)`, `EventType`, `MarketEvent`, `EventsResponse`,
+   `useEvents(symbol?)`. Both hooks use 60s refetch.
+2. `src/lib/aurevia/ui-store.ts` — added `"news"` and `"events"` to `ViewKey`
+   and `VALID_VIEWS` so URL routing (`?view=news`, `?view=events`) works.
+3. `src/components/aurevia/sidebar.tsx` — added two NAV entries to the
+   `intelligence` group: News (Newspaper icon), Events (Calendar icon).
+4. `src/components/aurevia/command-palette.tsx` — added News and Events to the
+   `NAV_COMMANDS` array so they're reachable via Cmd+K.
+5. `src/app/page.tsx` — added `case "news"` and `case "events"` to the
+   `ViewRouter` switch.
+
+### Verification
+- `bun run lint` — clean (no ESLint errors / warnings).
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → 0 (no type errors in
+  aurevia or app paths).
+- `bun test` → 155 pass / 0 fail / 1005 expect() calls across 6 files
+  (unchanged — no tests added; spec says "do not write any test code").
+- `curl -s http://localhost:3000/api/v1/news | python3 -m json.tool` →
+  `{ "articles": [...10 entries...], "total": 10, "source": "Aurevia Market
+  Intelligence (synthetic)" }` with each article carrying `isSynthetic: true`.
+- `curl -s http://localhost:3000/api/v1/events | python3 -m json.tool` →
+  `{ "events": [...26 entries...], "total": 26, "source": "Aurevia Calendar
+  (synthetic)" }` with each event carrying `isSynthetic: true`.
+
+### Design notes
+- The synthetic-data disclaimer is rendered as an amber banner with
+  `AlertTriangle` icon at the top of BOTH views — the user is never misled
+  into thinking these are real news articles or a real earnings calendar.
+  The banner copy explicitly names the upgrade path ("connect Finnhub API
+  for real events").
+- News sentiment badge is tri-state: green (Bullish, sentiment > 0.1),
+  red (Bearish, sentiment < -0.1), amber (Neutral). Importance badge uses
+  the same graduated color scheme (high=red, medium=amber, low=emerald)
+  already established by `breakerColor` / `decisionColor` in `format.ts`.
+- Events timeline groups by UTC day so the date headers are stable across
+  viewer timezones (avoids SSR/client hydration mismatch). Sticky day
+  headers stay visible while scrolling through a long day's events.
+- Event type colors follow the spec: earnings=emerald, dividend=cyan,
+  halving=amber, upgrade=purple. Each type also carries a lucide icon
+  (`DollarSign`, `Coins`, `Cpu`, `FileText`) for at-a-glance scanning.
+- `EventRow` uses a responsive flex layout: title + symbol on the left,
+  importance + scheduled-at on the right (stacked on mobile via
+  `flex-col sm:flex-row`).
+- Both views set `max-h-[calc(100vh-22rem)] overflow-y-auto` on the
+  scrollable list so the page chrome (header, banner, filters) stays in
+  view while the list scrolls — consistent with the existing
+  `alerts-view.tsx` pattern.
+- The events route uses a deterministic hash function (`hashOffset`) keyed
+  by symbol + nonce instead of `Math.random()` — without this, the calendar
+  would shift on every 60s refetch (the dev server caches the singleton, so
+  `Math.random()` would generate different dates each call). The hash gives
+  each asset a stable 3-17 day and 17-31 day offset for the lifetime of the
+  process, while still spreading events across the calendar.

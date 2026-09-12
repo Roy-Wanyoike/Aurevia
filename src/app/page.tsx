@@ -22,6 +22,8 @@ import { CorrelationView } from "@/components/aurevia/views/correlation-view";
 import { HistoricalMemoryView } from "@/components/aurevia/views/historical-memory-view";
 import { AlertsView } from "@/components/aurevia/views/alerts-view";
 import { RadarView } from "@/components/aurevia/views/radar-view";
+import { NewsView } from "@/components/aurevia/views/news-view";
+import { EventsView } from "@/components/aurevia/views/events-view";
 import { WatchlistsView } from "@/components/aurevia/views/watchlists-view";
 import { ScreenerView } from "@/components/aurevia/views/screener-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
@@ -96,6 +98,8 @@ function ViewRouter() {
     case "historical-memory": return <HistoricalMemoryView />;
     case "alerts": return <AlertsView />;
     case "radar": return <RadarView />;
+    case "news": return <NewsView />;
+    case "events": return <EventsView />;
     case "watchlists": return <WatchlistsView />;
     case "screener": return <ScreenerView />;
     case "system": return <SystemView />;

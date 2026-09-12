@@ -23,6 +23,8 @@ export type ViewKey =
   | "historical-memory"
   | "alerts"
   | "radar"
+  | "news"
+  | "events"
   | "system"
   | "settings";
 
@@ -48,7 +50,7 @@ const VALID_VIEWS: ReadonlySet<ViewKey> = new Set<ViewKey>([
   "signals", "trends", "regimes", "risk", "portfolio",
   "orders", "ml", "brokers", "watchlists", "screener",
   "market-pulse", "correlation", "historical-memory",
-  "alerts", "radar", "system", "settings",
+  "alerts", "radar", "news", "events", "system", "settings",
 ]);
 
 export const useUI = create<UIState>((set) => ({
