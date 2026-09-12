@@ -61,8 +61,8 @@ describe("fmtUsd", () => {
     expect(fmtUsd(1234567.89)).toBe("$1,234,568");
   });
 
-  it("fmtUsd(0) = '$0'", () => {
-    expect(fmtUsd(0)).toBe("$0");
+  it("fmtUsd(0) = '$0.00' (sub-$1000 shows 2 decimal places)", () => {
+    expect(fmtUsd(0)).toBe("$0.00");
   });
 
   it("returns '—' for null/undefined", () => {
