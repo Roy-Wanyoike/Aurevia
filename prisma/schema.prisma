@@ -2,16 +2,22 @@
 // Prisma schema. SQLite for dev/demo. Durable records: backtests, signals,
 // orders, positions, risk events. Market data is ephemeral (in-memory simulated feed).
 //
-// Issue #85: provider is now read from the DATABASE_PROVIDER env var
-// (defaults to "sqlite" for dev). Set DATABASE_PROVIDER=postgresql in
-// production + point DATABASE_URL at your Postgres instance.
+// Provider: Prisma 6.x rejects `provider = env("DATABASE_PROVIDER")` with
+// P1012 ("A datasource must not use the env() function in the provider
+// argument"). The previous "fix #85" attempt used that pattern and silently
+// broke `prisma db push` for every subsequent PR — including the schema
+// changes in this branch (issue #71). The clean fix is to hard-code the
+// dev provider as "sqlite" here; production deployments targeting Postgres
+// should maintain a separate `schema.postgres.prisma` and run `prisma
+// db push --schema=prisma/schema.postgres.prisma` in their CD pipeline.
+// (Equivalent to how Next.js uses `next.config.prod.ts` overrides.)
 
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = env("DATABASE_PROVIDER")
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -128,6 +134,11 @@ model Strategy {
 }
 
 // Signals emitted by strategies.
+//
+// Issue #71 — `userId` + `organizationId` are nullable so the schema is
+// forward-compatible with multi-tenant filtering without breaking the
+// existing single-tenant dev dataset. Future queries will filter by these
+// columns; existing rows stay valid (NULL = system-owned).
 model Signal {
   id         String   @id @default(cuid())
   strategyKey String
@@ -139,9 +150,19 @@ model Signal {
   timestamp  DateTime @default(now())
   status     String   @default("PENDING") // PENDING | APPROVED | REJECTED | EXPIRED
   riskReason String?
+  userId         String?
+  organizationId String?
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([symbol, timestamp])
 }
 
 // Backtest run metadata + result metrics.
+//
+// Issue #71 — `userId` + `organizationId` are nullable so the schema is
+// forward-compatible with multi-tenant filtering without breaking the
+// existing single-tenant dev dataset. NULL = system / shared backtest.
 model Backtest {
   id            String   @id @default(cuid())
   strategyKey   String
@@ -162,9 +183,18 @@ model Backtest {
   equityCurve   String?  // JSON array of {t, equity}
   tradesJson    String?  // JSON array of trade objects
   createdAt     DateTime @default(now())
+  userId         String?
+  organizationId String?
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([symbol, createdAt])
 }
 
 // Paper-broker orders.
+//
+// Issue #71 — `userId` + `organizationId` enable per-tenant order history
+// filtering. NULL = system order (e.g. reconciliation fills).
 model Order {
   id           String   @id @default(cuid())
   symbol       String
@@ -179,9 +209,20 @@ model Order {
   reason       String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  userId         String?
+  organizationId String?
+
+  @@index([userId])
+  @@index([organizationId])
+  @@index([symbol, status])
+  @@index([createdAt])
 }
 
 // Risk profile + circuit breaker state.
+//
+// Issue #71 — `userId` + `organizationId` enable per-tenant risk profiles.
+// NULL = global / system-default profile. Future queries filter by org first
+// and fall back to the NULL row when no org-specific override exists.
 model RiskProfile {
   id                String   @id @default(cuid())
   name              String   @unique
@@ -199,6 +240,11 @@ model RiskProfile {
   tradingMode       String   @default("PAPER") // ANALYSIS_ONLY | PAPER | SANDBOX | LIVE
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
+  userId            String?
+  organizationId    String?
+
+  @@index([userId])
+  @@index([organizationId])
 }
 
 model RiskEvent {
@@ -329,6 +375,9 @@ model MarketEvent {
 
 // ─── PORTFOLIO SNAPSHOTS ───────────────────────────────────────────────────
 // Periodic snapshots for equity curve tracking + drawdown analysis.
+//
+// Issue #71 — `userId` + `organizationId` enable per-tenant portfolio
+// history. NULL = system portfolio (the demo / paper-trading default).
 model PortfolioSnapshot {
   id          String   @id @default(cuid())
   cash        Float
@@ -341,8 +390,12 @@ model PortfolioSnapshot {
   drawdown    Float
   positions   String   // JSON array of position snapshots
   timestamp   DateTime @default(now())
+  userId         String?
+  organizationId String?
 
   @@index([timestamp])
+  @@index([userId, timestamp])
+  @@index([organizationId, timestamp])
 }
 
 // ─── EVENT LOG (audit-grade) ───────────────────────────────────────────────
@@ -364,6 +417,9 @@ model EventLog {
 }
 
 // ─── ALERTS ────────────────────────────────────────────────────────────────
+//
+// Issue #71 — `userId` + `organizationId` enable per-tenant alert routing.
+// NULL = system / broadcast alert (visible to everyone).
 model Alert {
   id         String   @id @default(cuid())
   type       String   // price | indicator | regime | risk | system
@@ -373,8 +429,12 @@ model Alert {
   active     Boolean  @default(true)
   triggeredAt DateTime?
   createdAt  DateTime @default(now())
+  userId         String?
+  organizationId String?
 
   @@index([active, type])
+  @@index([userId])
+  @@index([organizationId])
 }
 
 // ─── BROKER CONNECTIONS ────────────────────────────────────────────────────

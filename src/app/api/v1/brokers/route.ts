@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
+import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/brokers — list registered brokers + routing info
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const brokers = store.listBrokers();
     return NextResponse.json({ brokers, total: brokers.length });
@@ -21,6 +25,11 @@ const ConnectSchema = z.object({
   apiSecret: z.string().optional(),
   accountId: z.string().optional(),
   mode: z.enum(["PAPER", "SANDBOX", "LIVE"]).optional(),
+  // Issue #68 / #62 — LIVE trading is a footgun. Connecting a broker in LIVE
+  // mode requires an explicit `confirmLive: true` flag in the request body.
+  // Any other value (false, undefined, missing) yields a 403. This is the
+  // same safeguard the risk profile update uses for `tradingMode: "LIVE"`.
+  confirmLive: z.boolean().optional(),
   symbol: z.string().optional(),
   side: z.enum(["BUY", "SELL"]).optional(),
   quantity: z.number().positive().optional(),
@@ -28,6 +37,9 @@ const ConnectSchema = z.object({
 
 // POST /api/v1/brokers — connect/disconnect a broker or query routing
 export async function POST(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = ConnectSchema.safeParse(body);
@@ -42,6 +54,20 @@ export async function POST(req: Request) {
     if (data.action === "connect") {
       if (!data.kind || !data.apiKey || !data.apiSecret) {
         return NextResponse.json({ error: "kind, apiKey, apiSecret required for connect" }, { status: 400 });
+      }
+      // Issue #68 / #62 — LIVE mode requires explicit confirmation.
+      if (data.mode === "LIVE" && data.confirmLive !== true) {
+        logger.warn("Broker connect rejected: LIVE mode without confirmLive", {
+          requestId,
+          action: "connect",
+          kind: data.kind,
+          mode: data.mode,
+          status: "FORBIDDEN",
+        });
+        return NextResponse.json(
+          { error: "LIVE mode requires explicit confirmation", requestId },
+          { status: 403 },
+        );
       }
       const brokers = await store.connectBroker(data.kind, {
         apiKey: data.apiKey,

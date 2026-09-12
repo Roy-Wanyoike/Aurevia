@@ -3,6 +3,7 @@ import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { nextBreakerState } from "@/lib/aurevia/risk/engine";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -12,11 +13,19 @@ const RiskSchema = z
     state: z.enum(["NORMAL", "CAUTION", "TRADING_PAUSED", "RE_EVALUATING"]).optional(),
     reason: z.string().optional(),
     triggers: z.record(z.string(), z.any()).optional(),
+    // Issue #68 / #62 — flipping the risk profile to `tradingMode: "LIVE"` is
+    // the single most dangerous mutation in the system. The request MUST also
+    // include `confirmLive: true` — otherwise we 403 with an explicit error.
+    // This stops a fat-fingered `tradingMode: "LIVE"` payload from arming the
+    // engine against real money.
+    confirmLive: z.boolean().optional(),
   })
   .passthrough(); // allow numeric profile fields
 
 // GET /api/v1/risk — risk profile + recent risk events + portfolio risk snapshot.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const portfolio = store.getPortfolio();
     return NextResponse.json({
@@ -34,6 +43,8 @@ export async function GET() {
 // POST /api/v1/risk — mutate risk profile or control circuit breaker.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = RiskSchema.safeParse(body);
@@ -51,6 +62,20 @@ export async function POST(req: Request) {
     }
     const data = parsed.data;
     if (data.action === "updateProfile") {
+      // Issue #68 / #62 — LIVE trading mode is the single most dangerous
+      // mutation in the system. Require an explicit `confirmLive: true`.
+      if ((data as any).tradingMode === "LIVE" && data.confirmLive !== true) {
+        logger.warn("Risk profile update rejected: LIVE mode without confirmLive", {
+          requestId,
+          action: "updateProfile",
+          status: "FORBIDDEN",
+          attemptedTradingMode: "LIVE",
+        });
+        return NextResponse.json(
+          { error: "LIVE mode requires explicit confirmation", requestId },
+          { status: 403 },
+        );
+      }
       const allowed: (keyof typeof store.riskProfile)[] = [
         "maxPositionPct",
         "maxPortfolioPct",

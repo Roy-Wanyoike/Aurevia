@@ -298,6 +298,15 @@ class AureviaStore {
 
     // Step 1: Build a synthetic Signal so the risk engine can evaluate the
     // proposed order against all 11 rules + circuit breaker.
+    //
+    // Issue #63 — previously the risk engine received a synthetic signal with
+    // `confidence: 1.0` but had NO visibility into the actual order quantity.
+    // Rules 9/10/11 (post-fill hypothetical exposure / concentration /
+    // leverage) therefore assumed the WORST-CASE size (`maxPositionPct` of
+    // equity), which over-rejects small orders and under-rejects large ones.
+    // We now embed the actual requested quantity in `reasons` as a `qty=N`
+    // entry. The risk engine reads it back (see engine.ts rule 9) and uses
+    // it for the post-fill computation instead of the conservative default.
     const proposedSignal: Signal = {
       id: `sig-order-${rec.id}`,
       strategyKey: order.strategyKey ?? "manual",
@@ -305,7 +314,7 @@ class AureviaStore {
       action: order.side === "BUY" ? "BUY" : "SELL",
       confidence: 1.0,
       price: this.getQuote(order.symbol).price,
-      reasons: [order.reason ?? "Manual order"],
+      reasons: [order.reason ?? "Manual order", `qty=${order.quantity}`],
       timestamp: Date.now(),
     };
 

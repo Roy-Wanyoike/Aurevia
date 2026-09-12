@@ -20,7 +20,21 @@ const PORT = 3003;
 const httpServer = createServer();
 const io = new Server(httpServer, {
   path: "/",
-  cors: { origin: "*", methods: ["GET", "POST"] },
+  // Issue #69 — `cors: { origin: "*" }` lets any website open a socket
+  // against the stream service. In production that's a CSRF / data-exfil
+  // vector: a malicious page could subscribe to live quotes / signals from
+  // a victim's authenticated browser session. We restrict to explicit
+  // origins in production (CORS_ALLOWED_ORIGINS, comma-separated, defaults
+  // to the canonical domain) and stay permissive in dev so local dev
+  // against any localhost port keeps working.
+  cors: {
+    origin:
+      process.env.NODE_ENV === "production"
+        ? (process.env.CORS_ALLOWED_ORIGINS?.split(",").map((s) => s.trim()).filter(Boolean) ??
+          ["https://aurevia.io"])
+        : "*",
+    methods: ["GET", "POST"],
+  },
   pingTimeout: 60000,
   pingInterval: 25000,
 });

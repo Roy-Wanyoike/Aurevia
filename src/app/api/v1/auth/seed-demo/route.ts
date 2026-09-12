@@ -1,12 +1,31 @@
 import { NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/aurevia/logger";
 
 export const dynamic = "force-dynamic";
 
 // POST /api/v1/auth/seed-demo — creates a demo user for testing.
-// This endpoint is DEV-ONLY and would be removed in production.
-export async function POST() {
+//
+// Issue #64 — this endpoint seeds a known email/password into the database so
+// developers can sign in without running a separate script. In production it
+// is a security hole: anyone could POST and create a known account. So we
+// hard-disable it when NODE_ENV === "production" — returns 404 (not 403) so
+// the endpoint appears not to exist, which is what we want an attacker to
+// believe. The check runs FIRST, before any DB work, so we never touch the
+// database in prod even if someone discovers the route.
+export async function POST(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+
+  if (process.env.NODE_ENV === "production") {
+    logger.warn("seed-demo endpoint blocked in production", {
+      requestId,
+      path: "/api/v1/auth/seed-demo",
+      status: "NOT_FOUND",
+    });
+    return new NextResponse(null, { status: 404 });
+  }
+
   try {
     const email = "demo@aurevia.io";
     const password = "aurevia123";

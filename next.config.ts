@@ -11,9 +11,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   // Security headers (FE-P1-008 + issue #66) — CSP + frame-ancestors to
   // prevent clickjacking + XSS-based credential exfiltration. The CSP is
-  // deliberately permissive on 'connect-src' (allows wss + the major market-
-  // data / broker endpoints) because the app makes live websocket + REST
-  // calls to those hosts. Tighten once nonce-based CSP is wired up.
+  // deliberately permissive on 'connect-src' (allows wss + ws + http + https
+  // + the major market-data / broker endpoints) because the app makes live
+  // websocket + REST calls to those hosts, including local broker gateways
+  // (IBKR Client Portal on http://localhost:5000). 'unsafe-inline' on
+  // script-src is required by Next.js 16's RSC payload + Turbopack HMR —
+  // tighten once nonce-based CSP is wired up.
   async headers() {
     return [
       {
@@ -26,10 +29,13 @@ const nextConfig: NextConfig = {
               // Next.js 16 + Turbopack need inline scripts for HMR + RSC payloads.
               "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: https:",
+              // blob: covers client-side image blob URLs (charts, exported PNGs).
+              // https: covers remote branding / market-data chart thumbnails.
+              "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
-              // wss for aurevia-stream + https for market data + broker APIs.
-              "connect-src 'self' ws: wss: https:",
+              // wss for aurevia-stream + https for market data + broker APIs +
+              // http for local broker gateways (IBKR Client Portal on :5000).
+              "connect-src 'self' ws: wss: http: https:",
               "frame-ancestors 'none'",
               "base-uri 'self'",
               "form-action 'self'",
