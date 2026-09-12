@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -13,6 +14,23 @@ import { QueryState } from "@/components/aurevia/query-state";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { Activity, ArrowUpRight, ArrowDownRight, ShieldAlert, Radio, Zap, RefreshCw, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
+
+// "Updated Xs ago" — re-renders every second so the age visibly ticks
+// between background refetches. Without this the dashboard reads as a
+// frozen screenshot; with it the system feels alive (issue #36).
+function useAgeLabel(ts: number | null | undefined): string {
+  const [, force] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => force((n) => n + 1), 1_000);
+    return () => clearInterval(id);
+  }, []);
+  if (!ts) return "Awaiting first tick…";
+  const age = Date.now() - ts;
+  if (age < 0) return "Just now";
+  if (age < 60_000) return `Updated ${Math.max(1, Math.floor(age / 1000))}s ago`;
+  if (age < 3_600_000) return `Updated ${Math.floor(age / 60_000)}m ago`;
+  return `Updated ${Math.floor(age / 3_600_000)}h ago`;
+}
 
 export function DashboardView() {
   const markets = useMarkets();
@@ -38,6 +56,10 @@ export function DashboardView() {
 
   const recentSignals = (signals.data ?? []).slice(0, 6);
   const regimeCounts = trends.data?.distribution ?? {};
+
+  // Tick every second so the "Updated Xs ago" badge under System Status
+  // visibly ages between health refetches.
+  const lastUpdatedLabel = useAgeLabel(health.data?.lastTickAt);
 
   return (
     <div className="space-y-6 p-6">
@@ -175,6 +197,13 @@ export function DashboardView() {
             <StatusRow label="Signals Tracked" value={`${health.data?.signalsTracked ?? 0}`} accent="default" />
             <StatusRow label="Backtests Run" value={`${health.data?.backtestsRun ?? 0}`} accent="default" />
             <StatusRow label="Uptime" value={`${health.data?.uptimeHours ?? 0}h`} accent="default" />
+          </div>
+          {/* "Updated Xs ago" — gives the card a heartbeat and tells the
+              user the data is fresh without making them read a timestamp
+              (issue #36 — humanized numbers with context). */}
+          <div className="mt-3 flex items-center gap-1.5 border-t border-border/40 pt-2.5 text-[11px] text-muted-foreground">
+            <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" aria-hidden />
+            <span className="tabular">{lastUpdatedLabel}</span>
           </div>
         </Card>
       </div>

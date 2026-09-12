@@ -88,10 +88,10 @@ function NavBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
                   title={collapsed ? item.label : undefined}
                   aria-current={active ? "page" : undefined}
                   className={cn(
-                    "flex w-full min-h-[44px] items-center gap-3 rounded-md px-2.5 py-2.5 text-sm transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    "flex w-full min-h-[44px] items-center gap-3 rounded-md px-2.5 py-2.5 text-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-ring",
                     active
-                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium"
-                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
+                      ? "bg-sidebar-accent text-sidebar-accent-foreground font-medium border-l-2 border-primary"
+                      : "border-l-2 border-transparent text-sidebar-foreground/70 hover:bg-sidebar-accent/50 hover:text-sidebar-foreground"
                   )}
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", active && "text-primary")} />
@@ -141,15 +141,46 @@ export function Sidebar() {
         </div>
         <NavBody collapsed={sidebarCollapsed} />
         <div className="border-t border-sidebar-border p-2">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={toggleSidebar}
-            className="w-full justify-start gap-2 text-muted-foreground"
-          >
-            <ChevronLeft className={cn("h-4 w-4 transition-transform", sidebarCollapsed && "rotate-180")} />
-            {!sidebarCollapsed && <span>Collapse</span>}
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={toggleSidebar}
+              className="flex-1 justify-start gap-2 text-muted-foreground"
+              aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              <ChevronLeft className={cn("h-4 w-4 transition-transform", sidebarCollapsed && "rotate-180")} />
+              {!sidebarCollapsed && <span>Collapse</span>}
+            </Button>
+            {!sidebarCollapsed && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Synthesize a Cmd+K / Ctrl+K keydown so the global
+                  // CommandPalette listener opens the palette. Avoids lifting
+                  // palette-open state into the UI store.
+                  window.dispatchEvent(
+                    new KeyboardEvent("keydown", {
+                      key: "k",
+                      metaKey: typeof navigator !== "undefined" && /Mac/.test(navigator.platform),
+                      ctrlKey: typeof navigator !== "undefined" && !/Mac/.test(navigator.platform),
+                      bubbles: true,
+                    }),
+                  );
+                }}
+                className="inline-flex h-8 items-center justify-center rounded-md border border-sidebar-border/60 px-1.5 text-[10px] text-muted-foreground/70 transition-colors hover:bg-sidebar-accent/50 hover:text-sidebar-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="Open command palette"
+                title="Open command palette (⌘K)"
+              >
+                <span className="font-mono">⌘K</span>
+              </button>
+            )}
+          </div>
+          {!sidebarCollapsed && (
+            <p className="mt-1.5 px-1 text-[10px] text-muted-foreground/50">
+              Press <span className="font-mono">⌘K</span> to search anywhere.
+            </p>
+          )}
         </div>
       </aside>
     </>
