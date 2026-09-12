@@ -18,6 +18,7 @@ import { OrdersView } from "@/components/aurevia/views/orders-view";
 import { MLView } from "@/components/aurevia/views/ml-view";
 import { BrokersView } from "@/components/aurevia/views/brokers-view";
 import { MarketPulseView } from "@/components/aurevia/views/market-pulse-view";
+import { CorrelationView } from "@/components/aurevia/views/correlation-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
 import { SettingsView } from "@/components/aurevia/views/settings-view";
 import { CommandPalette } from "@/components/aurevia/command-palette";
@@ -94,6 +95,7 @@ function ViewRouter() {
     case "ml": return <MLView />;
     case "brokers": return <BrokersView />;
     case "market-pulse": return <MarketPulseView />;
+    case "correlation": return <CorrelationView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
     default: return <DashboardView />;

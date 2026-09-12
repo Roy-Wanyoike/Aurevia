@@ -232,6 +232,27 @@ export function useMarketPulse() {
   });
 }
 
+// --- Correlation Matrix (issue #44) ---
+// N×N Pearson correlation matrix across the tradeable universe, computed
+// from 30-day log returns server-side. `symbols` is the shared row + column
+// order; `matrix` is a flat list of { a, b, corr } entries (one per cell).
+export interface CorrelationCell {
+  a: string;
+  b: string;
+  corr: number;
+}
+export interface CorrelationMatrix {
+  symbols: string[];
+  matrix: CorrelationCell[];
+}
+export function useCorrelation() {
+  return useQuery({
+    queryKey: ["correlation"],
+    queryFn: () => fetchJson<CorrelationMatrix>("/api/v1/correlation"),
+    refetchInterval: 60_000,
+  });
+}
+
 // --- Health ---
 export function useHealth() {
   return useQuery({
