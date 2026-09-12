@@ -1000,3 +1000,38 @@ Resolve 4 GitHub audit issues blocking the mobile/tablet experience of the Aurev
 ### Commit
 Single commit on branch `fix/mobile-sidebar-orders` (NOT merged into main):
 `fix(#4,#5,#8,#22): mobile sidebar, table scroll, real orders view, topbar ticker`
+
+## Task fix-a11y-skeletons — Z.ai Code — COMPLETED
+
+### Summary
+Applied 5 audit fixes to the Aurevia trading platform frontend:
+
+1. **Sidebar logo (GitHub #12)** — Replaced both `<img src="/branding/aurevia-logo.svg">` occurrences (desktop `<aside>` and mobile `<Sheet>`) with `next/image` `<Image>` wrapped in a `<button>` that navigates to the dashboard (`setView("dashboard")`, also `setOpen(false)` on mobile). Added `aria-label`, `focus-visible:ring`, `hover:opacity-80`.
+2. **Loading skeletons (GitHub #13)** — Replaced every "Loading…" / "Loading …" text div with bespoke `Skeleton` layouts in 11 views: `markets-view`, `signals-view`, `dashboard-view`, `portfolio-view`, `asset-detail-view`, `regimes-view`, `brokers-view`, `strategies-view`, `risk-view`, `trends-view`, `backtests-view`. Each skeleton mimics the eventual content layout (rows of avatars + name + price + change for markets, cards for portfolio, table rows for trends/backtests, etc.). `ml-view.tsx` had no "Loading…" text so no change was needed there.
+3. **Sidebar accessibility (GitHub #14)** — Added `aria-label="Main navigation"` to the `<nav>` returned by `NavBody`, `aria-current="page"` to the active nav button, a skip-to-content link at the top of `src/app/page.tsx` (`sr-only focus:not-sr-only …`), and `id="main-content"` on `<main>`.
+4. **Keyboard accessibility on clickable rows (GitHub #15)** — Added `tabIndex={0}`, `role="button"`, `onKeyDown` (Enter/Space → `e.preventDefault(); openAsset(...)`) and `focus-visible:ring` className to clickable `<TableRow>` in `markets-view`, `trends-view`, `portfolio-view`, `backtests-view` (the latter calls `openBacktest + setResult(null)`). `signals-view` and `orders-view` don't have clickable TableRows (only an inner `<button>` on the symbol cell, which is already keyboard-accessible).
+5. **Touch targets ≥ 44px (GitHub #16)** — Sidebar nav buttons: changed `py-2` → `py-2.5 min-h-[44px]`. `signals-view` Scan button: `size="sm"` → `size="default"`. `dashboard-view` Scan button: `size="sm"` → `size="default"`. Icon sizes bumped from `h-3.5` to `h-4` to match.
+
+### Files modified
+- `src/app/page.tsx` — skip link + `main#main-content`
+- `src/components/aurevia/sidebar.tsx` — `next/image` logo (desktop + mobile), clickable button → dashboard, `aria-label="Main navigation"`, `aria-current="page"`, `min-h-[44px]` nav buttons, `focus-visible:ring` everywhere
+- `src/components/aurevia/views/dashboard-view.tsx` — Skeletons for top movers + regime distribution, Scan button `size="default"`
+- `src/components/aurevia/views/markets-view.tsx` — Skeleton for loading rows, keyboard a11y on `<TableRow>`
+- `src/components/aurevia/views/signals-view.tsx` — Skeleton for loading rows, Scan Universe button `size="default"`
+- `src/components/aurevia/views/portfolio-view.tsx` — Full-page skeleton (stat tiles + positions table), keyboard a11y on `<TableRow>`
+- `src/components/aurevia/views/trends-view.tsx` — Skeleton for loading rows, keyboard a11y on `<TableRow>`
+- `src/components/aurevia/views/backtests-view.tsx` — Skeleton for loading rows, keyboard a11y on `<TableRow>`
+- `src/components/aurevia/views/asset-detail-view.tsx` — Full-page skeleton (chart + indicators + 3 cards)
+- `src/components/aurevia/views/regimes-view.tsx` — Skeleton for regime distribution bars
+- `src/components/aurevia/views/brokers-view.tsx` — Skeleton for registered brokers list
+- `src/components/aurevia/views/strategies-view.tsx` — Card-grid skeleton for strategy cards
+- `src/components/aurevia/views/risk-view.tsx` — Full-page skeleton (breaker + profile form + event log)
+
+### Verification
+- `bun run lint` — clean (no errors/warnings)
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → `0` (only unrelated errors in `examples/` and `skills/`)
+- Dev server still serves `/` HTTP 200
+
+### Commit
+Single commit on branch `fix/a11y-skeletons-logo` (NOT merged into main):
+`fix(#12,#13,#14,#15,#16): next/image logo, skeletons, ARIA, keyboard a11y, touch targets`
