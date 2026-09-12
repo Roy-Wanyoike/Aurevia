@@ -32,6 +32,7 @@ import { PortfolioAnalyticsView } from "@/components/aurevia/views/portfolio-ana
 import { RiskCockpitView } from "@/components/aurevia/views/risk-cockpit-view";
 import { JournalView } from "@/components/aurevia/views/journal-view";
 import { CopilotView } from "@/components/aurevia/views/copilot-view";
+import { StrategyBuilderView } from "@/components/aurevia/views/strategy-builder-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
 import { SettingsView } from "@/components/aurevia/views/settings-view";
 import { CommandPalette } from "@/components/aurevia/command-palette";
@@ -114,6 +115,7 @@ function ViewRouter() {
     case "risk-cockpit": return <RiskCockpitView />;
     case "journal": return <JournalView />;
     case "copilot": return <CopilotView />;
+    case "strategy-builder": return <StrategyBuilderView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
     default: return <DashboardView />;
