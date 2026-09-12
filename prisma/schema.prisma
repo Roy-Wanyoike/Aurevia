@@ -215,3 +215,188 @@ model AuditLog {
   detail     String?
   timestamp  DateTime @default(now())
 }
+
+// ═══════════════════════════════════════════════════════════════════════════
+// PHASE 0 — PRODUCTION DATA MODEL
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ─── MARKET DATA PERSISTENCE ───────────────────────────────────────────────
+// Stores historical OHLCV candles for backtesting and analysis.
+// In production, use TimescaleDB hypertables or partition by time.
+model MarketCandle {
+  id        String   @id @default(cuid())
+  symbol    String
+  timeframe String   // 1m | 5m | 15m | 1h | 4h | 1d
+  time      DateTime
+  open      Float
+  high      Float
+  low       Float
+  close     Float
+  volume    Float
+  source    String   @default("simulated") // simulated | polygon | alpaca | finnhub
+  createdAt DateTime @default(now())
+
+  @@unique([symbol, timeframe, time])
+  @@index([symbol, timeframe, time])
+  @@index([time])
+}
+
+// Latest quotes — updated on every tick.
+model MarketQuote {
+  id        String   @id @default(cuid())
+  symbol    String   @unique
+  price     Float
+  bid       Float
+  ask       Float
+  spread    Float
+  volume24h Float
+  changePct Float
+  timestamp DateTime
+  source    String   @default("simulated")
+  updatedAt DateTime @updatedAt
+
+  @@index([timestamp])
+}
+
+// ─── MARKET INTELLIGENCE ───────────────────────────────────────────────────
+// Cached indicator snapshots per asset per timeframe.
+model MarketFeature {
+  id         String   @id @default(cuid())
+  symbol     String
+  timeframe  String
+  time       DateTime
+  indicators String   // JSON: {sma20, rsi14, macd, ...}
+  trend      String   // JSON: {direction, strength, duration, ...}
+  regime     String   // BULL | BEAR | SIDEWAYS | ...
+  createdAt  DateTime @default(now())
+
+  @@unique([symbol, timeframe, time])
+  @@index([symbol, time])
+  @@index([regime])
+}
+
+// ─── HISTORICAL MEMORY ─────────────────────────────────────────────────────
+// Stores historical market states for similarity matching.
+model HistoricalPattern {
+  id         String   @id @default(cuid())
+  symbol     String
+  date       DateTime
+  features   String   // JSON snapshot of indicators + trend + regime
+  forwardReturn5d  Float?
+  forwardReturn20d Float?
+  createdAt  DateTime @default(now())
+
+  @@index([symbol, date])
+}
+
+// ─── NEWS + EVENTS ─────────────────────────────────────────────────────────
+model NewsArticle {
+  id          String   @id @default(cuid())
+  headline    String
+  summary     String?
+  url         String   @unique
+  source      String   // reuters | bloomberg | finnhub | ...
+  symbols     String   // JSON array of mentioned symbols
+  sentiment   Float?   // -1..1
+  importance  String   @default("medium") // low | medium | high
+  publishedAt DateTime
+  createdAt   DateTime @default(now())
+
+  @@index([publishedAt])
+  @@index([source])
+}
+
+model MarketEvent {
+  id          String   @id @default(cuid())
+  type        String   // earnings | dividend | split | economic | central_bank
+  symbol      String?
+  title       String
+  description String?
+  importance  String   @default("medium") // low | medium | high | critical
+  scheduledAt DateTime
+  resolvedAt  DateTime?
+  impact      String?  // JSON: {affectedSymbols, historicalImpact}
+  createdAt   DateTime @default(now())
+
+  @@index([scheduledAt])
+  @@index([symbol])
+  @@index([type])
+}
+
+// ─── PORTFOLIO SNAPSHOTS ───────────────────────────────────────────────────
+// Periodic snapshots for equity curve tracking + drawdown analysis.
+model PortfolioSnapshot {
+  id          String   @id @default(cuid())
+  cash        Float
+  equity      Float
+  marketValue Float
+  unrealizedPnl Float
+  realizedPnl Float
+  feesPaid    Float
+  exposure    Float
+  drawdown    Float
+  positions   String   // JSON array of position snapshots
+  timestamp   DateTime @default(now())
+
+  @@index([timestamp])
+}
+
+// ─── EVENT LOG (audit-grade) ───────────────────────────────────────────────
+// Immutable event log for the full trading pipeline.
+// Every important state change gets an event record.
+model EventLog {
+  id             String   @id @default(cuid())
+  eventType      String   // MARKET_PRICE_UPDATED | SIGNAL_CREATED | RISK_CHECK_PASSED | ORDER_CREATED | ORDER_FILLED | ...
+  correlationId  String?  // links events in the same request/trade
+  causationId    String?  // links an event to its cause
+  actorId        String?  // user or system component
+  tenantId       String?  // organization ID (multi-tenant)
+  schemaVersion  Int      @default(1)
+  payload        String   // JSON event payload
+  timestamp      DateTime @default(now())
+
+  @@index([eventType, timestamp])
+  @@index([correlationId])
+}
+
+// ─── ALERTS ────────────────────────────────────────────────────────────────
+model Alert {
+  id         String   @id @default(cuid())
+  type       String   // price | indicator | regime | risk | system
+  symbol     String?
+  condition  String   // JSON: {metric, operator, threshold}
+  channel    String   @default("in-app") // in-app | email | webhook
+  active     Boolean  @default(true)
+  triggeredAt DateTime?
+  createdAt  DateTime @default(now())
+
+  @@index([active, type])
+}
+
+// ─── BROKER CONNECTIONS ────────────────────────────────────────────────────
+model BrokerConnection {
+  id          String   @id @default(cuid())
+  brokerId    String   // alpaca | ibkr | oanda | coinbase | paper
+  brokerName  String
+  accountId   String?
+  mode        String   @default("PAPER") // PAPER | SANDBOX | LIVE
+  status      String   @default("DISCONNECTED") // DISCONNECTED | CONNECTING | CONNECTED | ERROR
+  apiKeyRef   String?  // reference to secret in secret manager (never the key itself)
+  lastSyncAt  DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([brokerId, accountId])
+}
+
+// ─── RECONCILIATION ─────────────────────────────────────────────────────────
+model ReconciliationRun {
+  id          String   @id @default(cuid())
+  status      String   @default("PENDING") // PENDING | COMPLETED | MISMATCH
+  internalState String // JSON
+  externalState String // JSON
+  diffs       String?  // JSON array of mismatches
+  createdAt   DateTime @default(now())
+
+  @@index([status, createdAt])
+}
