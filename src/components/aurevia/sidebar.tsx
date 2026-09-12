@@ -30,6 +30,11 @@ import {
   Calendar,
   GitCompareArrows,
   PlayCircle,
+  PieChart,
+  ShieldCheck,
+  BookOpen,
+  Bot,
+  Blocks,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -66,13 +71,18 @@ const NAV: NavItem[] = [
   { key: "news", label: "News", icon: Newspaper, group: "intelligence" },
   { key: "events", label: "Events", icon: Calendar, group: "intelligence" },
   { key: "strategies", label: "Strategies", icon: Cpu, group: "trading" },
+  { key: "strategy-builder", label: "Strategy Builder", icon: Blocks, group: "trading" },
   { key: "backtests", label: "Backtests", icon: FlaskConical, group: "trading" },
   { key: "what-if", label: "What-If", icon: GitCompareArrows, group: "trading" },
   { key: "replay", label: "Market Replay", icon: PlayCircle, group: "trading" },
   { key: "portfolio", label: "Portfolio", icon: Wallet, group: "trading" },
+  { key: "portfolio-analytics", label: "Analytics", icon: PieChart, group: "trading" },
+  { key: "risk-cockpit", label: "Risk Cockpit", icon: ShieldCheck, group: "trading" },
+  { key: "journal", label: "Journal", icon: BookOpen, group: "trading" },
   { key: "orders", label: "Orders", icon: ScrollText, group: "trading" },
   { key: "risk", label: "Risk Engine", icon: ShieldAlert, group: "trading" },
   { key: "brokers", label: "Brokers", icon: Plug, group: "trading" },
+  { key: "copilot", label: "AI Copilot", icon: Bot, group: "intelligence" },
   { key: "system", label: "System Health", icon: HeartPulse, group: "system" },
   { key: "settings", label: "Settings", icon: Settings, group: "system" },
 ];

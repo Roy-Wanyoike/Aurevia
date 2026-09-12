@@ -733,3 +733,135 @@ export function useMarketPulse() {
     refetchInterval: 30_000,
   });
 }
+
+// --- Portfolio Analytics (issue #52) ---
+// VaR (95%/99%) + CVaR (95%) + Beta vs SPY + sector exposure +
+// concentration (Herfindahl + max position weight). Computed server-side
+// from the 30-day daily returns of every open position, blended by their
+// current market-value weights. Returns 422 when there are no positions.
+export interface PortfolioVarBand {
+  returnPct: number; // negative — a loss
+  dollar: number;   // positive — magnitude in dollars
+}
+export interface SectorExposure {
+  sector: string;
+  exposurePct: number;
+  marketValue: number;
+}
+export interface PortfolioAnalytics {
+  var95: PortfolioVarBand;
+  var99: PortfolioVarBand;
+  cvar95: PortfolioVarBand;
+  beta: number;
+  sectors: SectorExposure[];
+  concentration: number;     // 0..1 Herfindahl
+  maxConcentration: number;  // 0..1 max position weight
+  totalMarketValue: number;
+  sampleDays: number;
+}
+export function usePortfolioAnalytics() {
+  return useQuery({
+    queryKey: ["portfolio-analytics"],
+    queryFn: () => fetchJson<PortfolioAnalytics>("/api/v1/portfolio/analytics"),
+    refetchInterval: 30_000,
+    // 422 (no open positions) is a valid state — surface the empty UI rather
+    // than a hard error.
+    retry: false,
+  });
+}
+
+// --- Trading Journal (issue #54) ---
+// Aggregates every FILLED order into a journal of executed trades with
+// per-trade market context (regime / trend / volatility at fill time) and
+// overall analytics (trades by regime, by strategy, total count).
+export interface JournalEntry {
+  id: string;
+  symbol: string;
+  side: "BUY" | "SELL";
+  quantity: number;
+  filledPrice: number;
+  strategyKey: string;
+  reason: string;
+  regime: string;
+  trend: string;
+  volatility: number;
+  createdAt: number;
+}
+export interface JournalAnalytics {
+  byRegime: Record<string, number>;
+  byStrategy: Record<string, number>;
+  totalTrades: number;
+}
+export interface JournalResponse {
+  entries: JournalEntry[];
+  analytics: JournalAnalytics;
+}
+export function useJournal() {
+  return useQuery({
+    queryKey: ["journal"],
+    queryFn: () => fetchJson<JournalResponse>("/api/v1/journal"),
+    refetchInterval: 30_000,
+  });
+}
+
+// --- AI Research Copilot (issue #55) ---
+// POST a natural-language question; the server bundles the live portfolio +
+// market + signal context, calls the ZAI chat completion API, and returns
+// the answer + the context bundle that was sent. Server-side only — the
+// SDK never runs in the browser.
+export interface CopilotResponse {
+  answer: string;
+  context: string;
+  query: string;
+}
+export function useAskCopilot() {
+  return useMutation({
+    mutationFn: (input: { query: string }) =>
+      fetchJson<CopilotResponse>("/api/v1/copilot", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
+// --- Monte Carlo + Walk-Forward (issue #57) ---
+// POST a backtest id; the server resamples the trade sequence 100 times to
+// build a Monte Carlo equity-curve distribution (p10 / p50 / p90 + survival
+// rate + worst / best case) and splits the trades into 4 walk-forward windows
+// with per-window Sharpe + return. Blended with the original Sharpe for an
+// overall robustness score (0..100).
+export interface MonteCarloResult {
+  simulations: number;
+  p10: number;
+  p50: number;
+  p90: number;
+  survivalRate: number; // 0..100
+  worstCase: number;
+  bestCase: number;
+}
+export interface WalkForwardWindow {
+  start: number;
+  end: number;
+  sharpe: number;
+  returnPct: number;
+}
+export interface RobustnessBreakdown {
+  score: number;            // 0..100
+  originalSharpe: number;
+  survivalRate: number;     // 0..100
+  walkForwardStability: number; // 0..100
+}
+export interface MonteCarloResponse {
+  monteCarlo: MonteCarloResult;
+  walkForward: WalkForwardWindow[];
+  robustness: RobustnessBreakdown;
+}
+export function useMonteCarlo() {
+  return useMutation({
+    mutationFn: (input: { id: string }) =>
+      fetchJson<MonteCarloResponse>(
+        `/api/v1/backtests/${encodeURIComponent(input.id)}/monte-carlo`,
+        { method: "POST", body: JSON.stringify({}) },
+      ),
+  });
+}
