@@ -24,6 +24,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
 import { useAureviaStream } from "@/lib/aurevia/hooks/use-aurevia-stream";
+import { useHealth } from "@/lib/aurevia/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -230,9 +231,16 @@ export function Topbar() {
   const { view } = useUI();
   const current = NAV.find((n) => n.key === view);
   const { connected, ticks } = useAureviaStream();
+  const health = useHealth();
   // Slice to 4 ticks for the mobile-visible ticker (md+) — never use window
   // in render; we just bound the count and let overflow-hidden clip the rest.
   const tickArr = Array.from(ticks.values()).slice(0, 4);
+  // Data source badge — driven by /api/v1/health. When a real provider has
+  // an API key configured, dataSource is its id and dataIsLive is true.
+  // Otherwise we transparently fall back to the simulated feed — and we
+  // tell the user, loudly, that the data is simulated.
+  const dataSource = (health.data?.dataSource as string | undefined) ?? "simulated";
+  const dataIsLive = (health.data?.dataIsLive as boolean | undefined) ?? false;
 
   return (
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur md:px-6">
@@ -244,6 +252,25 @@ export function Topbar() {
           <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
           PAPER MODE
         </Badge>
+        {dataIsLive ? (
+          <Badge
+            variant="outline"
+            className="hidden border-emerald-500/30 bg-emerald-500/10 text-emerald-400 sm:inline-flex"
+            title={`Live data via ${dataSource} provider`}
+          >
+            <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+            LIVE DATA
+          </Badge>
+        ) : (
+          <Badge
+            variant="outline"
+            className="hidden border-amber-500/30 bg-amber-500/10 text-amber-400 sm:inline-flex"
+            title="No real market data API key configured — running off the deterministic simulated feed."
+          >
+            <span className="mr-1 inline-block h-1.5 w-1.5 rounded-full bg-amber-400" />
+            SIMULATED
+          </Badge>
+        )}
         {connected && (
           <Badge variant="outline" className="hidden border-cyan-500/30 bg-cyan-500/10 text-cyan-400 sm:inline-flex">
             <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />

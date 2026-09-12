@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useMarkets, type MarketAsset } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtPct, fmtCompact, gainColor, gainBg } from "@/lib/aurevia/format";
+import { fmtPrice, fmtPct, fmtCompact, gainBg, accentColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { ArrowUpRight, ArrowDownRight, Search, ArrowUpDown } from "lucide-react";
 
@@ -194,11 +194,7 @@ export function MarketsView() {
 }
 
 function SummaryTile({ label, value, accent }: { label: string; value: number; accent: "gain" | "loss" | "warn" | "default" }) {
-  const color =
-    accent === "gain" ? "text-emerald-400" :
-    accent === "loss" ? "text-red-400" :
-    accent === "warn" ? "text-amber-400" :
-    "text-foreground";
+  const color = accentColor(accent);
   return (
     <Card className="p-4">
       <div className="text-xs uppercase tracking-wider text-muted-foreground">{label}</div>

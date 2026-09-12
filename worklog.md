@@ -1107,65 +1107,86 @@ Applied 2 audit fixes to the Aurevia trading platform:
 Single commit on branch `fix/dropdowns-order-ticket` (NOT merged into main):
 `fix(#18,#19): dynamic symbol dropdowns, order ticket validation + cost preview`
 
----
-
-## Task phase0-humanized-ui — Z.ai Code — COMPLETED
+## Task phase0-backend-prod — Distinguished Backend + Security Engineer — COMPLETED
 
 ### Scope
-Close Aurevia issues **#36** (humanized UI), **#37** (Cmd+K command palette),
-**#38** (URL routing). Branch `phase0/humanized-ui` from `main`, single
-commit, **not merged**.
+Production backend infrastructure for Aurevia. Addresses GitHub issues #29 (hardcoded
+lists), #30 (hardcoded colors), #33 (observability), #34 (rate limiting), #35 (real
+market data).
+
+### Branch
+`phase0/backend-prod` — created from `main`, one commit ahead, **NOT merged**.
+
+### Files created
+- `src/lib/aurevia/market-data/provider.ts` — `MarketDataProvider` interface.
+- `src/lib/aurevia/market-data/providers/polygon.ts` — Polygon.io REST provider
+  (aggregates + last-trade). 5s fetch timeout, 60s in-memory cache per
+  (symbol, timeframe, bars). Disabled gracefully when `POLYGON_API_KEY` unset.
+- `src/lib/aurevia/market-data/providers/simulated.ts` — wraps the existing
+  `generateCandles` + `buildQuote` deterministic feed. `isLive = false`.
+- `src/lib/aurevia/market-data/gateway.ts` — `MarketDataGateway` routes to the
+  first configured+healthy provider, falls through to simulated on error.
+  Exposes `getActiveProvider()` for the health endpoint. Singleton preserved
+  across hot reloads.
+- `src/lib/aurevia/logger.ts` — JSON logger. `LOG_LEVEL` env-gated. Every
+  entry carries `timestamp` (ISO UTC), `level`, `message`, and caller metadata.
+- `src/lib/aurevia/rate-limit.ts` — in-memory sliding-window per-IP rate
+  limiter. `RATE_LIMIT_PER_MINUTE` env (default 60). No Redis needed.
+- `src/middleware.ts` — edge middleware on `/api/*`: propagates or generates
+  `x-request-id` (UUID v4); rate-limits by `x-forwarded-for` first hop;
+  returns 429 + `Retry-After` + `x-ratelimit-remaining` when exceeded.
+
+### Files modified
+- `src/app/api/v1/health/route.ts` — adds `dataSource` + `dataIsLive` from
+  `marketDataGateway.getActiveProvider()`.
+- `src/app/api/v1/portfolio/route.ts` — POST logs every order with
+  `requestId`, `symbol`, `action`, `status`, `orderId`, `filledPrice`, etc.
+- `src/app/api/v1/risk/route.ts` — POST logs every risk profile change with
+  `requestId`, `action`, `status`, `changed` (list of mutated fields).
+- `src/app/api/v1/signals/route.ts` — POST logs every scan with `requestId`,
+  `universeSize`, `signalsEmitted`, `approved`, `rejected`, `paused`, `durationMs`.
+- `src/components/aurevia/sidebar.tsx` (Topbar) — adds a data-source badge
+  driven by `useHealth()`. Green "LIVE DATA" when `dataIsLive === true`,
+  amber "SIMULATED" otherwise.
+- `src/components/aurevia/views/backtests-view.tsx` — removed hardcoded
+  `STRATEGY_KEYS` + `TIMEFRAMES`. Strategy dropdown now iterates over
+  `useStrategies().data`; timeframe uses the `TIMEFRAMES` constant.
+- `src/components/aurevia/views/signals-view.tsx` — removed hardcoded
+  `STRATEGY_KEYS`. Strategy filter now uses `useStrategies().data`.
+- `src/components/aurevia/views/dashboard-view.tsx` — replaced inline decision
+  color ternary with `decisionColor()`; `StatusRow` colors via `accentColor()`;
+  System-status Activity icon now dynamic.
+- `src/components/aurevia/views/markets-view.tsx` — `SummaryTile` colors via
+  `accentColor()`.
+- `src/lib/aurevia/format.ts` — added `accentColor(accent)` helper.
+- `src/lib/aurevia/types.ts` — exported canonical `TIMEFRAMES: Timeframe[]`
+  constant.
+
+### Verification (all run during development)
+- `bun run lint` → clean, exit 0.
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → `0`.
+- Rate-limit: 65 sequential `/api/v1/health` curls → 60× `200` + 5× `429`.
+- Request ID: `curl -sI /api/v1/health | grep x-request-id` → returns a UUID v4.
+- Rate-limit response headers: `retry-after: 48` + `x-ratelimit-remaining: 0`.
+- Health: `/api/v1/health` JSON contains `"dataSource":"simulated","dataIsLive":false`.
+- Structured logs: emitted for scan / order / risk profile update / rate-limit
+  exceedance, all with `requestId`, `action`, `status`, and contextual fields.
+- UI badge: `curl -s / | rg -o 'PAPER MODE|SIMULATED|LIVE DATA'` → `PAPER MODE` + `SIMULATED`.
+
+### Notes for follow-up
+- Adding a new provider (Alpaca, Finnhub, Tiingo, Twelve Data, etc.): drop a new
+  class implementing `MarketDataProvider` into `providers/`, append to the array
+  in `gateway.ts`. UI badge + `/api/v1/health` fields update automatically.
+- The store's `getCandles` / `getQuote` still call `generateCandles` / `buildQuote`
+  directly. A future task can swap them to call `marketDataGateway.getCandles(...)`
+  so live provider data flows into the signal scan, backtests, and risk engine.
+- Next.js 16 emits a deprecation warning for `middleware.ts` (now `proxy.ts`).
+  The file still works in 16.1.3 — only the filename convention is deprecated.
+- Full hardcoded-color refactor (issue #30) was scoped to the 3 most visible
+  views per task instructions. Remaining instances in `risk-view`, `asset-detail`,
+  `regimes-view`, `trends-view`, `portfolio-view` all use existing helpers and
+  are mechanical follow-up work.
 
 ### Commit
-```
-fdb0537 feat(#36,#37,#38): humanized UI, command palette, URL routing
-```
-
-### Files changed (8)
-1. `src/lib/aurevia/ui-store.ts` — added `syncFromUrl()` + `VALID_VIEWS` whitelist.
-2. `src/app/page.tsx` — two new effects (hydrate from URL on mount + `popstate`; push URL on view/symbol/backtest change). Mounts `<CommandPalette />` at root.
-3. `src/components/aurevia/command-palette.tsx` — **new.** Cmd+K / Ctrl+K palette. Groups: Recent / Navigate / Actions / Assets.
-4. `src/app/globals.css` — body noise texture, `aurevia-shimmer` keyframes + `.skeleton-shimmer`, `.kbd` chip.
-5. `src/components/ui/skeleton.tsx` — switched from `animate-pulse` to `skeleton-shimmer`.
-6. `src/components/aurevia/sidebar.tsx` — active nav `border-l-2 border-primary` glow; transparent border on inactive (no layout shift). New clickable `⌘K` hint button next to Collapse.
-7. `src/components/aurevia/views/dashboard-view.tsx` — `useAgeLabel` hook (1s tick). System Status card gets "Updated Xs ago" heartbeat.
-8. `src/lib/aurevia/format.ts` — `fmtUsd` auto-picks 2 fractional digits for sub-$1000 values.
-
-### Issue #38 — URL routing
-Zustand store gains `syncFromUrl()` that reads `?view=&symbol=&id=` and
-patches store state, guarded by a `VALID_VIEWS` whitelist. `page.tsx` calls
-it on mount + `popstate`, and pushes URL on state change. `replaceState` is
-used when new URL equals current URL so back/forward doesn't get polluted
-with no-op history entries.
-
-Verified: `curl /?view=markets` → 200.
-
-### Issue #37 — Command palette
-Mounted once at the root of `page.tsx` so Cmd+K / Ctrl+K is always available.
-Built on shadcn `CommandDialog` (cmdk). Four groups:
-- **Recent** — top 5 commands persisted to `localStorage["aurevia.cmdk.recent"]`.
-- **Navigate** — 12 destinations matching the spec list.
-- **Actions** — Scan signals / Reset portfolio / Run backtest.
-- **Assets** — full 18-symbol universe with live price shortcut.
-
-Sidebar `⌘K` hint dispatches a synthetic Cmd+K KeyboardEvent on `window`,
-reusing the same listener as the keyboard shortcut.
-
-Lint note: refactored `useEffect + setState` → `useMemo` keyed on `open`
-to avoid the `react-hooks/set-state-in-effect` warning.
-
-### Issue #36 — Humanized UI polish
-- **Noise texture** on body (1.5% SVG `feTurbulence`).
-- **Shimmer skeletons** — replaced `animate-pulse` with a directional gradient sweep across the whole app.
-- **Active nav glow** — `border-l-2 border-primary` on active; transparent border on inactive for no layout shift.
-- **`⌘K` hint chip** in sidebar footer + descriptive footer text.
-- **`fmtUsd` cents** — auto-shows 2 digits for sub-$1000 amounts.
-- **"Updated Xs ago" heartbeat** under System Status card, ticking every 1s off `health.data.lastTickAt`.
-
-### Verification
-- `bun run lint` — **clean** (0 problems).
-- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — **0**.
-- Dev log: `GET / 200`, `GET /?view=markets 200`, `✓ Compiled`.
-
-### Worklog for downstream agents
-Full file-level summary at `/home/z/my-project/agent-ctx/phase0-humanized-ui-zai-code.md`.
+Single commit on branch `phase0/backend-prod` (NOT merged into main):
+`feat(#29,#30,#33,#34,#35): market data gateway, structured logging, rate limiting, data source badge`

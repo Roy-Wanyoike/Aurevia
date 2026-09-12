@@ -16,22 +16,22 @@ import {
   useBacktestDetail,
   useRunBacktest,
   useMarkets,
+  useStrategies,
   type RunBacktestInput,
 } from "@/lib/aurevia/hooks";
 import { fmtUsd, fmtPct, fmtPrice, fmtDateTime, fmtTime, gainColor } from "@/lib/aurevia/format";
+import { TIMEFRAMES } from "@/lib/aurevia/types";
 import { EquityCurve } from "@/components/aurevia/charts/equity-curve";
 import { StatTile } from "@/components/aurevia/charts/stat-tile";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
 import { Play, Clock, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
-const STRATEGY_KEYS = ["momentum", "trend-following", "ma-crossover", "mean-reversion", "breakout"];
-const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
-
 export function BacktestsView() {
   const { selectedBacktestId, openBacktest } = useUI();
   const backtests = useBacktests();
   const markets = useMarkets();
+  const strategies = useStrategies();
   const detail = useBacktestDetail(selectedBacktestId);
   const run = useRunBacktest();
   const qc = useQueryClient();
@@ -89,7 +89,9 @@ export function BacktestsView() {
               <Select value={form.strategyKey} onValueChange={(v) => update("strategyKey", v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {STRATEGY_KEYS.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+                  {(strategies.data ?? []).map((s) => (
+                    <SelectItem key={s.key} value={s.key}>{s.key}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>

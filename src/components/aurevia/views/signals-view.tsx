@@ -10,13 +10,11 @@ import { Progress } from "@/components/ui/progress";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useSignals, useScanSignals } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtTime, actionColor, decisionColor } from "@/lib/aurevia/format";
+import { useSignals, useScanSignals, useStrategies } from "@/lib/aurevia/hooks";
+import { fmtPrice, fmtTime, actionColor, decisionColor, gainColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
 import { Radio, RefreshCw, Filter, X } from "lucide-react";
-
-const STRATEGY_KEYS = ["momentum", "trend-following", "ma-crossover", "mean-reversion", "breakout"];
 
 export function SignalsView() {
   const [symbol, setSymbol] = useState("");
@@ -24,6 +22,7 @@ export function SignalsView() {
   const { openAsset } = useUI();
   const signals = useSignals(symbol || undefined, strategy || undefined);
   const scan = useScanSignals();
+  const strategies = useStrategies();
   const qc = useQueryClient();
 
   function clearFilters() {
@@ -72,7 +71,9 @@ export function SignalsView() {
                   <SelectValue placeholder="All strategies" />
                 </SelectTrigger>
                 <SelectContent>
-                  {STRATEGY_KEYS.map((k) => <SelectItem key={k} value={k}>{k}</SelectItem>)}
+                  {(strategies.data ?? []).map((s) => (
+                    <SelectItem key={s.key} value={s.key}>{s.key}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

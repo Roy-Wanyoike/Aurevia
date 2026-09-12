@@ -22,6 +22,12 @@ export interface Candle {
 
 export type Timeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
 
+// Canonical list of supported timeframes. Source this instead of declaring
+// a local array in every component that renders a timeframe dropdown — the
+// union type above is what the engines accept, and this array is what the UI
+// iterates over. They MUST stay in sync. (Issue #29 — no hardcoded lists.)
+export const TIMEFRAMES: Timeframe[] = ["1m", "5m", "15m", "1h", "4h", "1d"];
+
 export interface Quote {
   symbol: string;
   price: number;

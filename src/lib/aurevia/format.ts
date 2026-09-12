@@ -70,6 +70,20 @@ export function gainBg(n: number): string {
   return "bg-muted text-muted-foreground";
 }
 
+// Semantic accent text color — used by StatusRow / SummaryTile which classify
+// a value as gain/loss/warn/default rather than computing from a number.
+// Centralising this means we can re-theme (e.g. accessibility mode, light vs
+// dark) by editing one function instead of grepping for `text-emerald-400`
+// across every view. (Issue #30 — no hardcoded colors.)
+export function accentColor(accent: "gain" | "loss" | "warn" | "default"): string {
+  switch (accent) {
+    case "gain": return "text-emerald-400";
+    case "loss": return "text-red-400";
+    case "warn": return "text-amber-400";
+    default: return "text-foreground";
+  }
+}
+
 export function actionColor(action: string): string {
   switch (action) {
     case "BUY": return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
