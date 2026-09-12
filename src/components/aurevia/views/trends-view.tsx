@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useTrends } from "@/lib/aurevia/hooks";
 import {
   fmtPrice,
@@ -126,7 +127,19 @@ export function TrendsView() {
               {sorted.map((r: any) => {
                 const strength = Math.min(100, Math.max(0, (r.strength ?? 0) * 100));
                 return (
-                  <TableRow key={r.symbol} onClick={() => openAsset(r.symbol)} className="cursor-pointer">
+                  <TableRow
+                    key={r.symbol}
+                    onClick={() => openAsset(r.symbol)}
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openAsset(r.symbol);
+                      }
+                    }}
+                    className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                  >
                     <TableCell className="sticky left-0 z-10 bg-card font-semibold">{r.symbol}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.name ?? "—"}</TableCell>
                     <TableCell className="text-right tabular">{fmtPrice(r.price)}</TableCell>
@@ -161,10 +174,27 @@ export function TrendsView() {
                   </TableRow>
                 );
               })}
-              {sorted.length === 0 && (
+              {sorted.length === 0 && isLoading && (
+                <TableRow>
+                  <TableCell colSpan={14} className="py-0">
+                    <div className="space-y-2 p-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 py-1.5">
+                          <Skeleton className="h-3 w-12" />
+                          <Skeleton className="h-3 flex-1" />
+                          <Skeleton className="h-3 w-16" />
+                          <Skeleton className="h-3 w-16" />
+                          <Skeleton className="h-3 w-20" />
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {sorted.length === 0 && !isLoading && (
                 <TableRow>
                   <TableCell colSpan={14} className="py-12 text-center text-sm text-muted-foreground">
-                    {isLoading ? "Loading trends…" : "No trend data available. Run a scan to populate the trend table."}
+                    No trend data available. Run a scan to populate the trend table.
                   </TableCell>
                 </TableRow>
               )}

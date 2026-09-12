@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useSignals, useScanSignals } from "@/lib/aurevia/hooks";
 import { fmtPrice, fmtTime, actionColor, decisionColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
@@ -79,8 +80,8 @@ export function SignalsView() {
               <X className="h-3.5 w-3.5" /> Clear
             </Button>
           </div>
-          <Button variant="outline" size="sm" onClick={runScan} disabled={scan.isPending} className="gap-2">
-            <RefreshCw className={`h-3.5 w-3.5 ${scan.isPending ? "animate-spin" : ""}`} />
+          <Button variant="outline" size="default" onClick={runScan} disabled={scan.isPending} className="gap-2">
+            <RefreshCw className={`h-4 w-4 ${scan.isPending ? "animate-spin" : ""}`} />
             Scan Universe
           </Button>
         </div>
@@ -148,10 +149,26 @@ export function SignalsView() {
                   </TableRow>
                 );
               })}
-              {rows.length === 0 && (
+              {rows.length === 0 && signals.isLoading && (
+                <TableRow>
+                  <TableCell colSpan={8} className="py-0">
+                    <div className="space-y-2 p-2">
+                      {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 p-2">
+                          <Skeleton className="h-3 w-16" />
+                          <Skeleton className="h-3 w-12" />
+                          <Skeleton className="h-5 w-14" />
+                          <Skeleton className="h-3 flex-1" />
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {rows.length === 0 && !signals.isLoading && (
                 <TableRow>
                   <TableCell colSpan={8} className="py-12 text-center text-sm text-muted-foreground">
-                    {signals.isLoading ? "Loading signals…" : "No signals match the current filters. Click 'Scan Universe' to generate fresh signals."}
+                    No signals match the current filters. Click 'Scan Universe' to generate fresh signals.
                   </TableCell>
                 </TableRow>
               )}

@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAsset } from "@/lib/aurevia/hooks";
 import {
   fmtPrice,
@@ -50,7 +51,28 @@ export function AssetDetailView() {
     return (
       <div className="space-y-6 p-6">
         <Header symbol={selectedSymbol} />
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading {selectedSymbol} analysis…</div>
+        <Skeleton className="h-[340px] w-full rounded-lg" />
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+          {Array.from({ length: 12 }).map((_, i) => (
+            <div key={i} className="space-y-2 rounded-md border border-border/60 p-3">
+              <Skeleton className="h-2.5 w-1/2" />
+              <Skeleton className="h-5 w-3/4" />
+            </div>
+          ))}
+        </div>
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="space-y-2 rounded-lg border border-border/60 p-4">
+              <Skeleton className="h-4 w-24" />
+              {Array.from({ length: 5 }).map((_, j) => (
+                <div key={j} className="flex items-center justify-between">
+                  <Skeleton className="h-3 w-1/3" />
+                  <Skeleton className="h-3 w-1/4" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
       </div>
     );
   }

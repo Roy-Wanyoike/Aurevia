@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   useBacktests,
   useBacktestDetail,
@@ -264,7 +265,16 @@ export function BacktestsView() {
                   <TableRow
                     key={b.id}
                     onClick={() => { openBacktest(b.id); setResult(null); }}
-                    className="cursor-pointer"
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openBacktest(b.id);
+                        setResult(null);
+                      }
+                    }}
+                    className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <TableCell className="sticky left-0 z-10 bg-card text-xs text-muted-foreground">{fmtDateTime(b.createdAt)}</TableCell>
                     <TableCell className="font-mono text-xs">{b.strategyKey}</TableCell>
@@ -280,10 +290,27 @@ export function BacktestsView() {
                   </TableRow>
                 );
               })}
-              {(backtests.data ?? []).length === 0 && (
+              {(backtests.data ?? []).length === 0 && backtests.isLoading && (
+                <TableRow>
+                  <TableCell colSpan={9} className="py-0">
+                    <div className="space-y-2 p-2">
+                      {Array.from({ length: 5 }).map((_, i) => (
+                        <div key={i} className="flex items-center gap-3 py-1.5">
+                          <Skeleton className="h-3 w-24" />
+                          <Skeleton className="h-3 w-20" />
+                          <Skeleton className="h-3 flex-1" />
+                          <Skeleton className="h-3 w-16" />
+                          <Skeleton className="h-3 w-16" />
+                        </div>
+                      ))}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              )}
+              {(backtests.data ?? []).length === 0 && !backtests.isLoading && (
                 <TableRow>
                   <TableCell colSpan={9} className="py-6 text-center text-xs text-muted-foreground">
-                    {backtests.isLoading ? "Loading past runs…" : "No past backtests yet. Run your first one above."}
+                    No past backtests yet. Run your first one above.
                   </TableCell>
                 </TableRow>
               )}

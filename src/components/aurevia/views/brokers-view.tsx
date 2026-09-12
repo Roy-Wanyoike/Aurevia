@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Plug, Unplug, Router as RouterIcon, ShieldCheck, AlertTriangle } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
 import { toast } from "sonner";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -85,8 +86,24 @@ export function BrokersView() {
               </Badge>
             </div>
           ))}
-          {(brokers.data ?? []).length === 0 && (
-            <div className="py-6 text-center text-sm text-muted-foreground">Loading brokers…</div>
+          {(brokers.data ?? []).length === 0 && brokers.isLoading && (
+            <div className="space-y-2">
+              {Array.from({ length: 3 }).map((_, i) => (
+                <div key={i} className="flex items-center justify-between rounded-md border border-border/60 px-3 py-2.5">
+                  <div className="flex items-center gap-3">
+                    <Skeleton className="h-8 w-8 rounded-full" />
+                    <div className="space-y-1.5">
+                      <Skeleton className="h-3 w-32" />
+                      <Skeleton className="h-2.5 w-24" />
+                    </div>
+                  </div>
+                  <Skeleton className="h-5 w-20" />
+                </div>
+              ))}
+            </div>
+          )}
+          {(brokers.data ?? []).length === 0 && !brokers.isLoading && (
+            <div className="py-6 text-center text-sm text-muted-foreground">No broker adapters registered.</div>
           )}
         </div>
       </Card>

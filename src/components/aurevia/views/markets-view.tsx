@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useMarkets, type MarketAsset } from "@/lib/aurevia/hooks";
 import { fmtPrice, fmtPct, fmtCompact, gainColor, gainBg } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
@@ -136,7 +137,15 @@ export function MarketsView() {
                   <TableRow
                     key={a.symbol}
                     onClick={() => openAsset(a.symbol)}
-                    className="cursor-pointer"
+                    tabIndex={0}
+                    role="button"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        openAsset(a.symbol);
+                      }
+                    }}
+                    className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                   >
                     <TableCell className="sticky left-0 z-10 bg-card font-semibold">{a.symbol}</TableCell>
                     <TableCell className="text-muted-foreground">{a.name}</TableCell>
@@ -163,7 +172,18 @@ export function MarketsView() {
           </Table>
         </div>
         {isLoading && (
-          <div className="py-12 text-center text-sm text-muted-foreground">Loading market data…</div>
+          <div className="space-y-2 p-2">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="flex items-center gap-3 p-2">
+                <Skeleton className="h-8 w-8 rounded" />
+                <div className="flex-1 space-y-1.5">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="h-2.5 w-40" />
+                </div>
+                <Skeleton className="h-4 w-16" />
+              </div>
+            ))}
+          </div>
         )}
         {!isLoading && filtered.length === 0 && (
           <div className="py-12 text-center text-sm text-muted-foreground">No assets match the current filters.</div>
