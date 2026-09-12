@@ -3,6 +3,7 @@ import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 
 export const dynamic = "force-dynamic";
 
@@ -33,7 +34,18 @@ const OrderSchema = z
 export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+  // Issue #97 — resolve tenant context at the API boundary. The store is
+  // currently a singleton, so `tenant` is a passthrough here; the contract
+  // is established so that when the store grows per-tenant facades (or when
+  // the route moves to a Prisma-backed implementation), the caller's
+  // organization flows downstream without changing this handler's shape.
+  const tenant = await requireTenant();
   try {
+    logger.debug("Portfolio state requested", {
+      requestId: req.headers.get("x-request-id") ?? "unknown",
+      userId: tenant.userId,
+      organizationId: tenant.organizationId,
+    });
     return NextResponse.json({ portfolio: store.getPortfolio() });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
