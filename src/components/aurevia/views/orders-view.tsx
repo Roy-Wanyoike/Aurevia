@@ -1,141 +1,185 @@
 "use client";
 
+import { useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { usePortfolio } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtUsd, gainColor } from "@/lib/aurevia/format";
+import { useOrders, type OrderRow } from "@/lib/aurevia/hooks";
+import { fmtPrice, fmtTime, fmtDateTime } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
+import { QueryState, TableSkeleton } from "@/components/aurevia/query-state";
 import { ScrollText, ArrowRight } from "lucide-react";
 
-const LIFECYCLE = [
-  { state: "CREATED", desc: "Order ticket constructed locally with symbol, side, quantity." },
-  { state: "SUBMITTED", desc: "Sent to the paper broker for acknowledgment." },
-  { state: "ACKNOWLEDGED", desc: "Broker accepted and queued the order for fill." },
-  { state: "PARTIALLY_FILLED", desc: "Some quantity executed; remainder open." },
-  { state: "FILLED", desc: "Order fully executed against the order book." },
-  { state: "REJECTED", desc: "Broker refused the order (risk, liquidity, etc.)." },
-  { state: "CANCELLED", desc: "User or risk engine cancelled before fill." },
-];
+const STATUS_OPTIONS = [
+  { value: "ALL", label: "All statuses" },
+  { value: "FILLED", label: "Filled" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "CANCELLED", label: "Cancelled" },
+  { value: "SUBMITTED", label: "Submitted" },
+] as const;
+
+function statusBadgeClass(status: string): string {
+  switch (status) {
+    case "FILLED":
+      return "bg-emerald-500/15 text-emerald-400 border-emerald-500/30";
+    case "REJECTED":
+      return "bg-red-500/15 text-red-400 border-red-500/30";
+    case "SUBMITTED":
+    case "ACKNOWLEDGED":
+    case "PARTIALLY_FILLED":
+      return "bg-cyan-500/15 text-cyan-400 border-cyan-500/30";
+    case "CANCELLED":
+    case "CANCEL_REQUESTED":
+      return "bg-muted text-muted-foreground";
+    default:
+      return "bg-muted text-muted-foreground";
+  }
+}
+
+function sideBadgeClass(side: string): string {
+  return side === "BUY"
+    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+    : "bg-red-500/15 text-red-400 border-red-500/30";
+}
 
 export function OrdersView() {
-  const { data, isLoading } = usePortfolio();
+  const [status, setStatus] = useState<string>("ALL");
   const { setView, openAsset } = useUI();
-  const positions: any[] = data?.positions ?? [];
+  const q = useOrders(status === "ALL" ? undefined : status);
+
+  const orders: OrderRow[] = q.data ?? [];
 
   return (
     <div className="space-y-6 p-6">
       <div className="flex flex-col gap-1">
         <h2 className="text-2xl font-bold tracking-tight">Orders</h2>
         <p className="text-sm text-muted-foreground">
-          Order lifecycle reference and currently active (open) orders. Place and reset orders from the Portfolio view.
+          Real order history from the paper broker — every submit, fill, rejection, and cancellation
+          recorded by the risk-gated execution engine.
         </p>
       </div>
 
-      {/* Lifecycle */}
+      {/* Filter bar */}
       <Card className="p-4">
-        <div className="mb-3 flex items-center gap-2">
-          <ScrollText className="h-4 w-4 text-cyan-400" />
-          <h3 className="text-sm font-semibold">Order Lifecycle</h3>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {LIFECYCLE.map((l, i) => (
-            <div key={l.state} className="flex items-center gap-2">
-              <Badge
-                variant="outline"
-                className={
-                  l.state === "FILLED"
-                    ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                    : l.state === "REJECTED" || l.state === "CANCELLED"
-                    ? "bg-red-500/15 text-red-400 border-red-500/30"
-                    : l.state === "PARTIALLY_FILLED"
-                    ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                    : "bg-muted text-muted-foreground"
-                }
-              >
-                {l.state}
-              </Badge>
-              {i < LIFECYCLE.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
-            </div>
-          ))}
-        </div>
-        <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
-          {LIFECYCLE.map((l) => (
-            <div key={l.state} className="rounded-md border border-border/60 bg-card/40 p-2.5">
-              <div className="text-xs font-semibold">{l.state}</div>
-              <div className="mt-0.5 text-xs text-muted-foreground">{l.desc}</div>
-            </div>
-          ))}
-        </div>
-      </Card>
-
-      {/* Active orders (positions as proxies) */}
-      <Card className="p-0">
-        <div className="flex items-center justify-between border-b border-border/60 px-4 py-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-semibold">Active Orders / Open Positions</h3>
-            <Badge variant="outline" className="text-xs">{positions.length}</Badge>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-1 items-center gap-2">
+            <ScrollText className="h-4 w-4 text-cyan-400" />
+            <span className="text-sm font-semibold">Order History</span>
+            <Badge variant="outline" className="text-xs">{orders.length}</Badge>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setView("portfolio")} className="gap-1.5">
-            Go to Portfolio <ArrowRight className="h-3.5 w-3.5" />
-          </Button>
-        </div>
-        <div className="max-h-[50vh] overflow-auto">
-          <Table>
-            <TableHeader className="sticky top-0 bg-card">
-              <TableRow>
-                <TableHead>Symbol</TableHead>
-                <TableHead>Side</TableHead>
-                <TableHead>State</TableHead>
-                <TableHead className="text-right">Qty</TableHead>
-                <TableHead className="text-right">Entry</TableHead>
-                <TableHead className="text-right">Mark</TableHead>
-                <TableHead className="text-right">uP&L</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {positions.map((p: any) => {
-                const pnl = p.unrealizedPnl ?? 0;
-                return (
-                  <TableRow key={p.symbol} onClick={() => openAsset(p.symbol)} className="cursor-pointer">
-                    <TableCell className="font-semibold">{p.symbol}</TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={p.side === "LONG" || p.side === "BUY" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}>
-                        {p.side}
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30">FILLED</Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular">{p.quantity}</TableCell>
-                    <TableCell className="text-right tabular">{fmtPrice(p.avgEntryPrice)}</TableCell>
-                    <TableCell className="text-right tabular">{fmtPrice(p.marketPrice ?? p.markPrice)}</TableCell>
-                    <TableCell className={`text-right tabular ${gainColor(pnl)}`}>{fmtUsd(pnl)}</TableCell>
-                  </TableRow>
-                );
-              })}
-              {positions.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={7} className="py-12 text-center text-sm text-muted-foreground">
-                    {isLoading ? "Loading…" : "No active orders. Orders are placed and tracked in the paper broker via the Portfolio view."}
-                  </TableCell>
-                </TableRow>
-              )}
-            </TableBody>
-          </Table>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-muted-foreground">Status</label>
+            <Select value={status} onValueChange={setStatus}>
+              <SelectTrigger className="h-8 w-[180px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {STATUS_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </Card>
 
-      <Card className="p-4">
-        <h3 className="mb-2 text-sm font-semibold">Note</h3>
-        <p className="text-sm text-muted-foreground">
-          Orders are tracked by the in-process paper broker. The full execution log (CREATED → SUBMITTED → ACKNOWLEDGED →
-          FILLED / REJECTED / CANCELLED) is stored server-side; this view shows currently open positions as a proxy for
-          active orders. Use the <span className="text-foreground">Portfolio</span> view to submit new manual orders or
-          reset the paper account.
-        </p>
+      {/* Order history table */}
+      <Card className="p-0">
+        <QueryState
+          isLoading={q.isLoading}
+          isError={q.isError}
+          error={q.error}
+          isEmpty={orders.length === 0}
+          emptyTitle="No orders yet"
+          emptyDescription="No orders match the current filter. Place an order from the Portfolio view to see it appear here."
+          skeleton={<TableSkeleton rows={6} cols={9} />}
+          data={orders}
+        >
+          {(rows) => (
+            <div className="overflow-auto">
+              <Table>
+                <TableHeader className="sticky top-0 bg-card">
+                  <TableRow>
+                    <TableHead className="sticky left-0 z-10 bg-card">Time</TableHead>
+                    <TableHead>Symbol</TableHead>
+                    <TableHead>Side</TableHead>
+                    <TableHead className="text-right">Qty</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Filled Price</TableHead>
+                    <TableHead className="text-right">Filled Qty</TableHead>
+                    <TableHead>Strategy</TableHead>
+                    <TableHead>Reason</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {rows.map((o) => (
+                    <TableRow key={o.id}>
+                      <TableCell
+                        className="sticky left-0 z-10 bg-card text-xs text-muted-foreground"
+                        title={fmtDateTime(o.createdAt)}
+                      >
+                        {fmtTime(o.createdAt)}
+                      </TableCell>
+                      <TableCell>
+                        <button
+                          onClick={() => openAsset(o.symbol)}
+                          className="font-medium text-foreground hover:text-emerald-400"
+                        >
+                          {o.symbol}
+                        </button>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={sideBadgeClass(o.side)}>{o.side}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular">{o.quantity}</TableCell>
+                      <TableCell>
+                        <Badge variant="secondary" className="font-mono text-[10px]">{o.orderType ?? "MARKET"}</Badge>
+                      </TableCell>
+                      <TableCell>
+                        <Badge variant="outline" className={statusBadgeClass(o.status)}>{o.status}</Badge>
+                      </TableCell>
+                      <TableCell className="text-right tabular">{o.filledPrice != null ? fmtPrice(o.filledPrice) : "—"}</TableCell>
+                      <TableCell className="text-right tabular">{o.filledQty != null ? o.filledQty : "—"}</TableCell>
+                      <TableCell>
+                        {o.strategyKey ? (
+                          <Badge variant="secondary" className="font-mono text-[10px]">{o.strategyKey}</Badge>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="max-w-[260px] truncate text-xs text-muted-foreground" title={o.reason}>
+                        {o.reason ?? "—"}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </QueryState>
       </Card>
+
+      {/* Empty-state CTA */}
+      {orders.length === 0 && !q.isLoading && !q.isError && (
+        <Card className="p-4">
+          <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+            <div>
+              <h3 className="text-sm font-semibold">No orders yet</h3>
+              <p className="mt-0.5 text-xs text-muted-foreground">
+                Place an order from the Portfolio view to start building your execution history.
+              </p>
+            </div>
+            <button
+              onClick={() => setView("portfolio")}
+              className="inline-flex items-center gap-1.5 rounded-md border border-border/60 px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-accent"
+            >
+              Go to Portfolio <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </Card>
+      )}
     </div>
   );
 }

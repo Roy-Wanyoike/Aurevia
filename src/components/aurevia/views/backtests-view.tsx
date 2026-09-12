@@ -183,11 +183,11 @@ export function BacktestsView() {
 
               <div>
                 <h4 className="mb-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Trades (last 20)</h4>
-                <div className="max-h-72 overflow-y-auto rounded-md border border-border/60">
+                <div className="max-h-72 overflow-auto rounded-md border border-border/60">
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead>Entry</TableHead>
+                        <TableHead className="sticky left-0 z-10 bg-card">Entry</TableHead>
                         <TableHead>Exit</TableHead>
                         <TableHead>Side</TableHead>
                         <TableHead className="text-right">Entry</TableHead>
@@ -203,7 +203,7 @@ export function BacktestsView() {
                         const sideUp = t.side === "BUY" || t.side === "LONG";
                         return (
                           <TableRow key={i}>
-                            <TableCell className="text-xs text-muted-foreground">{fmtDateTime(t.entryTime)}</TableCell>
+                            <TableCell className="sticky left-0 z-10 bg-card text-xs text-muted-foreground">{fmtDateTime(t.entryTime)}</TableCell>
                             <TableCell className="text-xs text-muted-foreground">{fmtTime(t.exitTime)}</TableCell>
                             <TableCell>
                               <Badge variant="outline" className={sideUp ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}>
@@ -242,11 +242,11 @@ export function BacktestsView() {
           <Clock className="h-4 w-4 text-muted-foreground" />
           <h3 className="text-sm font-semibold">Past Backtests</h3>
         </div>
-        <div className="max-h-80 overflow-y-auto">
+        <div className="max-h-80 overflow-auto">
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Created</TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card">Created</TableHead>
                 <TableHead>Strategy</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>TF</TableHead>
@@ -266,7 +266,7 @@ export function BacktestsView() {
                     onClick={() => { openBacktest(b.id); setResult(null); }}
                     className="cursor-pointer"
                   >
-                    <TableCell className="text-xs text-muted-foreground">{fmtDateTime(b.createdAt)}</TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-card text-xs text-muted-foreground">{fmtDateTime(b.createdAt)}</TableCell>
                     <TableCell className="font-mono text-xs">{b.strategyKey}</TableCell>
                     <TableCell className="font-medium">{b.symbol}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{b.timeframe}</TableCell>

@@ -90,7 +90,7 @@ export function TrendsView() {
           <Table>
             <TableHeader className="sticky top-0 bg-card">
               <TableRow>
-                <TableHead>
+                <TableHead className="sticky left-0 z-10 bg-card">
                   <button onClick={() => toggleSort("symbol")} className="inline-flex items-center gap-1 hover:text-foreground">
                     Symbol <ArrowUpDown className="h-3 w-3 opacity-50" />
                   </button>
@@ -127,7 +127,7 @@ export function TrendsView() {
                 const strength = Math.min(100, Math.max(0, (r.strength ?? 0) * 100));
                 return (
                   <TableRow key={r.symbol} onClick={() => openAsset(r.symbol)} className="cursor-pointer">
-                    <TableCell className="font-semibold">{r.symbol}</TableCell>
+                    <TableCell className="sticky left-0 z-10 bg-card font-semibold">{r.symbol}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{r.name ?? "—"}</TableCell>
                     <TableCell className="text-right tabular">{fmtPrice(r.price)}</TableCell>
                     <TableCell className={`text-right tabular ${gainColor(r.changePct ?? 0)}`}>{fmtPct(r.changePct ?? 0)}</TableCell>

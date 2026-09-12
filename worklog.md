@@ -521,3 +521,482 @@ Read-only audit of 12 Aurevia API routes (`/src/app/api/v1/**`), 13 frontend vie
 
 ### Files NOT modified (per task constraints)
 No files were modified. This was a read-only audit. All findings are documented above with file:line citations for follow-up.
+
+---
+
+## Task audit-ui-ux — HOSTILE UI/UX Audit
+
+Agent: Z.ai Code (Distinguished Frontend Engineer + UX Researcher)
+Scope: All 15 views + shared components (sidebar, topbar, charts, layout, globals.css).
+Mode: Read-only audit. No files modified.
+Cross-reference: previous task `audit-hostile` covered API/security plus overlapping FE findings. This audit focuses specifically on UI/UX and avoids re-listing items already covered there except where there is new UI-specific evidence. Note that previous `FE-P0-001` ("Sonner Toaster never mounted") is now **RESOLVED** — `src/app/layout.tsx:4,40-51` imports and renders `<SonnerToaster position="bottom-right" richColors closeButton>` with custom dark theme. Toaster is alive. Good.
+
+### Verified state of the codebase (so findings are not stale)
+- `Skeleton` component exists at `src/components/ui/skeleton.tsx` but **is never imported by any aurevia view** (grep across `src/components/aurevia` returns zero hits). Every loading state is a plain text "Loading…".
+- `shadcn/ui` `<TableHead>` does NOT set `scope="col"`, and **no view adds `scope` manually** (grep returns 0 in `src/components/ui/table.tsx`). Confirmed.
+- `aria-label`, `aria-describedby`, `aria-current`, and `role=` appear **0 times** anywhere under `src/components/aurevia` (grep returns no matches).
+- `isError` from react-query is **never destructured or read** anywhere under `src/components/aurevia` (grep returns 0 matches). Every view treats fetch failure as "still loading" forever.
+- Tables use `overflow-y-auto` (or `overflow-auto`) in 9 of 10 cases. Only `trends-view.tsx:89` and `portfolio-view.tsx:137` and `orders-view.tsx:84` use `overflow-auto` (so they DO scroll x); the other 6 tables use `overflow-y-auto` only and will silently clip columns on narrow viewports.
+- No `error.tsx`, `not-found.tsx`, `loading.tsx`, or `global-error.tsx` exists in `src/app` — no route-level error boundary, no 404 page.
+
+---
+
+## UI/UX Audit Report
+
+### P0 — Embarrassing (must fix before any customer sees this)
+
+- **[UI-P0-001] `src/lib/aurevia/ui-store.ts:22-44` + `src/app/page.tsx:38-58` — All view state lives in Zustand only. NO URL routing.**
+  - Problem: `view`, `selectedSymbol`, `selectedBacktestId` are Zustand state, never pushed into the URL. Refreshing the page sends the user back to the Dashboard. The browser back button doesn't work. A user who clicked through Markets → AAPL → Backtests and refreshes loses everything. There is no way to share a deep link to a backtest, an asset, or a signals filter with a colleague or a prospect.
+  - Impact: This is the single biggest "amateur hour" signal in the product. Paying customers evaluating Aurevia will hit refresh in a demo, lose their place, and conclude the platform is unfinished. Bookmarking anything is impossible. SEO is impossible. The browser back button is broken (worse than useless — it navigates away from the app).
+  - Fix: Move to Next.js App Router with real routes (`/markets`, `/assets/[symbol]`, `/backtests/[id]`, `/signals?symbol=AAPL&strategy=momentum`). Either replace `useUI` with `useRouter`/`useSearchParams`, or have `setView` push to the URL. Keep Zustand for ephemeral UI state only (sidebar collapsed, modal open).
+
+- **[UI-P0-002] `src/components/aurevia/sidebar.tsx:62,81` — Sidebar has no mobile drawer. The app is unusable on phones.**
+  - Problem: The sidebar collapses from `w-60` to `w-16` but is always visible. On a 375px-wide iPhone the collapsed sidebar eats 64px (17% of the viewport) forever. There is no hamburger menu in the Topbar. There is no overlay drawer. There is no breakpoint-aware hide.
+  - Impact: Mobile is a write-off. A trader checking positions on their phone sees a 311px content column with a 9-column markets table — unreadable. WCAG 2.1 AA + EU EAA 2025 both require reasonable mobile behavior.
+  - Fix: `lg:flex` the persistent sidebar; below `lg`, render a Sheet (Radix) drawer triggered by a hamburger `<Button variant="ghost" size="icon" aria-label="Open menu">` in the Topbar.
+
+- **[UI-P0-003] `src/components/aurevia/sidebar.tsx:151` + every table view — Tables clip horizontally on mobile; no `overflow-x-auto`.**
+  - Problem: `signals-view.tsx:102`, `backtests-view.tsx:186,245`, `risk-view.tsx:134`, `ml-view.tsx:195`, `dashboard-view.tsx:192` all wrap their tables in `max-h-X overflow-y-auto`. There is no `overflow-x-auto`. The trends table has 14 columns (`trends-view.tsx:91-122`) and the markets table has 9. On any viewport under ~1280px, the rightmost columns are silently clipped — invisible and unreachable.
+  - Impact: The trends and markets tables — the two most important screener surfaces — are unusable on a laptop in portrait, on a tablet, on a half-screen window, or on any phone. A customer demoing on a 13" MacBook with the browser at 80% width will not see the "Regime" or "Signal" columns.
+  - Fix: Wrap every `<Table>` in `<div className="overflow-x-auto">`. Add sticky first column (`sticky left-0 bg-card`) for the Symbol column so context is preserved when scrolling right. Consider hiding low-value columns below `lg` breakpoints.
+
+- **[UI-P0-004] `src/components/aurevia/views/risk-view.tsx:55-67,103-114` — Circuit breaker state changes have NO confirmation. A single misclick halts all trading.**
+  - Problem: Clicking any of `NORMAL`, `CAUTION`, `TRADING_PAUSED`, `RE_EVALUATING` immediately fires `setBreaker.mutate({state, reason: "manual override from risk console"})`. There is no `AlertDialog`. There is no "Are you sure?". There is no undo. The `TRADING_PAUSED` button looks identical to `NORMAL` — same size, same `variant`, only the active state differs.
+  - Impact: This is the most dangerous button in the product. An operator reaching for `NORMAL` and slipping to `TRADING_PAUSED` freezes all order flow with one click and zero confirmation. The portfolio reset (which is far less dangerous) does use `<AlertDialog>` (`portfolio-view.tsx:91-114`), so the inconsistency is glaring.
+  - Fix: Wrap `TRADING_PAUSED`, `RE_EVALUATING`, and any transition OUT of `NORMAL` in `<AlertDialog>` requiring explicit confirmation. Visually distinguish `TRADING_PAUSED` (red, larger) from `NORMAL` (emerald). Disable the currently-active state button.
+
+- **[UI-P0-005] Every view — `isError` is never read. A failed fetch looks identical to "still loading."**
+  - Problem: No view in `src/components/aurevia/views/*` destructures `isError` from react-query (grep returns 0 hits). When the API returns 500 or the network drops, the view sits on "Loading…" forever. The user has no way to know whether to wait, retry, or call support.
+  - Impact: A paying customer whose backend is down sees an infinite "Loading market data…" spinner. They will conclude the product is broken and churn. Worse, on mutation errors the toast says `e.message` (raw HTTP response body), which leaks server internals and is unreadable to a non-engineer.
+  - Fix: In every view, render an error state with a retry button: `{isError && <ErrorState onRetry={refetch} message="Couldn't load markets." />}`. Centralize as a `<QueryState>` wrapper that handles loading (Skeleton), error (Retry button), empty (EmptyState), and success (children).
+
+- **[UI-P0-006] `src/components/aurevia/views/orders-view.tsx:73-128` — The "Orders" view is a duplicate of the Portfolio positions table. It admits this in its own UI.**
+  - Problem: The card heading is "Active Orders / Open Positions" — a self-contradicting label. The "Note" card at `orders-view.tsx:130-138` literally says: "this view shows currently open positions as a proxy for active orders. Use the Portfolio view to submit new manual orders." Every row in this table is hard-coded with `<Badge ... >FILLED</Badge>` regardless of the actual state.
+  - Impact: A paying customer sees two sidebar items that do the same thing. They click "Orders" expecting an order blotter (created, submitted, acknowledged, partially filled, etc.) and instead see the positions table with a fake FILLED badge and a paragraph telling them to go elsewhere. This is the clearest "we shipped the placeholder" signal in the product.
+  - Fix: Either delete the Orders view, or actually build it — fetch a real order book from `/api/v1/orders` (which doesn't exist yet; would need backend work), show the full lifecycle (CREATED → SUBMITTED → ACKNOWLEDGED → FILLED / REJECTED / CANCELLED) per row, add filters by state and date range, and remove the "Note" card. Until then, remove it from the sidebar (`sidebar.tsx:45`).
+
+- **[UI-P0-007] `src/components/aurevia/views/system-view.tsx:23,33-36,11-20,105-121` — The "System Health" view lies. Latency series and subsystem status are fabricated.**
+  - Problem: `LATENCY_SERIES = [42, 38, 45, 41, 36, 40, ...]` is a hardcoded constant. `fauxSeries` derives from `latency` (real) + the constant (fake) + an index-based jitter. The chart shows a smooth line that has nothing to do with the actual latency history. The "Subsystems" list (`SUBSYSTEMS`, lines 11-20) renders every subsystem as a green "Operational" check regardless of actual state — there is no real health check behind it.
+  - Impact: This is the most operator-trust-eroding issue in the product. An operator looks at the System Health view to decide whether to trust the platform with real capital. The "All systems operational" banner is not data-driven; the latency sparkline is decorative. If anything is actually broken, this view will say "operational" until the operator notices trades aren't executing.
+  - Fix: Stream latency samples into a ring buffer on the server (or client via the WebSocket), plot real history. Wire each subsystem card to a real signal (broker connected → Execution Engine; breaker NORMAL → Risk Engine; `lastTickAt` recent → Market Data Gateway; etc.). Render amber/red when degraded.
+
+- **[UI-P0-008] `src/components/aurevia/views/dashboard-view.tsx:112-120` + `asset-detail-view.tsx` — Sparklines are fabricated from current price.**
+  - Problem: The Top Movers sparkline passes `[a.quote.price * 0.98, a.quote.price * 0.99, a.quote.price]` for every mover. This is three points derived from the current price — not real history. A -10% mover shows a flat-ish 3-point line. The Sparkline component then does `data[data.length-1] >= data[0]` to decide color, so a mover with `changePct: -2%` and a fake series `[98, 99, 100]` shows a GREEN sparkline. Dashboard StatTile sparkline (`dashboard-view.tsx:58`) is `[equity * 0.98, equity * 0.99, equity, equity * 1.01, equity]` — five made-up points.
+  - Impact: Every sparkline in the product is a lie. A trader looking at the Top Movers sparkline to gauge momentum will be misled. Trust evaporates the first time a customer notices the sparkline shows green for a stock that's down 5%.
+  - Fix: Either fetch real recent price history (already available via `useAsset` or a new `useSparkline(symbol)` endpoint), or remove the Sparkline component from dashboard Top Movers entirely and replace with a delta arrow + percentage (which is what's already shown next to it).
+
+- **[UI-P0-009] `src/components/aurevia/views/settings-view.tsx:17-31,105-110` — Settings page contains ASCII-art architecture diagram in a `<pre>`.**
+  - Problem: A multi-line template literal with box-drawing characters (`┌─────────────────┐`) rendered in a `<pre className="overflow-x-auto ...">`. On mobile this scrolls horizontally. Screen readers read every box character verbatim ("┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐"). This is also the only thing on the Settings page that conveys "architecture" — there is no interactive diagram.
+  - Impact: Looks like a developer's TODO note that shipped. A paying customer evaluating the platform sees this and concludes "this is a hackathon project."
+  - Fix: Replace with a real SVG diagram or a Mermaid block (`<pre className="mermaid">graph LR; ...`). Add `aria-hidden="true"` and an off-screen text alternative. Or, better, delete it — architecture belongs in docs, not in the running app's Settings.
+
+- **[UI-P0-010] `src/components/aurevia/sidebar.tsx:69-73` — Sidebar logo uses raw `<img>` not `next/image`, and is not a clickable link to dashboard.**
+  - Problem: `<img src="/branding/aurevia-logo.svg" alt="Aurevia" className="h-8 w-8 shrink-0" />`. No `width`/`height` attributes → layout shift risk. Not `next/image` → no optimization. Not wrapped in `<a href="/">` or `<button onClick={() => setView("dashboard")}>` → can't click to go home, despite being the universal pattern.
+  - Impact: Subtle but real: every page load flashes unstyled logo space, then the image pops in. Users intuitively click the logo to go home; here nothing happens.
+  - Fix: `import Image from "next/image"; <Image src="/branding/aurevia-logo.svg" alt="Aurevia home" width={32} height={32} priority />`, wrapped in `<button onClick={() => setView("dashboard")} aria-label="Go to dashboard">`.
+
+### P1 — High (polish blockers)
+
+- **[UI-P1-001] Every view — No skeletons; loading state is plain "Loading…" text.**
+  - Problem: `Skeleton` component exists at `src/components/ui/skeleton.tsx` but is never imported anywhere in `src/components/aurevia`. Every view shows a tiny "Loading market data…" string in the middle of an empty card. Layout shift is severe: a 4-column stat-tile grid jumps from 0 to full height when data arrives.
+  - Impact: Perceived performance is poor. Screen readers announce an empty table, then re-announce the populated table — confusing.
+  - Fix: Render `<Skeleton className="h-32 w-full" />` placeholders matching the final layout shape. Centralize as `<CardSkeleton />`, `<TableSkeleton rows={8} cols={9} />`, etc.
+
+- **[UI-P1-002] `src/components/aurevia/sidebar.tsx:62,81,94-107,115-123` — Sidebar accessibility violations.**
+  - Problem: `<aside>` has no `aria-label`. `<nav>` has no `aria-label`. Nav buttons have no `aria-current="page"` for the active item. `title={sidebarCollapsed ? item.label : undefined}` only shows a tooltip when collapsed — expanded active items have no accessible name beyond their text. The collapse toggle button at the bottom is icon-only when collapsed and has no `aria-label` and no `aria-expanded`.
+  - Impact: Screen reader users cannot navigate the sidebar by landmark, cannot tell which view is active, and cannot operate the collapse button when collapsed.
+  - Fix: `<aside aria-label="Primary navigation">`, `<nav aria-label="Main">`, `aria-current={active ? "page" : undefined}` on nav buttons, `aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"} aria-expanded={!sidebarCollapsed}` on the toggle.
+
+- **[UI-P1-003] `src/components/aurevia/sidebar.tsx:97` + every sortable header + every clickable row — No keyboard accessibility on icon-only buttons, sortable headers, or clickable rows.**
+  - Problem: Sidebar collapse toggle (icon-only when collapsed, no `aria-label`). Sort buttons in `markets-view.tsx:113,123` and `trends-view.tsx:94,101,107,114` are `<button>` (good) but have no `aria-label` and no `aria-sort` on the `<th>`. Clickable table rows in `markets-view.tsx:135`, `trends-view.tsx:129`, `portfolio-view.tsx:156`, `orders-view.tsx:101`, `backtests-view.tsx:264` are `<TableRow onClick={...}>` — `<tr>` is not focusable, has no `tabIndex={0}`, no `onKeyDown` for Enter/Space. Keyboard users cannot open an asset from any list.
+  - Impact: WCAG 2.1 AA violation (2.1.1 Keyboard, 4.1.2 Name/Role/Value). The primary interaction pattern (click row → open detail) is unavailable to keyboard-only users.
+  - Fix: Add `aria-label` to icon-only buttons. Add `aria-sort` to sortable `<th>` and `aria-label` to sort buttons. Replace `<TableRow onClick>` with either a real `<button>` inside the first cell (`<button onClick={() => openAsset(symbol)} className="sr-only">Open {symbol}</button>`) or add `tabIndex={0} role="button" onKeyDown={(e) => e.key === "Enter" && openAsset(symbol)}` plus a visible focus ring on the row.
+
+- **[UI-P1-004] `src/components/aurevia/sidebar.tsx:99,117` + `markets-view.tsx:98` + `signals-view.tsx:78` + every `size="sm"` button — Touch targets below 44px throughout.**
+  - Problem: Sidebar nav buttons are `px-2.5 py-2 text-sm` → ~32px tall. Sidebar collapse toggle is `size="sm"` → 32px. Markets "All / Equity / ETF / Crypto / FX" filter buttons are `h-7 px-2.5 text-xs` → 28px. Signals "Clear" filter button is `size="sm"` → 32px. Backtests `Field` labels `text-xs` with `h-8` inputs.
+  - Impact: WCAG 2.5.5 (AAA, recommended for AA) requires 44×44px touch targets. On touch devices these are hard to hit accurately.
+  - Fix: Increase to `min-h-[44px]` (or `size="default"` = h-9 + py-2 ≈ 36px, still below but closer). Apply universally via a wrapper.
+
+- **[UI-P1-005] `src/components/aurevia/views/markets-view.tsx:163-168` + every view — Loading state shows AFTER empty table renders; double-render of empty + loading.**
+  - Problem: The Table renders with an empty `<TableBody>`, THEN below the table a `<div>Loading market data…</div>` is conditionally rendered. Both can show simultaneously (table empty + loading div). Worse, when `isLoading` is true and `filtered.length === 0`, the order of conditions is `isLoading` first, so loading shows; but if data loaded and is empty, the "No assets match" message shows. Logic is correct but the empty table above it is visual noise.
+  - Impact: Layout jank. The table headers render with no rows, then a small "Loading…" string below. Looks unfinished.
+  - Fix: Conditionally render either `<TableSkeleton />` OR the populated table — never both.
+
+- **[UI-P1-006] `src/components/aurevia/views/asset-detail-view.tsx:48,147` — Loading state masks error state; "Drawdown" color logic inverted.**
+  - Problem 1: `if (isLoading || !data) { return ... <div>Loading {selectedSymbol} analysis…</div>; }`. If the fetch errors, `isLoading` is false and `data` is undefined, so the view shows "Loading…" forever. The user never learns the asset failed to load.
+  - Problem 2: `<Row label="Drawdown" value={fmtPct(trend.drawdown * 100)} className={gainColor(-trend.drawdown)} />`. `gainColor(-(-0.05))` = `gainColor(0.05)` → green. So a 5% drawdown shows in GREEN. Drawdown is a loss; positive drawdown should be red, not green.
+  - Impact: Customers staring at a stuck "Loading AAPL analysis…" think the app is broken. Anyone glancing at the Trend card's "Drawdown" row sees green for a 5% drawdown — actively misleading.
+  - Fix: Read `isError` and show a retry-able error state. For drawdown, use a dedicated `lossColor(Math.abs(trend.drawdown))` or simply `trend.drawdown > 0.05 ? "text-red-400" : "text-foreground"`.
+
+- **[UI-P1-007] `src/components/aurevia/sidebar.tsx:139-148` — `PAPER MODE` badge uses emerald (positive) color. PAPER is not "good," it's the safe default.**
+  - Problem: The Topbar PAPER MODE badge is emerald — visually identical to a "gain" or "approved" indicator. The "LIVE" badge is cyan. But PAPER is not a positive state; it's a neutral "we are not risking real money" state. LIVE is the dangerous state and should be red/amber, not cyan.
+  - Impact: Color semantics are muddled. A glance at the Topbar suggests "everything is positive" when in PAPER, and "neutral/info" when in LIVE — the opposite of the actual risk.
+  - Fix: PAPER MODE = neutral gray/cyan. LIVE = red/amber with a pulsing dot. Same for the "Mode: PAPER" badge in `risk-view.tsx:99`.
+
+- **[UI-P1-008] `src/components/aurevia/views/dashboard-view.tsx:150-160` — StatusRow "Trading Mode" always uses `accent="gain"` (emerald) regardless of actual mode.**
+  - Problem: `<StatusRow label="Trading Mode" value={health.data?.tradingMode ?? "—"} accent="gain" pulse />` — hardcoded `accent="gain"` even when `tradingMode === "LIVE"`. So a LIVE trading mode shows in green with a pulsing dot, looking like a healthy positive state.
+  - Impact: When the operator has set trading mode to LIVE (real money!), the dashboard shows it in green. Maximum risk + maximum positive signal = bad combination.
+  - Fix: `accent={tradingMode === "LIVE" ? "loss" : tradingMode === "PAPER" ? "default" : "warn"}`. Pulse only when LIVE.
+
+- **[UI-P1-009] `src/components/aurevia/views/ml-view.tsx:196-230` — ML view uses raw `<table>` instead of shadcn `<Table>`. Visual inconsistency + worse accessibility.**
+  - Problem: Every other table view uses `<Table>`, `<TableHeader>`, `<TableRow>`, `<TableHead>`, `<TableCell>` from shadcn (which adds consistent padding, border, hover styles, and `data-slot` hooks). The ML "Recent Predictions" table uses raw `<table>`, `<thead>`, `<tr>`, `<th>`, `<td>`. Result: different padding, different borders, different hover behavior. Also no `scope` on `<th>` (same issue as shadcn Table, but worse because there's no abstraction layer to fix later).
+  - Impact: Visually jarring when navigating from Signals → ML Predictions. Looks like two different products.
+  - Fix: Replace with shadcn `<Table>` components.
+
+- **[UI-P1-010] `src/components/aurevia/views/risk-view.tsx:81,120-124` — `maxDrawdownPct` stored as decimal (0.1) but displayed as percentage (10%) in the bar, raw decimal in the input.**
+  - Problem: The form input shows `value={profile.maxDrawdownPct ?? 0.1}` = "0.1". The drawdown bar above shows `{drawdown.toFixed(2)}%` and `/ {maxDd.toFixed(2)}%` — `maxDd = (profile.maxDrawdownPct ?? 0.1) * 100` = 10.00%. So the input shows "0.1" while the bar shows "10.00%". The user has to mentally multiply by 100 to know what they're setting. Same for `maxPositionPct`, `maxDailyLossPct`, etc.
+  - Impact: Operators will type "5" meaning 5% and silently set `maxDrawdownPct = 5` = 500%. Catastrophic config error waiting to happen.
+  - Fix: Either display inputs as percentages (`value={(profile.maxDrawdownPct ?? 0.1) * 100}` with `step="0.1"`, divide by 100 on save), OR add a "%" suffix label and unit hint.
+
+- **[UI-P1-011] `src/components/aurevia/views/portfolio-view.tsx:39,196-228` + `backtests-view.tsx:37,87-101` + `ml-view.tsx:43,104-113` — Symbol dropdowns are hardcoded to 11 tickers.**
+  - Problem: `const SYMBOLS = ["AAPL", "MSFT", "NVDA", "BTC", "ETH", "SPY", "QQQ", "TSLA", "AMZN", "GOOGL", "META"];` duplicated in three views. The Markets view shows the full universe (likely 18+ assets per the previous audit's BE-P2-015). The Portfolio order ticket, Backtest form, and ML prediction form only let the user pick from 11. A customer who wants to paper-trade GLD, TLT, or anything outside the hardcoded list is blocked from the UI.
+  - Impact: Customers cannot trade the full universe from the UI. The dropdown lies about what's available.
+  - Fix: Fetch `/api/v1/markets` (already cached by react-query) and populate dropdowns from the response. Share one `useSymbolOptions()` hook.
+
+- **[UI-P1-012] `src/components/aurevia/views/portfolio-view.tsx:39,46-56,223` — Order ticket has no validation, no order type, no cost preview.**
+  - Problem: `quantity: 100` is the default. User can type `0`, `-50`, `1e10`. The only validation is `if (!order.quantity || order.quantity <= 0) toast.error(...)`. No order type (market/limit/stop). No limit price field. No estimated cost preview (`qty × current price`). No position-size warning ("This will use 95% of cash"). No confirmation for large orders.
+  - Impact: A typo (`1000` instead of `100`) silently places a $150k order in a $100k paper account, which the risk engine may or may not catch. No preview = no second chance.
+  - Fix: Add `type: "market" | "limit" | "stop"`, show estimated cost, disable submit if cost > cash, require confirmation for orders > 25% of equity.
+
+- **[UI-P1-013] `src/components/aurevia/sidebar.tsx:151-161` — Topbar ticker hidden on mobile. No price visibility at all under `lg`.**
+  - Problem: `<div className="hidden items-center gap-3 overflow-hidden lg:flex">`. Below `lg` (1024px), the ticker disappears entirely. There is no compact alternative.
+  - Impact: On a laptop or tablet, the user has no live price feed in the topbar — the most basic expectation for a trading platform.
+  - Fix: Render a horizontal-scrolling ticker (`overflow-x-auto`) below `lg` with `flex` always, or show a single price (selected symbol) when space is constrained.
+
+- **[UI-P1-014] `src/components/aurevia/views/regimes-view.tsx:51` — Fragile string manipulation to derive bar fill color.**
+  - Problem: `regimeColor(regime).split(" ")[0].replace("/15", "/40")` — takes the first space-separated token of the badge color string (e.g., `"bg-emerald-500/15"`), then string-replaces `/15` with `/40`. If `regimeColor` ever returns `bg-emerald-500/10` or `bg-emerald-600/15`, this breaks silently and the bar uses the wrong opacity (or no background at all if the replace doesn't match).
+  - Impact: Visual regressions that won't throw — bars just render with wrong/missing color. Tightly couples two unrelated code paths.
+  - Fix: Extract a `regimeBarColor(regime)` helper in `format.ts` that returns the bar-specific class. Or use CSS variables (`--chart-1` through `--chart-5`) and a regime→chart-color map.
+
+- **[UI-P1-015] `src/components/aurevia/charts/candlestick-chart.tsx:84-97` — Tooltip formatter is confusing; OHLC values not shown clearly.**
+  - Problem: The Tooltip `formatter` returns `[`${fmtPrice(value[0])} – ${fmtPrice(value[1])}`, "OHLC"]` for array values, and `[fmtPrice(value), name]` for scalar. But the chart has THREE Bar series (`range`, `body`, `volume`) plus overlay Lines. The tooltip will show three entries per hover: "OHLC: X – Y", "Volume: Z", "MA: W" — plus the `range` series is explicitly `if (name === "range") return null;` but `name` is the dataKey `"range"`, not a human label. The user sees a cluttered tooltip with redundant range + body entries.
+  - Impact: Customers cannot read OHLC values cleanly from the chart. They have to hover multiple times to figure out which entry is which.
+  - Fix: Build a custom `<Tooltip content={<CustomCandleTooltip />} />` that shows `O H L C Vol` on a single row. Suppress the `range` and `body` entries from the tooltip, surface them as a single OHLC line.
+
+### P2 — Medium (rough edges)
+
+- **[UI-P2-001] `src/components/aurevia/views/asset-detail-view.tsx:85-87` — "Quick Backtest" button navigates to Backtests but does NOT pre-fill the symbol.**
+  - Problem: `<Button onClick={() => setView("backtests")}>Quick Backtest</Button>` — just changes the view. The Backtest form default is `symbol: "AAPL"`. So clicking "Quick Backtest" on NVDA sends the user to a backtest form pre-set to AAPL. Useless.
+  - Fix: Either call `setSymbol(asset.symbol)` + `setView("backtests")`, or trigger `useRunBacktest().mutate({ ...defaultForm, symbol: asset.symbol })` directly.
+
+- **[UI-P2-002] `src/components/aurevia/views/asset-detail-view.tsx:113` — `fmtPrice(v, 4)` for ALL indicators including RSI (0-100).**
+  - Problem: RSI shown as "67.5234" instead of "67.52". MACD histogram shown to 4 decimals. Volume shown to 4 decimals if present. Each indicator has different meaningful precision.
+  - Fix: Per-indicator precision map: RSI → 2, MACD → 4, ATR → 2, OBV → 0, etc.
+
+- **[UI-P2-003] `src/components/aurevia/views/asset-detail-view.tsx:145` — `trend.momentum` colored with `gainColor` (P&L color) for a non-P&L value.**
+  - Problem: Momentum is a signed numeric value (can be positive or negative), but `gainColor(trend.momentum)` paints positive momentum as emerald and negative as red. Momentum ≠ profit. A positive momentum reading in a downtrend is bearish (acceleration into the down move), not bullish.
+  - Fix: Use a neutral signed-value color (e.g., `text-cyan-400` for positive, `text-amber-400` for negative) or just `text-foreground`.
+
+- **[UI-P2-004] `src/components/aurevia/charts/equity-curve.tsx:53` — Benchmark line is nearly invisible and has no legend.**
+  - Problem: Benchmark stroke is `oklch(0.5 0.01 250)` (very low chroma, low lightness) on a `oklch(0.16)` background — contrast ratio ~2.5:1, well below WCAG AA. Plus `strokeDasharray="3 3"` makes it look like a reference line, not a comparison series. There is no legend anywhere in the chart.
+  - Impact: Users cannot tell there's a benchmark line, let alone what it represents.
+  - Fix: Use `--chart-4` (cyan) or `--chart-2` (amber) for benchmark. Add a `<Legend />` or a manual legend row above the chart.
+
+- **[UI-P2-005] `src/components/aurevia/charts/sparkline.tsx:32-37` — Fixed `width` prop, no ResponsiveContainer; sparklines don't fill parent.**
+  - Problem: `<svg width={width} height={height} viewBox=...>`. Dashboard passes `width={60} height={20}` for Top Movers (`dashboard-view.tsx:118`) — sparkline is 60px wide regardless of the row width. System view passes `width={320} height={80}` (`system-view.tsx:91`) — fixed 320px regardless of card width.
+  - Fix: Use a `useResizeObserver` or wrap in a `ResponsiveContainer`-like pattern. Or use `viewBox` + `width="100%"`.
+
+- **[UI-P2-006] `src/components/aurevia/views/trends-view.tsx:153-154` — "BK" and "BD" badge abbreviations have no tooltip.**
+  - Problem: `<Badge ...>BK</Badge>` for breakout, `<Badge ...>BD</Badge>` for breakdown. No `title`, no tooltip. A new user has no idea what these mean.
+  - Fix: `<Badge title="Breakout">BK</Badge>` or render a `<Tooltip>` with full text.
+
+- **[UI-P2-007] `src/components/aurevia/views/trends-view.tsx:113-115,94` — Sort icon doesn't indicate current direction.**
+  - Problem: `<ArrowUpDown className="h-3 w-3 opacity-50" />` is shown on every sortable column, regardless of whether it's the active sort or what direction. No visual feedback that clicking again reverses the order.
+  - Fix: Show `<ArrowUp>` or `<ArrowDown>` on the active sort column, with full opacity; show `<ArrowUpDown>` at half opacity on inactive columns.
+
+- **[UI-P2-008] `src/components/aurevia/views/signals-view.tsx:60-65` — Symbol filter is free-text, no autocomplete.**
+  - Problem: User must know the exact symbol. Typing "apple" returns nothing because the symbol is "AAPL". No typeahead, no fuzzy match.
+  - Fix: Use a `<Combobox>` with the universe list (already available via `useMarkets`).
+
+- **[UI-P2-009] `src/components/aurevia/views/signals-view.tsx:145` — Reason column truncated with no tooltip.**
+  - Problem: `<TableCell className="max-w-[280px] truncate text-xs text-muted-foreground">` — long reasons are clipped with no way to read the full text.
+  - Fix: Wrap in `<Tooltip>` showing the full reason on hover.
+
+- **[UI-P2-010] `src/components/aurevia/views/backtests-view.tsx:202-205,266` — Trades table uses `key={i}` (array index); clicking past backtest clears the live result silently.**
+  - Problem 1: `<TableRow key={i}>` — array index as key. If trades are ever re-sorted, React reuses the wrong DOM nodes. 2: Clicking a past backtest row calls `setResult(null)`, silently discarding the live result the user just generated.
+  - Fix: Use `${t.entryTime}-${t.exitTime}-${t.side}` as key. Show a confirmation or just leave the live result visible with a "Latest result" badge.
+
+- **[UI-P2-011] `src/components/aurevia/views/backtests-view.tsx:37-49` — No input validation on backtest form.**
+  - Problem: `bars: 500`, `commissionBps: 5`, etc. The user can enter `bars: 0`, `bars: -100`, `bars: 1000000`, `commissionBps: -5`, `positionPct: 50`. No client-side validation, no min/max, no disable on invalid.
+  - Fix: Validate with zod. Disable "Run Backtest" button when invalid. Show inline errors.
+
+- **[UI-P2-012] `src/components/aurevia/views/portfolio-view.tsx:108-111` — `AlertDialogAction` uses `bg-destructive text-white` — destructive on dark theme is muted red, white text contrast is marginal.**
+  - Problem: `className="bg-destructive text-white hover:bg-destructive/90"`. `--destructive` is `oklch(0.65 0.21 25)` (already noted in previous audit). White on this is ~3.8:1 contrast — below AA for normal text but this is a button label (large/bold text, AA threshold 3:1, so it just passes). Still, `dark:bg-destructive/60` from the Button variant is darker — the explicit `bg-destructive` overrides it. The hover state `bg-destructive/90` reduces contrast further.
+  - Fix: Use `dark:bg-destructive` (full opacity on dark) and `dark:hover:bg-destructive/90`. Verify contrast ≥ 4.5:1.
+
+- **[UI-P2-013] `src/components/aurevia/views/portfolio-view.tsx:91-114` — Reset Portfolio confirmation has no typed confirmation.**
+  - Problem: A simple "Reset" button click resets the portfolio. For a destructive action that "cannot be undone" (per the dialog text), there's no typed confirmation ("type RESET to confirm"). Compare to GitHub's delete-repo flow.
+  - Fix: Add an `<Input placeholder="Type RESET to confirm" />` and disable the action button until the input matches.
+
+- **[UI-P2-014] `src/components/aurevia/views/regimes-view.tsx:67-76` — Summary table duplicates the distribution bar chart above it.**
+  - Problem: The distribution bar chart shows `{regime} {count} assets` per row. The summary table below shows `{regime} {count}` per cell. Same data, two visualizations stacked.
+  - Fix: Delete the summary table.
+
+- **[UI-P2-015] `src/components/aurevia/views/regimes-view.tsx:80-105` — Per-regime cards render even for empty regimes.**
+  - Problem: `entries.map(...)` renders a card for every regime in the distribution, including empty ones with "No assets in this regime." placeholder. With 11 regimes, that's up to 11 cards even if 8 are empty.
+  - Fix: Filter `entries.filter(([, list]) => list.length > 0)`.
+
+- **[UI-P2-016] `src/components/aurevia/views/system-view.tsx:91` — Sparkline width=320 hardcoded; doesn't fit narrow viewports.**
+  - Problem: `<Sparkline data={fauxSeries} width={320} height={80} positive />`. On a 375px viewport with the sidebar taking 64px, content area is ~311px. Sparkline overflows.
+  - Fix: Use ResponsiveContainer pattern or `width="100%"`.
+
+- **[UI-P2-017] `src/components/aurevia/sidebar.tsx:85` — Sidebar group labels use `text-[10px]` and `text-muted-foreground/70`.**
+  - Problem: `text-[10px]` is below the recommended 12px minimum for body text. `text-muted-foreground/70` = `oklch(0.68 0.012 250 / 0.7)` on `oklch(0.19 0.012 250)` background — contrast ratio ≈ 3:1, fails WCAG AA for small text.
+  - Fix: `text-xs` (12px) and full opacity `text-muted-foreground` (contrast ≈ 4.5:1, passes AA).
+
+- **[UI-P2-018] `src/components/aurevia/views/strategies-view.tsx:62` + `signals-view.tsx:130` + `ml-view.tsx:211` + `settings-view.tsx:92` — `text-[10px]` badges throughout.**
+  - Problem: Multiple badges use `text-[10px]` for compactness, below readable minimum.
+  - Fix: Use `text-xs` (12px) for all badges.
+
+- **[UI-P2-019] `src/components/aurevia/views/backtests-view.tsx:185` — Trades table header "Trades (last 20)" but no pagination, no "view all".**
+  - Problem: `.slice(-20).reverse()` shows only last 20 trades. A 500-trade backtest shows 20. No way to see the rest, no pagination, no export.
+  - Fix: Add pagination (10/25/50/100 per page) and a "Export CSV" button.
+
+- **[UI-P2-020] `src/components/aurevia/views/ml-view.tsx:136` — Hardcoded horizon heuristic `"5-bar" if modelKey.includes("alm") else "20-bar"`.**
+  - Problem: The horizon badge label is derived from a string-contains check on the model key. Brittle, undocumented, and almost certainly wrong for future models.
+  - Fix: Surface `model.horizon` (already in the `MLModel` interface, line 26) in the prediction response and display it directly.
+
+- **[UI-P2-021] `src/components/aurevia/views/ml-view.tsx:180-182` — ML warning uses raw emoji `⚠` and `text-amber-400/80` (80% opacity) on `bg-amber-500/5` (5% opacity).**
+  - Problem: Emoji rendering varies across platforms (Windows renders ⚠ as plain text). `text-amber-400/80` on `bg-amber-500/5` has poor contrast — the warning is barely visible.
+  - Fix: Use the `<AlertTriangle>` Lucide icon. Use `bg-amber-500/10` and full-opacity `text-amber-400`.
+
+- **[UI-P2-022] `src/components/aurevia/views/brokers-view.tsx:83-85` — "● ONLINE" / "○ OFFLINE" badge uses ASCII bullet characters instead of a status dot.**
+  - Problem: `{b.healthy ? "● ONLINE" : "○ OFFLINE"}`. The bullet characters render differently across fonts. No animation for "online" (compare to sidebar's `animate-pulse` dot for LIVE).
+  - Fix: Use a `<span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />` + text "ONLINE".
+
+- **[UI-P2-023] `src/components/aurevia/views/brokers-view.tsx:149-156` — "Connect" button disabled state has no explanation.**
+  - Problem: `disabled={connect.isPending || !apiKey || !apiSecret}`. If the user hasn't entered credentials, the button is grayed out with no tooltip or helper text explaining why.
+  - Fix: Add helper text below the button: "Enter API key and secret to enable Connect."
+
+- **[UI-P2-024] `src/components/aurevia/views/brokers-view.tsx:64-92` — Registered Brokers list has no "Disconnect" action.**
+  - Problem: Once connected, there's no way to disconnect from the UI. The "Connect" form below can submit again, but there's no explicit disconnect flow.
+  - Fix: Add a "Disconnect" button per broker row.
+
+- **[UI-P2-025] `src/components/aurevia/views/brokers-view.tsx:135-139` — API key/secret inputs remain editable after connection; no masking in registered brokers list.**
+  - Problem: After a successful connect, the API key/secret inputs still show what was typed. If `/api/v1/brokers` ever returned the key in its response, the registered brokers list would leak it.
+  - Fix: Clear the inputs after successful connect. Audit the BrokerEntry response shape to ensure no secrets are returned.
+
+- **[UI-P2-026] `src/components/aurevia/views/settings-view.tsx:49-64` — Theme card shows raw OKLCH values. Useless to customers.**
+  - Problem: `<Row label="Background" value="oklch(0.16 0.012 250)" />`. No customer cares about the OKLCH values of the theme. This is developer documentation masquerading as a Settings card.
+  - Fix: Delete the Theme card entirely, or replace with a real theme picker (even if only Dark is available, show a disabled "Light (coming soon)" option for clarity).
+
+- **[UI-P2-027] `src/components/aurevia/views/settings-view.tsx:115-166` — TradingModeSelector is the only "real" setting. Settings view is otherwise empty.**
+  - Problem: Settings has: Theme card (raw OKLCH), Trading Mode selector, About card (version info), ASCII architecture. No notification preferences, no API key management, no user profile, no display preferences (number format, timezone), no data export. A paying customer expects Settings to be the configuration hub.
+  - Fix: Add real settings: notification preferences (toast vs email vs Slack), default timeframe, default symbol list, timezone display, CSV export defaults, etc.
+
+- **[UI-P2-028] `src/components/aurevia/sidebar.tsx:136` — Topbar uses `sticky top-0` but is inside a flex column, not a scroll container.**
+  - Problem: `<header className="sticky top-0 z-20 ...">` is a child of `<div className="flex flex-1 flex-col overflow-hidden">` (page.tsx:27). The scroll container is `<main className="flex-1 overflow-y-auto">` (page.tsx:29) — a sibling, not an ancestor. So `sticky top-0` on the header has no effect (it's not inside a scroll container). The header just sits at the top of its parent. The class is harmless but misleading — looks like a bug.
+  - Fix: Remove `sticky top-0` (no-op) or restructure so the header is inside the scroll container if sticky behavior is intended.
+
+- **[UI-P2-029] `src/components/aurevia/views/dashboard-view.tsx:192` vs `signals-view.tsx:102` vs `portfolio-view.tsx:137` — Inconsistent max-heights on scrollable lists.**
+  - Problem: Dashboard signals `max-h-80` (320px). Signals view `max-h-[60vh]`. Portfolio `max-h-[50vh]`. Orders `max-h-[50vh]`. Backtests past runs `max-h-80`. Backtests trades `max-h-72`. Six different heights for what is conceptually the same pattern.
+  - Fix: Standardize on `max-h-[60vh]` (or a `ScrollArea` with a `h` prop) for all list-card bodies.
+
+- **[UI-P2-030] `src/components/aurevia/views/asset-detail-view.tsx:185` — Quote Snapshot card shows "Bid Value" with `fmtUsd(quote.bid)`.**
+  - Problem: Bid is already a price, not a value. `fmtUsd` formats as currency. If bid is `$195.50`, "Bid Value: $196" (fmtUsd defaults to 0 decimals per `format.ts:16`). Confusing label, wrong formatter.
+  - Fix: Remove the "Bid Value" row or rename to "Bid (USD)" and use `fmtPrice(quote.bid)`.
+
+### P3 — Low (nice-to-have)
+
+- **[UI-P3-001] `src/app/layout.tsx:46-50` — SonnerToaster `toastOptions.style` uses hardcoded `oklch()` values instead of CSS variables.**
+  - Problem: Toast background `oklch(0.205 0.014 250)` is hardcoded. If the theme ever changes (or the user could switch themes), toasts won't follow.
+  - Fix: Use `background: "var(--card)"` etc.
+
+- **[UI-P3-002] `src/components/aurevia/charts/candlestick-chart.tsx:86-90, equity-curve.tsx:44-48` — Chart tooltip `contentStyle` uses hardcoded `oklch()` values.**
+  - Problem: Same as P3-001 — chart tooltips won't respond to theme changes.
+  - Fix: Use `var(--card)`, `var(--border)`, `var(--foreground)`.
+
+- **[UI-P3-003] `src/components/aurevia/views/markets-view.tsx:157` — Spread column shows `fmtPrice(a.quote.spread, 4)` — 4 decimals on a $0.01 spread = "0.0100".**
+  - Problem: Visual noise. Spreads are usually 1-5 cents; 4 decimals is meaningless precision.
+  - Fix: `fmtPrice(a.quote.spread, 2)` or use basis points.
+
+- **[UI-P3-004] `src/components/aurevia/sidebar.tsx:163` — Topbar version badge `v0.1.0` is hardcoded.**
+  - Problem: Looks like a placeholder. Won't track real releases.
+  - Fix: Pull from `package.json` version or env var.
+
+- **[UI-P3-005] `src/components/aurevia/views/dashboard-view.tsx:58` — Sparkline `spark` prop only used on one StatTile. Inconsistent.**
+  - Problem: Only the Equity tile has a sparkline; the other 3 tiles have none. Looks like an oversight.
+  - Fix: Either add sparklines to all 4 (Exposure, Drawdown, Universe) or remove from Equity for consistency.
+
+- **[UI-P3-006] No global search / Cmd+K palette.**
+  - Problem: 15 views, no way to jump between them by typing. No symbol search. No "go to backtest #123".
+  - Fix: Add a `cmdk`-based command palette triggered by Cmd+K / Ctrl+K.
+
+- **[UI-P3-007] No breadcrumbs anywhere.**
+  - Problem: When viewing AAPL in Asset Analysis, there's no breadcrumb "Markets / AAPL". User can't navigate back to Markets by clicking a crumb.
+  - Fix: Add breadcrumbs in the Topbar showing the navigation path.
+
+- **[UI-P3-008] No CSV export anywhere.**
+  - Problem: Markets, Signals, Trends, Backtests trades, Portfolio positions — all tabular data that a customer will want to export. No export button anywhere.
+  - Fix: Add a "Export CSV" button to every table card.
+
+- **[UI-P3-009] No keyboard shortcuts.**
+  - Problem: No `g d` to go to dashboard, no `g m` for markets, no `?` for help, no `/` to focus search, no `Esc` to close dialogs (Radix handles this) but no shortcut to open them.
+  - Fix: Add a `react-hotkeys-hook`-based shortcut layer. Document with `?` overlay.
+
+- **[UI-P3-010] `src/components/aurevia/sidebar.tsx:122` — "Collapse" button label changes to nothing when collapsed, only the chevron icon remains.**
+  - Problem: When collapsed, the button is icon-only with no `aria-label`. Screen readers announce just "button".
+  - Fix: `aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}`.
+
+- **[UI-P3-011] No "last updated" timestamp on any view.**
+  - Problem: Dashboard, Markets, Portfolio — none show "Last updated: 12:34:56 UTC". With 30s refetch intervals, stale data is invisible.
+  - Fix: Add a subtle "Updated 5s ago" indicator per data card.
+
+- **[UI-P3-012] `src/components/aurevia/views/portfolio-view.tsx:77-86` — Stat tiles default to `$100000` equity if data is missing.**
+  - Problem: `equity = data?.equity ?? 100000`. If the API fails, the dashboard shows $100k equity (looks healthy) instead of an error. Hides data-fetching problems.
+  - Fix: Distinguish `isLoading` (show skeleton) from `isError` (show error) from `data` (show real value).
+
+- **[UI-P3-013] `src/components/aurevia/views/signals-view.tsx:97-100` — Filter state display `symbol=${symbol} · strategy=${strategy}` is dev-console syntax, not user-facing.**
+  - Problem: The "filter summary" reads like a query string. Customers don't read `symbol=AAPL` fluently.
+  - Fix: "Symbol: AAPL · Strategy: momentum" or use removable chip badges.
+
+- **[UI-P3-014] `src/components/aurevia/views/risk-view.tsx:147` — Risk events log timestamps use `fmtTime` (time only, UTC). Old events are ambiguous.**
+  - Problem: `fmtTime(e.timestamp ?? e.time)` returns "14:23:05" with no date. An event from yesterday vs last week is indistinguishable.
+  - Fix: Use `fmtDateTime` for events older than 24h.
+
+- **[UI-P3-015] `src/components/aurevia/views/backtests-view.tsx:151-154` — Backtest result meta badge uses `meta.strategyKey ?? form.strategyKey`.**
+  - Problem: If `meta` is from a past backtest and `form` is the current form, this can mix data — showing the form's strategy with the past backtest's symbol.
+  - Fix: Use only `meta` (the selected past backtest's metadata) or only `form` (the current form), not a mix.
+
+- **[UI-P3-016] `src/components/aurevia/views/asset-detail-view.tsx:30-42` — `REGIME_DESCRIPTION` is a hardcoded dictionary in the view file.**
+  - Problem: Regime descriptions live in the component, not in `format.ts` or a constants file. Duplicated if any other view needs them.
+  - Fix: Move to `@/lib/aurevia/quant/regime.ts` next to the regime classifier.
+
+- **[UI-P3-017] Color usage is inconsistent — 62 direct `text-emerald-400` / `text-red-400` usages across 15 files.**
+  - Problem: `gainColor`, `gainBg`, `regimeColor`, `breakerColor`, `actionColor`, `decisionColor`, `trendColor` helpers exist in `format.ts` but are bypassed for ad-hoc `text-emerald-400` styling 62 times. Some uses are correct (icons), some are wrong (PAPER MODE badge as emerald).
+  - Fix: Audit all 62 usages. Move semantic colors to CSS variables (`--gain`, `--loss`, `--warn`, `--info` already defined in `globals.css:82-85` but never referenced via Tailwind classes). Add `text-gain`, `text-loss`, etc. to the Tailwind theme.
+
+- **[UI-P3-018] `src/components/aurevia/views/dashboard-view.tsx:233-235` — "All →" link uses arrow text.**
+  - Problem: `All →` instead of an icon. Inconsistent with `markets-view` which uses lucide icons throughout.
+  - Fix: Use `<ArrowRight className="h-3 w-3" />` icon button.
+
+- **[UI-P3-019] `src/components/aurevia/views/system-view.tsx:64` — `v{data?.version ?? "0.1.0"}` defaults to "0.1.0" if API doesn't return a version.**
+  - Problem: Same as P3-004 — placeholder version string.
+  - Fix: Single source of truth for version.
+
+- **[UI-P3-020] No timezone indicator anywhere.**
+  - Problem: `fmtTime` and `fmtDateTime` use UTC (commented in `format.ts:29`). But the UI never tells the user timestamps are UTC. A customer in NYC sees "14:23:05" and assumes Eastern.
+  - Fix: Add a "Times in UTC" footer or label.
+
+### Design Quality Score
+
+- **Visual polish: 6/10** — Dark theme is cohesive and the color palette is well-chosen. But the Orders view placeholder, Settings ASCII art, fabricated sparklines, and 6 different scroll heights undermine the polish.
+- **Accessibility: 3/10** — No `aria-label` on icon-only buttons (0 hits across the codebase), no `aria-current`, no `aria-sort`, no skip link, no `scope` on table headers, no keyboard handler on clickable rows, touch targets below 44px throughout, no `isError` handling (screen readers announce infinite "Loading…"). WCAG 2.1 AA is nowhere close.
+- **Responsive: 2/10** — No mobile drawer, no `overflow-x-auto` on 6 of 10 tables, Topbar ticker hidden below `lg`, hardcoded sparkline widths, hardcoded `width=320` on system-view chart. The app is desktop-only.
+- **Interaction quality: 4/10** — No skeleton loaders (component exists but unused), no error states, no retry buttons, no toast on `isError` for queries (only mutations), no confirmation for circuit breaker changes, no validation on forms, no CSV export, no command palette, no keyboard shortcuts.
+- **Information architecture: 5/10** — Sidebar grouping is logical (Intelligence / Trading & Risk / System). But Orders view is a duplicate placeholder, Settings is sparse, ML Predictions is correctly under Intelligence, and the lack of URL routing makes the IA moot (users can't bookmark or share).
+- **Data visualization quality: 4/10** — Candlestick chart is reasonable. Equity curve has an invisible benchmark line and no legend. Sparklines use fabricated data. Chart tooltips are cluttered. No colorblind-friendly palette check. Stat tiles look fine but only one has a sparkline.
+- **Overall UI: 4/10** — The bones are good (dark theme, shadcn/ui, consistent card padding). But the product is unfinished: placeholder views, fake data, no error handling, no mobile, no accessibility, no URL routing. A paying customer would notice within 5 minutes.
+
+### Top 5 improvements that would transform the UI
+
+1. **Move view state to real URL routes (`/markets`, `/assets/[symbol]`, `/backtests/[id]`, `/signals?...`).** This single change unblocks bookmarks, shareable links, browser back/forward, and SEO. It's the difference between "a demo" and "a product." Pair with a `<ErrorBoundary>` per route + `error.tsx` + `not-found.tsx` + `loading.tsx` files.
+
+2. **Build a `<QueryState loading error empty success>` wrapper and use it in every view.** Today, every view reinvents the loading/empty/error pattern ad-hoc — and gets it wrong (no error state, no skeleton, double-render of empty + loading). One wrapper component fixes 15 views at once and centralizes the Skeleton, ErrorState with Retry, and EmptyState with CTA patterns.
+
+3. **Add a mobile sidebar drawer + `overflow-x-auto` on every table + sticky first column.** Right now the app is unusable on phones and clipped on narrow desktop windows. A Radix Sheet drawer triggered by a Topbar hamburger below `lg`, plus `overflow-x-auto` wrappers and `sticky left-0` Symbol columns, would make the app usable on any screen size.
+
+4. **Delete or actually build the Orders view; replace Settings ASCII art with a real diagram; remove fabricated sparklines/latency/subsystem-status.** These three "embarrassing" surfaces (Orders placeholder, Settings `<pre>` art, fake System Health data) are the things a customer will screenshot and share as evidence the product isn't ready. Either invest in making them real or remove them.
+
+5. **Pass an accessibility audit (axe-core / Lighthouse) at 95+.** Concretely: `aria-label` on every icon-only button, `aria-current="page"` on the active sidebar item, `aria-sort` on sortable headers, `scope="col"` on `<TableHead>` (fix in `src/components/ui/table.tsx`), keyboard handlers + `tabIndex={0}` + visible focus ring on clickable rows, skip-to-content link, touch targets ≥ 44px, contrast ratio audit on `text-muted-foreground/70` and `text-[10px]` usages. Today the app scores ~40 on Lighthouse Accessibility; this work would push it to 95+.
+
+### Files NOT modified (per task constraints)
+No files were modified. This was a read-only audit. All findings are documented above with file:line citations for follow-up.
+
+## Task fix-mobile-orders — Z.ai Code — COMPLETED
+
+### Branch
+`fix/mobile-sidebar-orders` (created from `main`, left unmerged).
+
+### Goal
+Resolve 4 GitHub audit issues blocking the mobile/tablet experience of the Aurevia dashboard:
+- #4 — Mobile sidebar drawer
+- #5 — Tables clip horizontally on narrow viewports
+- #8 — Orders view is fake (a positions proxy); needs a real order-history API + view
+- #22 — Topbar ticker is hidden below the `lg` breakpoint (unusable on tablets)
+
+### Changes by file
+
+#### `src/app/api/v1/orders/route.ts` (new)
+- `GET /api/v1/orders` — reads `store.orders`, supports `?status=` and `?symbol=` filters.
+- Returns `{ orders, total }`. `force-dynamic` so the store is always queried fresh.
+- Mirrors the contract of the existing `/api/v1/signals` route (same singleton store, same shape).
+
+#### `src/lib/aurevia/hooks.ts`
+- Added `OrderRow` interface (matches `OrderRecord` minus the strict status union, so the
+  UI stays robust if new statuses are introduced).
+- Added `useOrders(status?, symbol?)` hook — 15s refetch interval; queryFn extracts `orders`
+  from the API envelope.
+
+#### `src/components/aurevia/views/orders-view.tsx` (rewritten)
+- Replaced the lifecycle-reference + positions-as-orders mock with a real order-history table.
+- Uses `useOrders(status)` hook + `QueryState` wrapper for loading/error/empty/skeleton states.
+- Filter: `<Select>` with ALL/FILLED/REJECTED/CANCELLED/SUBMITTED.
+- Columns: Time, Symbol, Side, Qty, Type, Status, Filled Price, Filled Qty, Strategy, Reason.
+- Status badges: FILLED=emerald, REJECTED=red, SUBMITTED/ACK/PARTIAL=cyan, CANCELLED=muted.
+- Side badges: BUY=emerald, SELL=red.
+- Table wrapped in `<div className="overflow-auto">` with sticky Time column (`sticky left-0 z-10 bg-card`) and sticky header row (`sticky top-0 bg-card`).
+- Empty state: "No orders yet — Place an order from the Portfolio view" with a Go-to-Portfolio button.
+- Symbol cell is a button that calls `openAsset(symbol)` to deep-link into asset analysis.
+
+#### `src/components/aurevia/sidebar.tsx` (mobile drawer + ticker)
+- `Sidebar` (desktop) — `<aside>` now has `hidden md:flex` so it disappears below `md`.
+- Extracted a shared `NavBody` (header + nav + collapse button) used by both the desktop
+  aside and the mobile Sheet, so the nav markup is not duplicated.
+- New `MobileSidebarTrigger` component — owns `open` state, renders a Sheet (left side,
+  `w-60 p-0`) with the same nav. The Sheet auto-closes on backdrop click (Radix behavior).
+  Each nav button calls `onNavigate` which calls `setOpen(false)` — closes on navigation.
+- `Topbar` — renders `<MobileSidebarTrigger />` as the first child of the header (a
+  `Button variant="ghost" size="icon"` with `Menu` icon, `md:hidden`). The hamburger is
+  keyboard accessible (shadcn Button + native button) and has `aria-label`.
+- Ticker bar: `hidden lg:flex` → `hidden md:flex`, `tickArr` now `slice(0, 4)` (was 6) and
+  the container has `overflow-hidden` so the rightmost tick clips cleanly on tablets.
+- Topbar padding: `px-6` → `px-4 md:px-6` so the hamburger isn't flush against the edge on phones.
+- PAPER MODE / LIVE / v0.1.0 badges: `hidden sm:inline-flex` so the most important
+  content (page title + ticker) is preserved on small screens but the badge noise hides on phones.
+
+#### `src/components/aurevia/views/markets-view.tsx` (sticky + scroll)
+- Wrapped the `<Table>` in `<div className="overflow-x-auto">`.
+- Made the first column (`Symbol`) sticky: `sticky left-0 z-10 bg-card` on both
+  `<TableHead>` and `<TableCell>`. Symbol stays visible while horizontally scrolling
+  through Name/Exchange/Type/Sector/Price/24h%/Volume/Spread.
+
+#### `src/components/aurevia/views/signals-view.tsx` (sticky + scroll)
+- `max-h-[60vh] overflow-y-auto` → `max-h-[60vh] overflow-auto` (now scrolls x AND y).
+- First column (`Time`) now `sticky left-0 z-10 bg-card` on `<TableHead>` + `<TableCell>`.
+
+#### `src/components/aurevia/views/portfolio-view.tsx` (sticky)
+- Wrapper was already `overflow-auto`. Made first column (`Symbol`) sticky:
+  `sticky left-0 z-10 bg-card` on `<TableHead>` + `<TableCell>`.
+
+#### `src/components/aurevia/views/trends-view.tsx` (sticky)
+- Wrapper was already `overflow-auto`. Made first column (`Symbol`) sticky:
+  `sticky left-0 z-10 bg-card` on `<TableHead>` + `<TableCell>`.
+
+#### `src/components/aurevia/views/backtests-view.tsx` (sticky + scroll, both tables)
+- Trades table: `max-h-72 overflow-y-auto` → `max-h-72 overflow-auto`; first column
+  (`Entry`) sticky.
+- Past-backtests table: `max-h-80 overflow-y-auto` → `max-h-80 overflow-auto`; first
+  column (`Created`) sticky.
+
+#### `src/components/aurevia/views/ml-view.tsx` (scroll)
+- `max-h-96 overflow-y-auto` → `max-h-96 overflow-auto`. (Not in the sticky-column
+  instruction set; uses raw `<table>` not shadcn `<Table>` so left alone otherwise.)
+
+### Files deliberately NOT touched
+- `dashboard-view.tsx`, `risk-view.tsx`, `asset-detail-view.tsx`, `settings-view.tsx`,
+  `system-view.tsx` — other agents working on these.
+- `query-state.tsx` — explicitly preserved per task instructions.
+- All chart components.
+
+### Verification
+- `bun run lint` — passes clean (0 errors, 0 warnings).
+- `npx tsc --noEmit` — 0 errors in `src/aurevia|app/` (only unrelated errors in
+  `examples/`, `skills/` paths).
+- `curl http://localhost:3000/api/v1/orders` → `{"orders":[...],"total":N}`.
+- End-to-end smoke test: POSTed a test order via `/api/v1/portfolio`, then GET
+  `/api/v1/orders` returned the persisted FILLED order with `filledPrice` and `filledQty`.
+
+### Commit
+Single commit on branch `fix/mobile-sidebar-orders` (NOT merged into main):
+`fix(#4,#5,#8,#22): mobile sidebar, table scroll, real orders view, topbar ticker`
