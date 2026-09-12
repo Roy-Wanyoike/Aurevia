@@ -1687,3 +1687,242 @@ one per feature — so the branch history reads cleanly. Cut from `main` HEAD
   `main` between Bash calls. Each verification command therefore starts
   with `git checkout phase3/whatif-replay` to ensure the working tree
   reflects the branch under test.
+
+
+## phase3-4/final-features — Z.ai Code — COMPLETED
+
+### Scope
+Implemented six Phase 3-4 final features on branch `phase3-4/final-features`
+(issues #52–#57). Cut from `main` HEAD (`3ee8fca`) which carries the merged
+Phase-1 + Phase-2 + Phase-3 work. Six focused commits — one per feature —
+so the branch history reads cleanly.
+
+### Commit 1 — `7e63d18 feat(#52): portfolio analytics — VaR, CVaR, Beta, sector exposure, concentration`
+- `src/app/api/v1/portfolio/analytics/route.ts` — GET endpoint. Computes
+  30-day position-weighted daily returns for every open position; SHORT
+  positions are sign-flipped so the aggregate stays coherent with each
+  position's direction. Returns VaR 95%/99%, CVaR 95%, Beta vs SPY
+  (covariance over the same window normalized by SPY variance), sector
+  exposure breakdown, Herfindahl concentration, and max single-position
+  weight. Returns 422 when no positions. Structured `logger.info` on
+  success, `logger.error` on failure. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `PortfolioVarBand`, `SectorExposure`,
+  `PortfolioAnalytics` interfaces + `usePortfolioAnalytics()` query
+  (30s refetch; `retry: false` so the 422 empty-state is surfaced cleanly).
+- `src/lib/aurevia/ui-store.ts` — added `"portfolio-analytics"` to
+  `ViewKey` + `VALID_VIEWS` so URL routing works.
+- `src/components/aurevia/sidebar.tsx` — `PieChart` icon import + the
+  `portfolio-analytics` nav item in the `trading` group (between Portfolio
+  and Orders).
+- `src/components/aurevia/views/portfolio-analytics-view.tsx` — the view:
+  risk-band stat tiles (VaR 95% / 99% / CVaR 95% / Beta vs SPY /
+  concentration HHI + max position), an amber warning card when any single
+  position exceeds 25% of gross market value, a sector exposure donut
+  (recharts PieChart) with a legend list, and a per-position weight bar
+  chart that colors over-limit positions red. Methodology card at the
+  bottom documents the math. Uses `QueryState` for loading/error/empty.
+- `src/app/page.tsx` — `case "portfolio-analytics": return <PortfolioAnalyticsView />;`.
+
+### Commit 2 — `8b5a4c1 feat(#53): risk cockpit — unified risk score gauge, metric grid, emergency controls`
+- `src/lib/aurevia/ui-store.ts` — added `"risk-cockpit"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `ShieldCheck` icon + the
+  `risk-cockpit` nav item in the `trading` group (between Analytics and
+  Journal).
+- `src/components/aurevia/views/risk-cockpit-view.tsx` — the view:
+  - Risk-score gauge (0..100) — semicircular SVG arc with a needle,
+    computed as `drawdownScore * 0.4 + exposureScore * 0.3 +
+    concentrationScore * 0.3`. Turns amber past 60, red past 80.
+  - Grid of 8 risk-metric tiles, each with current value, limit,
+    progress bar, and graduated color (green/amber/red): exposure,
+    drawdown, daily loss, leverage, VaR 95%, max position weight,
+    circuit breaker state, broker health.
+  - Emergency controls: Soft Stop (CAUTION), Hard Stop (TRADING_PAUSED),
+    Emergency Stop — all wrapped in `AlertDialog` confirmation.
+  - Historical risk-event timeline (from `useRisk().events`) — same
+    table style as the existing Risk Engine view for consistency.
+  - Pulls live numbers from `useRisk` + `usePortfolio` + `useHealth` +
+    `usePortfolioAnalytics`. No data is hardcoded.
+- `src/app/page.tsx` — `case "risk-cockpit": return <RiskCockpitView />;`.
+
+### Commit 3 — `fd71964 feat(#54): trading journal — fills with market context + behavioral analytics`
+- `src/app/api/v1/journal/route.ts` — GET endpoint. Aggregates every
+  FILLED order into a journal entry with market context (regime /
+  trend direction / volatility) at fill time, plus overall analytics
+  (trades by regime, by strategy, total count). Uses
+  `store.buildContext()` to re-derive market state for each fill.
+  `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `JournalEntry`, `JournalAnalytics`,
+  `JournalResponse` interfaces + `useJournal()` query (30s refetch).
+- `src/lib/aurevia/ui-store.ts` — added `"journal"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `BookOpen` icon + the `journal`
+  nav item in the `trading` group.
+- `src/components/aurevia/views/journal-view.tsx` — the view:
+  - Behavioral insight banner (cyan) summarizing the operator's bias
+    (long/short/balanced), most-traded regime, and dominant strategy.
+  - Trades-by-regime and trades-by-strategy horizontal bar charts
+    (recharts BarChart with regime-colored cells).
+  - Journal entries table — time / symbol / side / qty / price /
+    strategy / regime / trend / vol / reason. Clicking a row opens
+    the asset-detail view. Sticky header, scrollable body.
+  - Empty state when no orders have been filled.
+- `src/app/page.tsx` — `case "journal": return <JournalView />;`.
+
+### Commit 4 — `3d6da30 feat(#55): AI research copilot — chat UI with live portfolio context`
+- `src/app/api/v1/copilot/route.ts` — POST endpoint. Validates the
+  request with zod, gathers live context (equity, cash, positions,
+  exposure, drawdown, top movers, recent signals, system state),
+  calls `ZAI.create()` and `zai.chat.completions.create()` with a
+  system prompt that forbids fabrication. Returns the answer + the
+  context bundle + the original query. ZAI SDK runs server-side only.
+  `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `CopilotResponse` interface +
+  `useAskCopilot()` mutation.
+- `src/lib/aurevia/ui-store.ts` — added `"copilot"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `Bot` icon + the `copilot`
+  nav item in the `intelligence` group (between Brokers and System).
+- `src/components/aurevia/views/copilot-view.tsx` — the view:
+  - Chat interface with auto-scrolling message history.
+  - Assistant answers rendered with `react-markdown` (lists, code,
+    strong emphasis, paragraphs).
+  - Input box with Enter-to-send / Shift+Enter for newline.
+  - Suggested-question chips ("Why is AAPL moving?", "What's my
+    portfolio risk?", "Which stocks have strong momentum?",
+    "Summarize recent signals", "What's my current exposure?",
+    "Are there any risk events I should know about?").
+  - Loading state while waiting for the ZAI completion (spinner
+    + "Researching your portfolio…" message).
+  - Collapsible "Context Sent to AI" card showing the exact context
+    string the server appended to the system prompt.
+  - Amber disclaimer banner: answers are AI-generated, verify before
+    acting.
+- `src/app/page.tsx` — `case "copilot": return <CopilotView />;`.
+
+### Commit 5 — `9148e9e feat(#56): strategy builder — block-based UI for assembling strategy specs`
+- `src/lib/aurevia/ui-store.ts` — added `"strategy-builder"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `Blocks` icon + the
+  `strategy-builder` nav item in the `trading` group (between
+  Strategies and Backtests).
+- `src/components/aurevia/views/strategy-builder-view.tsx` — the view:
+  - Top-row meta: strategy name, symbol (driven by `useMarkets()`),
+    bars, initial capital. Three action buttons: Preview (renders
+    the spec as a plain-English sentence + raw JSON), Backtest (runs
+    the spec through /api/v1/backtests using "momentum" as the
+    placeholder key but passes the spec's risk params through;
+    records the spec + backtest id to localStorage), Save Strategy
+    (persists the spec to localStorage).
+  - Entry conditions section: add/remove condition blocks. Each
+    block is an indicator (RSI/EMA/SMA/MACD/Price/ADX/Stochastic/
+    Bollinger) + operator (`> < >= <= ==`) + value. Conditions are
+    joined by AND / OR (selectable).
+  - Exit conditions section: same pattern.
+  - Risk rules section: position size %, stop loss %, take profit %.
+  - Regime filter: 11-regime checkbox grid; "Clear all" / "Select all".
+  - Hydrated from localStorage via `useState` lazy initializer (no
+    setState-in-effect lint violation).
+  - Amber disclaimer: builder emits JSON spec; "momentum" is a
+    placeholder key; custom-strategy engine wiring is a future task.
+- `src/app/page.tsx` — `case "strategy-builder": return <StrategyBuilderView />;`.
+
+### Commit 6 — `4a32125 feat(#57): Monte Carlo + walk-forward robustness analysis`
+- `src/app/api/v1/backtests/[id]/monte-carlo/route.ts` — POST endpoint.
+  Resamples the trade sequence 100× (shuffled without replacement — each
+  sim uses every trade exactly once, in a shuffled order), reconstructs
+  the equity curve for each simulation, and reports p10 / p50 / p90
+  final equities + survival rate (% of sims above initial capital) +
+  worst- and best-case final equities. Walk-Forward splits the trades
+  into 4 chronological windows and computes per-window Sharpe (×√252)
+  + return. Robustness score = 40% survival + 30% walk-forward
+  stability + 30% original Sharpe (capped at 2). 404 when backtest
+  not found; 422 when no trades. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `MonteCarloResult`, `WalkForwardWindow`,
+  `RobustnessBreakdown`, `MonteCarloResponse` interfaces +
+  `useMonteCarlo()` mutation.
+- `src/components/aurevia/views/backtests-view.tsx` — enhanced the
+  existing backtests view with a Robustness section that appears
+  whenever a backtest is selected (`selectedBacktestId`) or freshly
+  produced (`result?.id`). Exposes a "Run Monte Carlo" button that
+  triggers the analysis. The result panel renders:
+    * Circular 0..100 robustness gauge (SVG arc + needle) with the
+      three component bars (survival rate / walk-forward stability /
+      original Sharpe) and their weights.
+    * Four stat tiles (MC p10 / p50 / p90 / survival rate).
+    * MC distribution bar chart (worst / p10 / p50 / p90 / best)
+      with the initial-capital reference line drawn through the bars.
+    * Walk-forward Sharpes bar chart with a zero reference line so
+      positive (green) / negative (red) windows are obvious at a
+      glance.
+    * Methodology footer explaining the math.
+
+### Verification (all run on `phase3-4/final-features`)
+1. `bun run lint` — clean (no ESLint errors / warnings).
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — **0** type errors.
+3. `bun test` — **155 pass / 0 fail** (1005 expect() calls, 6 files).
+   Unchanged — spec says "do not write any test code".
+4. `curl -s http://localhost:3000/api/v1/portfolio/analytics | head -c 100`
+   → `{"var95":{"returnPct":-1.8400265290331368,"dollar":1839.4115921671341},
+   "var99":{"returnPct":-1.94103...` — full VaR / CVaR / Beta / sectors /
+   concentration object returned.
+5. `curl -s http://localhost:3000/api/v1/journal | head -c 100`
+   → `{"entries":[{"id":"ord-1789243209504-906054","symbol":"AAPL",
+   "side":"BUY","quantity":100,"filledPric...` — entries + analytics
+   object returned.
+6. `curl -s -X POST http://localhost:3000/api/v1/copilot -H 'Content-Type:
+   application/json' -d '{"query":"What is my portfolio risk?"}' | head -c 200`
+   → `{"answer":"Your portfolio risk is characterized by:\n- Exposure:
+   22%\n- Drawdown: 0.00%\n- Positions: 1\n\nThe current drawdown of 0%
+   indicates...` — ZAI chat completion returned with answer + context
+   bundle.
+7. Dev server log shows structured `logger.info` lines for every route
+   (`Portfolio analytics computed`, `Journal aggregated`, `Copilot
+   query received`, `Copilot answered`, `Monte Carlo computed`).
+   Root page `/` returns HTTP 200.
+
+### Notes
+- No data is hardcoded — every figure derives from `store.getPortfolio()` /
+  `store.getCandles()` / `store.orders` / `store.backtests` / the ZAI
+  chat completion. The `usePortfolioAnalytics` hook even surfaces the
+  `sampleDays` field so the user knows how many bars of history fed
+  the VaR distribution.
+- The Risk Cockpit view's risk-score formula `(drawdown/maxDD)*40 +
+  (exposure/maxExp)*30 + (concentration)*30` is the spec's exact
+  blend. Each component is normalized to 0..100 before the weighted
+  sum so the gauge is bounded and never silently clamps to 100.
+- The Copilot view uses `react-markdown` (already in package.json
+  dependency list) for rendering — supports lists, code, strong
+  emphasis, paragraphs. The context card is collapsible (ChevronUp /
+  ChevronDown) so it doesn't dominate the sidebar when collapsed.
+- The Strategy Builder hydrates from localStorage via the `useState`
+  lazy initializer rather than an effect — this avoids both the
+  SSR-mismatch risk AND the `react-hooks/set-state-in-effect` lint
+  rule that flagged an earlier draft.
+- The Monte Carlo endpoint intentionally uses `Math.random()` for
+  the shuffle — the per-call result is non-deterministic by design
+  (each Run button click produces a fresh simulation). The robustness
+  score fluctuates ±2 between runs, which is the correct behavior for
+  a Monte Carlo estimate.
+- The backtests-view enhancement is additive — no existing rendering
+  path changed. The Robustness section appears *below* the existing
+  equity curve + metrics + trades card and *above* the past-backtests
+  table, so the operator sees Overview → Robustness → History in
+  top-to-bottom reading order.
+- Five sidebar nav items added across the six features (Portfolio
+  Analytics, Risk Cockpit, Journal, AI Copilot, Strategy Builder).
+  All five are reachable via URL (`?view=...`) and via the sidebar.
+  Strategy Builder sits between Strategies and Backtests in the
+  trading group; Analytics / Risk Cockpit / Journal sit between
+  Portfolio and Orders; AI Copilot sits between Brokers and System
+  in the intelligence group.
+
+### Final verification note (sandbox)
+- The sandbox environment auto-restored the working tree to `main` between
+  Bash calls during verification (same quirk noted in the phase3/whatif-replay
+  section). Each verification command therefore starts with
+  `git checkout phase3-4/final-features` so the on-disk files reflect the
+  branch under test.
+- The dev server's Turbopack route manifest occasionally cached the 404
+  state from a moment when the working tree was on `main` (where the new
+  API routes don't exist). Touching the affected route file
+  (`touch src/app/api/v1/portfolio/analytics/route.ts`) forces Turbopack
+  to re-scan and the route returns 200 with the expected JSON. This is a
+  dev-server cache issue, not a code defect — the routes are correctly
+  registered in the `phase3-4/final-features` branch tree.
