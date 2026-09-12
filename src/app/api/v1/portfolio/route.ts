@@ -11,12 +11,21 @@ const OrderSchema = z
     side: z.enum(["BUY", "SELL"]).optional(),
     quantity: z.number().positive().optional(),
     orderType: z.string().optional(),
+    limitPrice: z.number().positive().optional(),
     strategyKey: z.string().optional(),
     reason: z.string().optional(),
   })
   .refine((d) => d.action !== "order" || (d.symbol && d.side && d.quantity), {
     message: "symbol, side, and quantity required for order action",
-  });
+  })
+  .refine(
+    (d) =>
+      d.action !== "order" ||
+      !d.orderType ||
+      !["MARKET", "LIMIT", "STOP"].includes(d.orderType) ||
+      (d.orderType !== "MARKET" && d.limitPrice !== undefined),
+    { message: "limitPrice is required for LIMIT and STOP order types" },
+  );
 
 // GET /api/v1/portfolio — current paper-trading portfolio state.
 export async function GET() {
@@ -44,12 +53,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ ok: true, portfolio: store.getPortfolio() });
     }
     // action === "order"
-    const { symbol, side, quantity, orderType, strategyKey, reason } = data;
+    const { symbol, side, quantity, orderType, limitPrice, strategyKey, reason } = data;
     const order = store.submitOrder({
       symbol: String(symbol).toUpperCase(),
       side: side === "SELL" ? "SELL" : "BUY",
       quantity: Number(quantity),
       orderType: (orderType as "MARKET" | "LIMIT" | "STOP") ?? "MARKET",
+      limitPrice: limitPrice !== undefined ? Number(limitPrice) : undefined,
       strategyKey,
       reason,
     });

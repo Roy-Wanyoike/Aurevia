@@ -175,7 +175,15 @@ export function useResetPortfolio() {
 }
 export function usePlaceOrder() {
   return useMutation({
-    mutationFn: (input: { symbol: string; side: "BUY" | "SELL"; quantity: number; strategyKey?: string; reason?: string }) =>
+    mutationFn: (input: {
+      symbol: string;
+      side: "BUY" | "SELL";
+      quantity: number;
+      orderType?: "MARKET" | "LIMIT" | "STOP";
+      limitPrice?: number;
+      strategyKey?: string;
+      reason?: string;
+    }) =>
       fetchJson("/api/v1/portfolio", { method: "POST", body: JSON.stringify({ action: "order", ...input }) }),
   });
 }

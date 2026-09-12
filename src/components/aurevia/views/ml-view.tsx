@@ -10,8 +10,7 @@ import { Progress } from "@/components/ui/progress";
 import { Brain, Sparkles, TrendingUp, TrendingDown, Activity, Shield } from "lucide-react";
 import { toast } from "sonner";
 import { fmtPct, fmtPrice } from "@/lib/aurevia/format";
-
-const SYMBOLS = ["AAPL", "MSFT", "NVDA", "BTC", "ETH", "SPY", "QQQ", "TSLA", "AMZN", "GOOGL", "META"];
+import { useMarkets } from "@/lib/aurevia/hooks";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, { ...init, headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) } });
@@ -42,6 +41,7 @@ interface MLPrediction {
 export function MLView() {
   const [modelKey, setModelKey] = useState("alm-v1");
   const [symbol, setSymbol] = useState("AAPL");
+  const markets = useMarkets();
   const qc = useQueryClient();
 
   const models = useQuery({
@@ -102,12 +102,14 @@ export function MLView() {
           <div className="space-y-1">
             <label className="text-xs text-muted-foreground">Symbol</label>
             <Select value={symbol} onValueChange={setSymbol}>
-              <SelectTrigger className="w-[120px] h-9">
+              <SelectTrigger className="w-[160px] h-9">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {SYMBOLS.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                {(markets.data ?? []).map((a) => (
+                  <SelectItem key={a.symbol} value={a.symbol}>
+                    {a.symbol} — {a.name.slice(0, 20)}
+                  </SelectItem>
                 ))}
               </SelectContent>
             </Select>

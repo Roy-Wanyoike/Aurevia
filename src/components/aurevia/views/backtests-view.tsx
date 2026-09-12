@@ -15,6 +15,7 @@ import {
   useBacktests,
   useBacktestDetail,
   useRunBacktest,
+  useMarkets,
   type RunBacktestInput,
 } from "@/lib/aurevia/hooks";
 import { fmtUsd, fmtPct, fmtPrice, fmtDateTime, fmtTime, gainColor } from "@/lib/aurevia/format";
@@ -24,13 +25,13 @@ import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
 import { Play, Clock, ArrowUpRight, ArrowDownRight } from "lucide-react";
 
-const SYMBOLS = ["AAPL", "MSFT", "NVDA", "BTC", "ETH", "SPY", "QQQ", "TSLA", "AMZN", "GOOGL", "META"];
 const STRATEGY_KEYS = ["momentum", "trend-following", "ma-crossover", "mean-reversion", "breakout"];
 const TIMEFRAMES = ["1m", "5m", "15m", "1h", "4h", "1d"];
 
 export function BacktestsView() {
   const { selectedBacktestId, openBacktest } = useUI();
   const backtests = useBacktests();
+  const markets = useMarkets();
   const detail = useBacktestDetail(selectedBacktestId);
   const run = useRunBacktest();
   const qc = useQueryClient();
@@ -96,7 +97,11 @@ export function BacktestsView() {
               <Select value={form.symbol} onValueChange={(v) => update("symbol", v)}>
                 <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  {SYMBOLS.map((s) => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  {(markets.data ?? []).map((a) => (
+                    <SelectItem key={a.symbol} value={a.symbol}>
+                      {a.symbol} — {a.name.slice(0, 20)}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </Field>

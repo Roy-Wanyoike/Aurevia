@@ -1035,3 +1035,74 @@ Applied 5 audit fixes to the Aurevia trading platform frontend:
 ### Commit
 Single commit on branch `fix/a11y-skeletons-logo` (NOT merged into main):
 `fix(#12,#13,#14,#15,#16): next/image logo, skeletons, ARIA, keyboard a11y, touch targets`
+
+## Task fix-dropdowns-order-ticket — Z.ai Code — COMPLETED
+
+### Summary
+Applied 2 audit fixes to the Aurevia trading platform:
+
+1. **Dynamic 18-asset symbol dropdowns (GitHub #18)** — Removed the hardcoded
+   11-symbol `SYMBOLS` array from `portfolio-view.tsx`, `backtests-view.tsx`,
+   and `ml-view.tsx`. Each view now imports `useMarkets` from
+   `@/lib/aurevia/hooks` and renders `<SelectItem>`s from `markets.data ?? []`,
+   so every dropdown reflects the full 18-asset universe (10 equities, 3 ETFs,
+   3 cryptos, 2 FX) served by `/api/v1/markets`. Items show
+   `{symbol} — {name.slice(0,20)}` for at-a-glance identification.
+
+2. **Order ticket validation + cost preview + order type (GitHub #19)** —
+   Rewrote the manual order ticket in `portfolio-view.tsx`:
+   - **Validation**: quantity must be > 0 (red hint + red border on the input
+     + submit disabled), symbol must exist in the universe (red hint), LIMIT/STOP
+     orders require a positive limit price (red hint + red border), BUY orders
+     are blocked if estimated cost exceeds available cash.
+   - **Cost preview**: fetches the live price via `useAsset(symbol)` (with a
+     fallback to the markets-list quote) and shows a compact summary block
+     with Symbol / Side / Qty / Type / Ref. Price / Est. Cost /
+     Commission (~5 bps) / Available Cash / After Order. The After Order row
+     turns red if cash would go negative.
+   - **Order type selector**: MARKET | LIMIT | STOP. When LIMIT or STOP is
+     selected a conditional `{OrderType} Price` input appears, with its own
+     validation. The reference price for the cost preview switches to the
+     entered limit price (best estimate of fill) when one is set.
+   - **Validation status indicators**: a green "Order validated — ready to
+     submit" hint appears when `canSubmit` is true; a red "Insufficient cash"
+     hint appears when the BUY cost exceeds cash.
+   - Submit button label now reads `Place {side} {orderType} Order` and is
+     disabled until `canSubmit` is true.
+
+### Supporting backend change
+- `src/app/api/v1/portfolio/route.ts` — Extended the Zod `OrderSchema` to accept
+  an optional `limitPrice` (positive number) and added a refinement that
+  requires `limitPrice` for `LIMIT` and `STOP` order types. The handler now
+  passes `limitPrice` through to `store.submitOrder`, which already supported
+  it via `OrderRecord.limitPrice?`.
+- `src/lib/aurevia/hooks.ts` — `usePlaceOrder` input type now also accepts
+  `orderType?: "MARKET" | "LIMIT" | "STOP"` and `limitPrice?: number`, both
+  forwarded to `POST /api/v1/portfolio`.
+
+### Files modified
+- `src/components/aurevia/views/portfolio-view.tsx` — Dynamic symbol dropdown +
+  full order ticket rewrite (validation, cost preview, order type selector,
+  summary block). Added `useMarkets`, `useAsset` imports; added
+  `AlertTriangle`, `CheckCircle2` icons. Introduced `OrderType` union and
+  `COMMISSION_BPS = 5` constant.
+- `src/components/aurevia/views/backtests-view.tsx` — Removed `SYMBOLS` array,
+  added `useMarkets` hook, symbol `<Select>` now maps `markets.data ?? []`.
+- `src/components/aurevia/views/ml-view.tsx` — Removed `SYMBOLS` array, added
+  `useMarkets` import + hook call, symbol `<Select>` now maps `markets.data ?? []`.
+  Trigger width bumped `w-[120px]` → `w-[160px]` to fit the longer labels.
+- `src/lib/aurevia/hooks.ts` — `usePlaceOrder` input type extended with
+  `orderType` and `limitPrice`.
+- `src/app/api/v1/portfolio/route.ts` — `OrderSchema` extended with
+  `limitPrice` + refinement; handler forwards `limitPrice` to `submitOrder`.
+
+### Verification
+- `cd /home/z/my-project && bun run lint 2>&1 | tail -5` → `$ eslint .` (clean,
+  0 errors, 0 warnings).
+- `cd /home/z/my-project && npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` →
+  `0` (only pre-existing unrelated errors in `examples/` and `skills/`).
+- Dev server compiles and serves `/` HTTP 200.
+
+### Commit
+Single commit on branch `fix/dropdowns-order-ticket` (NOT merged into main):
+`fix(#18,#19): dynamic symbol dropdowns, order ticket validation + cost preview`
