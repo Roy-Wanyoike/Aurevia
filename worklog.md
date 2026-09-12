@@ -1106,3 +1106,87 @@ Applied 2 audit fixes to the Aurevia trading platform:
 ### Commit
 Single commit on branch `fix/dropdowns-order-ticket` (NOT merged into main):
 `fix(#18,#19): dynamic symbol dropdowns, order ticket validation + cost preview`
+
+## Task phase0-backend-prod — Distinguished Backend + Security Engineer — COMPLETED
+
+### Scope
+Production backend infrastructure for Aurevia. Addresses GitHub issues #29 (hardcoded
+lists), #30 (hardcoded colors), #33 (observability), #34 (rate limiting), #35 (real
+market data).
+
+### Branch
+`phase0/backend-prod` — created from `main`, one commit ahead, **NOT merged**.
+
+### Files created
+- `src/lib/aurevia/market-data/provider.ts` — `MarketDataProvider` interface.
+- `src/lib/aurevia/market-data/providers/polygon.ts` — Polygon.io REST provider
+  (aggregates + last-trade). 5s fetch timeout, 60s in-memory cache per
+  (symbol, timeframe, bars). Disabled gracefully when `POLYGON_API_KEY` unset.
+- `src/lib/aurevia/market-data/providers/simulated.ts` — wraps the existing
+  `generateCandles` + `buildQuote` deterministic feed. `isLive = false`.
+- `src/lib/aurevia/market-data/gateway.ts` — `MarketDataGateway` routes to the
+  first configured+healthy provider, falls through to simulated on error.
+  Exposes `getActiveProvider()` for the health endpoint. Singleton preserved
+  across hot reloads.
+- `src/lib/aurevia/logger.ts` — JSON logger. `LOG_LEVEL` env-gated. Every
+  entry carries `timestamp` (ISO UTC), `level`, `message`, and caller metadata.
+- `src/lib/aurevia/rate-limit.ts` — in-memory sliding-window per-IP rate
+  limiter. `RATE_LIMIT_PER_MINUTE` env (default 60). No Redis needed.
+- `src/middleware.ts` — edge middleware on `/api/*`: propagates or generates
+  `x-request-id` (UUID v4); rate-limits by `x-forwarded-for` first hop;
+  returns 429 + `Retry-After` + `x-ratelimit-remaining` when exceeded.
+
+### Files modified
+- `src/app/api/v1/health/route.ts` — adds `dataSource` + `dataIsLive` from
+  `marketDataGateway.getActiveProvider()`.
+- `src/app/api/v1/portfolio/route.ts` — POST logs every order with
+  `requestId`, `symbol`, `action`, `status`, `orderId`, `filledPrice`, etc.
+- `src/app/api/v1/risk/route.ts` — POST logs every risk profile change with
+  `requestId`, `action`, `status`, `changed` (list of mutated fields).
+- `src/app/api/v1/signals/route.ts` — POST logs every scan with `requestId`,
+  `universeSize`, `signalsEmitted`, `approved`, `rejected`, `paused`, `durationMs`.
+- `src/components/aurevia/sidebar.tsx` (Topbar) — adds a data-source badge
+  driven by `useHealth()`. Green "LIVE DATA" when `dataIsLive === true`,
+  amber "SIMULATED" otherwise.
+- `src/components/aurevia/views/backtests-view.tsx` — removed hardcoded
+  `STRATEGY_KEYS` + `TIMEFRAMES`. Strategy dropdown now iterates over
+  `useStrategies().data`; timeframe uses the `TIMEFRAMES` constant.
+- `src/components/aurevia/views/signals-view.tsx` — removed hardcoded
+  `STRATEGY_KEYS`. Strategy filter now uses `useStrategies().data`.
+- `src/components/aurevia/views/dashboard-view.tsx` — replaced inline decision
+  color ternary with `decisionColor()`; `StatusRow` colors via `accentColor()`;
+  System-status Activity icon now dynamic.
+- `src/components/aurevia/views/markets-view.tsx` — `SummaryTile` colors via
+  `accentColor()`.
+- `src/lib/aurevia/format.ts` — added `accentColor(accent)` helper.
+- `src/lib/aurevia/types.ts` — exported canonical `TIMEFRAMES: Timeframe[]`
+  constant.
+
+### Verification (all run during development)
+- `bun run lint` → clean, exit 0.
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → `0`.
+- Rate-limit: 65 sequential `/api/v1/health` curls → 60× `200` + 5× `429`.
+- Request ID: `curl -sI /api/v1/health | grep x-request-id` → returns a UUID v4.
+- Rate-limit response headers: `retry-after: 48` + `x-ratelimit-remaining: 0`.
+- Health: `/api/v1/health` JSON contains `"dataSource":"simulated","dataIsLive":false`.
+- Structured logs: emitted for scan / order / risk profile update / rate-limit
+  exceedance, all with `requestId`, `action`, `status`, and contextual fields.
+- UI badge: `curl -s / | rg -o 'PAPER MODE|SIMULATED|LIVE DATA'` → `PAPER MODE` + `SIMULATED`.
+
+### Notes for follow-up
+- Adding a new provider (Alpaca, Finnhub, Tiingo, Twelve Data, etc.): drop a new
+  class implementing `MarketDataProvider` into `providers/`, append to the array
+  in `gateway.ts`. UI badge + `/api/v1/health` fields update automatically.
+- The store's `getCandles` / `getQuote` still call `generateCandles` / `buildQuote`
+  directly. A future task can swap them to call `marketDataGateway.getCandles(...)`
+  so live provider data flows into the signal scan, backtests, and risk engine.
+- Next.js 16 emits a deprecation warning for `middleware.ts` (now `proxy.ts`).
+  The file still works in 16.1.3 — only the filename convention is deprecated.
+- Full hardcoded-color refactor (issue #30) was scoped to the 3 most visible
+  views per task instructions. Remaining instances in `risk-view`, `asset-detail`,
+  `regimes-view`, `trends-view`, `portfolio-view` all use existing helpers and
+  are mechanical follow-up work.
+
+### Commit
+Single commit on branch `phase0/backend-prod` (NOT merged into main):
+`feat(#29,#30,#33,#34,#35): market data gateway, structured logging, rate limiting, data source badge`

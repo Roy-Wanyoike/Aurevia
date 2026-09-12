@@ -5,8 +5,9 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 import { useMarkets, usePortfolio, useHealth, useSignals, useTrends, useSparklines, useScanSignals } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtPct, fmtUsd, fmtCompact, gainColor, regimeColor, actionColor, fmtTime } from "@/lib/aurevia/format";
+import { fmtPrice, fmtPct, fmtUsd, fmtCompact, gainColor, accentColor, regimeColor, actionColor, decisionColor, fmtTime } from "@/lib/aurevia/format";
 import { StatTile } from "@/components/aurevia/charts/stat-tile";
 import { Sparkline } from "@/components/aurevia/charts/sparkline";
 import { QueryState } from "@/components/aurevia/query-state";
@@ -156,7 +157,7 @@ export function DashboardView() {
         <Card className="p-4">
           <div className="mb-3 flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-emerald-400" />
+              <Activity className={cn("h-4 w-4", accentColor(health.data?.circuitBreakerState === "NORMAL" ? "gain" : "loss"))} />
               <h3 className="text-sm font-semibold">System Status</h3>
             </div>
             <Button variant="ghost" size="sm" onClick={() => setView("system")} className="text-xs text-muted-foreground">
@@ -231,7 +232,7 @@ export function DashboardView() {
                     <div className="text-xs text-muted-foreground">conf {(s.confidence * 100).toFixed(0)}%</div>
                   </div>
                   {s.risk && (
-                    <Badge variant="outline" className={`${s.risk.decision === "APPROVED" ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : s.risk.decision === "REJECTED" ? "border-red-500/30 bg-red-500/10 text-red-400" : "border-amber-500/30 bg-amber-500/10 text-amber-400"}`}>
+                    <Badge variant="outline" className={decisionColor(s.risk.decision)}>
                       {s.risk.decision}
                     </Badge>
                   )}
@@ -278,11 +279,7 @@ export function DashboardView() {
 }
 
 function StatusRow({ label, value, accent, pulse }: { label: string; value: string; accent?: "gain" | "loss" | "warn" | "default"; pulse?: boolean }) {
-  const color =
-    accent === "gain" ? "text-emerald-400" :
-    accent === "loss" ? "text-red-400" :
-    accent === "warn" ? "text-amber-400" :
-    "text-foreground";
+  const color = accentColor(accent ?? "default");
   return (
     <div className="flex items-center justify-between">
       <span className="text-muted-foreground">{label}</span>

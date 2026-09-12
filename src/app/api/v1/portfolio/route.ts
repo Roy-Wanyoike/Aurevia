@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
+import { logger } from "@/lib/aurevia/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -38,10 +39,18 @@ export async function GET() {
 
 // POST /api/v1/portfolio — operator actions: reset, or place a manual order.
 export async function POST(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = OrderSchema.safeParse(body);
     if (!parsed.success) {
+      logger.warn("Order rejected: invalid request", {
+        requestId,
+        action: body?.action,
+        symbol: body?.symbol,
+        status: "INVALID",
+        errors: parsed.error.issues?.map((i) => i.message) ?? [],
+      });
       return NextResponse.json(
         { error: parsed.error.flatten()?.formErrors?.[0] ?? parsed.error.message ?? "invalid request" },
         { status: 400 },
@@ -50,12 +59,18 @@ export async function POST(req: Request) {
     const data = parsed.data;
     if (data.action === "reset") {
       store.resetPortfolio();
+      logger.info("Portfolio reset by operator", {
+        requestId,
+        action: "reset",
+        status: "OK",
+      });
       return NextResponse.json({ ok: true, portfolio: store.getPortfolio() });
     }
     // action === "order"
     const { symbol, side, quantity, orderType, limitPrice, strategyKey, reason } = data;
+    const upperSymbol = String(symbol).toUpperCase();
     const order = store.submitOrder({
-      symbol: String(symbol).toUpperCase(),
+      symbol: upperSymbol,
       side: side === "SELL" ? "SELL" : "BUY",
       quantity: Number(quantity),
       orderType: (orderType as "MARKET" | "LIMIT" | "STOP") ?? "MARKET",
@@ -63,8 +78,25 @@ export async function POST(req: Request) {
       strategyKey,
       reason,
     });
+    logger.info("Order submitted", {
+      requestId,
+      symbol: upperSymbol,
+      action: `${order.side} ${order.orderType}`,
+      status: order.status,
+      orderId: order.id,
+      quantity: order.quantity,
+      filledPrice: order.filledPrice,
+      filledQty: order.filledQty,
+      reason: order.reason,
+    });
     return NextResponse.json({ order, portfolio: store.getPortfolio() });
   } catch (e: any) {
+    logger.error("Order submission failed", {
+      requestId,
+      action: "order",
+      status: "ERROR",
+      error: e?.message ?? "unknown",
+    });
     return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
   }
 }
