@@ -1106,3 +1106,66 @@ Applied 2 audit fixes to the Aurevia trading platform:
 ### Commit
 Single commit on branch `fix/dropdowns-order-ticket` (NOT merged into main):
 `fix(#18,#19): dynamic symbol dropdowns, order ticket validation + cost preview`
+
+---
+
+## Task phase0-humanized-ui — Z.ai Code — COMPLETED
+
+### Scope
+Close Aurevia issues **#36** (humanized UI), **#37** (Cmd+K command palette),
+**#38** (URL routing). Branch `phase0/humanized-ui` from `main`, single
+commit, **not merged**.
+
+### Commit
+```
+fdb0537 feat(#36,#37,#38): humanized UI, command palette, URL routing
+```
+
+### Files changed (8)
+1. `src/lib/aurevia/ui-store.ts` — added `syncFromUrl()` + `VALID_VIEWS` whitelist.
+2. `src/app/page.tsx` — two new effects (hydrate from URL on mount + `popstate`; push URL on view/symbol/backtest change). Mounts `<CommandPalette />` at root.
+3. `src/components/aurevia/command-palette.tsx` — **new.** Cmd+K / Ctrl+K palette. Groups: Recent / Navigate / Actions / Assets.
+4. `src/app/globals.css` — body noise texture, `aurevia-shimmer` keyframes + `.skeleton-shimmer`, `.kbd` chip.
+5. `src/components/ui/skeleton.tsx` — switched from `animate-pulse` to `skeleton-shimmer`.
+6. `src/components/aurevia/sidebar.tsx` — active nav `border-l-2 border-primary` glow; transparent border on inactive (no layout shift). New clickable `⌘K` hint button next to Collapse.
+7. `src/components/aurevia/views/dashboard-view.tsx` — `useAgeLabel` hook (1s tick). System Status card gets "Updated Xs ago" heartbeat.
+8. `src/lib/aurevia/format.ts` — `fmtUsd` auto-picks 2 fractional digits for sub-$1000 values.
+
+### Issue #38 — URL routing
+Zustand store gains `syncFromUrl()` that reads `?view=&symbol=&id=` and
+patches store state, guarded by a `VALID_VIEWS` whitelist. `page.tsx` calls
+it on mount + `popstate`, and pushes URL on state change. `replaceState` is
+used when new URL equals current URL so back/forward doesn't get polluted
+with no-op history entries.
+
+Verified: `curl /?view=markets` → 200.
+
+### Issue #37 — Command palette
+Mounted once at the root of `page.tsx` so Cmd+K / Ctrl+K is always available.
+Built on shadcn `CommandDialog` (cmdk). Four groups:
+- **Recent** — top 5 commands persisted to `localStorage["aurevia.cmdk.recent"]`.
+- **Navigate** — 12 destinations matching the spec list.
+- **Actions** — Scan signals / Reset portfolio / Run backtest.
+- **Assets** — full 18-symbol universe with live price shortcut.
+
+Sidebar `⌘K` hint dispatches a synthetic Cmd+K KeyboardEvent on `window`,
+reusing the same listener as the keyboard shortcut.
+
+Lint note: refactored `useEffect + setState` → `useMemo` keyed on `open`
+to avoid the `react-hooks/set-state-in-effect` warning.
+
+### Issue #36 — Humanized UI polish
+- **Noise texture** on body (1.5% SVG `feTurbulence`).
+- **Shimmer skeletons** — replaced `animate-pulse` with a directional gradient sweep across the whole app.
+- **Active nav glow** — `border-l-2 border-primary` on active; transparent border on inactive for no layout shift.
+- **`⌘K` hint chip** in sidebar footer + descriptive footer text.
+- **`fmtUsd` cents** — auto-shows 2 digits for sub-$1000 amounts.
+- **"Updated Xs ago" heartbeat** under System Status card, ticking every 1s off `health.data.lastTickAt`.
+
+### Verification
+- `bun run lint` — **clean** (0 problems).
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — **0**.
+- Dev log: `GET / 200`, `GET /?view=markets 200`, `✓ Compiled`.
+
+### Worklog for downstream agents
+Full file-level summary at `/home/z/my-project/agent-ctx/phase0-humanized-ui-zai-code.md`.

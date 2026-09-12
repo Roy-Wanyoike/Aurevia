@@ -13,9 +13,14 @@ export function fmtPct(n: number | undefined | null, digits = 2): string {
   return `${sign}${n.toFixed(digits)}%`;
 }
 
-export function fmtUsd(n: number | undefined | null, digits = 0): string {
+export function fmtUsd(n: number | undefined | null, digits?: number): string {
   if (n === undefined || n === null || isNaN(n)) return "—";
-  return `$${n.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  // Auto-pick precision when caller didn't specify: small dollar amounts
+  // (sub-$1000 positions, P&L, commissions, fees) show cents so the user
+  // can act on them; larger balances round to whole dollars to stay
+  // scannable (issue #36 — numbers with context, not bare values).
+  const d = digits ?? (Math.abs(n) < 1000 ? 2 : 0);
+  return `$${n.toLocaleString("en-US", { minimumFractionDigits: d, maximumFractionDigits: d })}`;
 }
 
 export function fmtCompact(n: number | undefined | null): string {

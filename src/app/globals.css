@@ -126,6 +126,10 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "tnum", "cv01";
+    /* Very subtle SVG noise texture — kills the flat AI-generated feel
+       without being visible as a pattern. Opacity kept at 1.5% so it
+       reads as paper grain rather than a texture. */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100'%3E%3Cfilter id='n'%3E%3CfeTurbulence baseFrequency='0.9' /%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23n)' opacity='0.015' /%3E%3C/svg%3E");
   }
   /* Numeric tabular figures everywhere for clean price tables */
   .tabular {
@@ -142,3 +146,39 @@
 /* Glow utility for live indicators */
 .gain-glow { box-shadow: 0 0 0 1px oklch(0.72 0.17 162 / 30%), 0 0 12px oklch(0.72 0.17 162 / 20%); }
 .loss-glow { box-shadow: 0 0 0 1px oklch(0.65 0.21 25 / 30%), 0 0 12px oklch(0.65 0.21 25 / 20%); }
+
+/* Shimmer skeleton (issue #36 / #13).
+   Replaces the flat `animate-pulse` opacity flicker with a directional
+   gradient sweep — closer to what Linear/Stripe ship and reads as
+   "content is loading" rather than "the layout is broken". */
+@keyframes aurevia-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.skeleton-shimmer {
+  background-image: linear-gradient(
+    90deg,
+    oklch(0.24 0.012 250) 25%,
+    oklch(0.30 0.012 250) 50%,
+    oklch(0.24 0.012 250) 75%
+  );
+  background-size: 200% 100%;
+  animation: aurevia-shimmer 1.8s ease-in-out infinite;
+}
+
+/* Keyboard hint chip — reused for ⌘K affordances in the sidebar and palette. */
+.kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 0.25rem;
+  background: oklch(1 0 0 / 8%);
+  border: 1px solid oklch(1 0 0 / 12%);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 10px;
+  line-height: 1;
+  color: oklch(0.68 0.012 250);
+}
