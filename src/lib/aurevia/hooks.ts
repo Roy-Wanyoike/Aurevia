@@ -302,6 +302,40 @@ export function useAlertAction() {
   });
 }
 
+// --- Opportunity Radar (issue #49) ---
+// Scans the universe and categorizes each asset into one or more opportunity
+// buckets: breakouts, momentum, mean reversion, trend following, risk events.
+// An asset can appear in multiple buckets. Each opportunity carries a
+// conviction score (0..1) and a risk score (0..1) for in-bucket sorting.
+export interface RadarOpportunity {
+  symbol: string;
+  name: string;
+  assetType: string;
+  sector?: string;
+  price: number;
+  conviction: number; // 0..1
+  risk: number;       // 0..1
+  reason: string;
+}
+export interface RadarResponse {
+  categories: {
+    breakouts: { opportunities: RadarOpportunity[] };
+    momentum: { opportunities: RadarOpportunity[] };
+    meanReversion: { opportunities: RadarOpportunity[] };
+    trendFollowing: { opportunities: RadarOpportunity[] };
+    riskEvents: { opportunities: RadarOpportunity[] };
+  };
+  scannedAt: number;
+  universeSize: number;
+}
+export function useRadar() {
+  return useQuery({
+    queryKey: ["radar"],
+    queryFn: () => fetchJson<RadarResponse>("/api/v1/radar"),
+    refetchInterval: 30_000,
+  });
+}
+
 // --- Correlation Matrix (issue #44) ---
 // N×N Pearson correlation matrix across the tradeable universe, computed
 // from 30-day log returns server-side. `symbols` is the shared row + column
