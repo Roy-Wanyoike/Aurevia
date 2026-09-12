@@ -1190,3 +1190,98 @@ market data).
 ### Commit
 Single commit on branch `phase0/backend-prod` (NOT merged into main):
 `feat(#29,#30,#33,#34,#35): market data gateway, structured logging, rate limiting, data source badge`
+
+---
+
+## phase1/pulse-correlation — Z.ai Code — COMPLETED
+
+### Scope
+Implemented two Phase-1 intelligence features on branch `phase1/pulse-correlation`
+(issues #43 Market Pulse and #44 Correlation Matrix), two focused commits each
+containing only its own feature so the branch history reads cleanly.
+
+### Pre-flight
+The working tree on `main` carried an uncommitted, three-feature WIP bundle
+(watchlists #41 + screener #42 + market-pulse #43). To keep this branch's two
+commits surgical, the entire WIP was preserved with
+`git stash push -u -m "phase1-wip-watchlists-screener-marketpulse-preserved"`
+(repo-global stash, recoverable via `git stash list`), and the branch was cut
+from a clean `main` HEAD (`c9b6440`).
+
+### Commit 1 — `feat(#43): market pulse — fear/greed gauge, breadth, sector performance`
+- `src/app/api/v1/market-pulse/route.ts` — single GET endpoint. Iterates the
+  18-asset catalog, builds a `MarketContext` per symbol, and computes
+  advancers/decliners/unchanged (by sign of 24h `changePct`), per-sector
+  average change, breadth (% above SMA50 / SMA200), regime distribution, and
+  a composite Fear & Greed score (0..100) blended 50/50 from advancer ratio
+  and SMA50 breadth. Structured `logger.info` on success, `logger.error` +
+  `store.health.apiErrors++` on failure. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — added `MarketPulse` interface + `useMarketPulse()`
+  query (60s refetch).
+- `src/lib/aurevia/ui-store.ts` — added `"market-pulse"` to `ViewKey` and to
+  the `VALID_VIEWS` URL whitelist.
+- `src/components/aurevia/sidebar.tsx` — added `Gauge` icon import + the
+  `market-pulse` nav item FIRST in the `intelligence` group.
+- `src/components/aurevia/views/market-pulse-view.tsx` — the view: header +
+  subtitle, a hand-drawn semicircular SVG Fear & Greed gauge (color-banded
+  red/orange/yellow/light-green/green per spec, tick marks at 25/50/75),
+  an Advancers vs Decliners stacked horizontal bar, two SMA50/SMA200
+  `Progress` breadth bars (band-colored green/amber/red), a regime
+  distribution list with `regimeColor()` badges + inline count bars, and a
+  sector performance grid color-coded by `gainBg()`. Loading skeleton +
+  error card with retry; never throws into the router.
+- `src/app/page.tsx` — `case "market-pulse": return <MarketPulseView />;`.
+
+### Commit 2 — `feat(#44): correlation matrix — 18×18 heatmap`
+- `src/app/api/v1/correlation/route.ts` — single GET endpoint. For every
+  symbol pulls 30 daily candles, computes log returns `ln(c_i/c_{i-1})`,
+  then for each (a, b) pair computes the Pearson coefficient over the
+  overlapping window (mean-centered, `num / sqrt(da*db)`), rounds to 2dp,
+  and emits a flat `{ a, b, corr }[]` (one cell per pair, 324 cells for 18
+  assets). Diagonal is naturally 1.00. Pairs with <2 overlapping returns
+  emit `corr: 0` so the heatmap never renders NaN. Structured logging +
+  `store.health.apiErrors++` on failure. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — added `CorrelationCell`, `CorrelationMatrix`
+  interfaces + `useCorrelation()` query (60s refetch).
+- `src/lib/aurevia/ui-store.ts` — added `"correlation"` to `ViewKey` and
+  `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — added `Grid3x3` icon import + the
+  `correlation` nav item in the `intelligence` group (right after
+  `market-pulse`).
+- `src/components/aurevia/views/correlation-view.tsx` — the view: header +
+  subtitle, then an N×N heatmap on a CSS grid with
+  `grid-template-columns: repeat(19, minmax(40px, 1fr))`. Top-left corner
+  empty, symbols across the top header row, symbols down the sticky left
+  column. Each cell shows the coefficient to 2dp, colored by band
+  (>0.7 emerald, 0.3–0.7 light emerald, -0.3..0.3 muted, -0.7..-0.3 light
+  red, < -0.7 red); the diagonal gets an inset ring. Native `title`
+  tooltip shows `AAPL vs MSFT: 0.72`. Wrapped in `overflow-x-auto` so the
+  19-column grid scrolls on mobile. Includes a color legend. Loading
+  skeleton + error card with retry.
+- `src/app/page.tsx` — `case "correlation": return <CorrelationView />;`.
+
+### Verification
+1. `bun run lint` — clean (no output).
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — **0** type errors.
+3. `bun test` — **155 pass / 0 fail** (1005 expect() calls, 6 files).
+4. `curl /api/v1/market-pulse` → `{ advancers: 8, decliners: 10,
+   unchanged: 0, sectors: [...9 sectors], breadth: { aboveSma50Pct:
+   72.22, aboveSma200Pct: 50 }, regimeDist: {...6 regimes}, fearGreed: 58,
+   totalAssets: 18 }`.
+5. `curl /api/v1/correlation` → `{ symbols: [18 symbols], matrix: [324
+   cells] }`, diagonal cells all `corr: 1`.
+6. Dev server log shows both routes returning 200 with structured
+   `logger.info` lines (`Market pulse computed`, `Correlation matrix
+   computed`). Root page `/` returns HTTP 200.
+
+### Notes
+- No data is hardcoded — every figure derives from `store.buildContext()` /
+  `store.getCandles()` (the same simulated feed the rest of the app trusts).
+- The pre-existing `watchlists`/`screener` WIP is preserved in the repo
+  stash and untouched on this branch; it can be resumed independently on a
+  separate feature branch.
+- Command palette (`command-palette.tsx`) was intentionally left alone —
+  its `NAV_COMMANDS` list is the curated "primary destinations" set, and
+  the task spec scoped changes to sidebar/sidebar-NAV only. Both new views
+  are reachable from the sidebar and via URL (`?view=market-pulse`,
+  `?view=correlation`).
