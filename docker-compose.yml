@@ -1,0 +1,60 @@
+# Aurevia — docker-compose
+#
+# Two services:
+#   - app     : the Next.js standalone server (built from repo root Dockerfile)
+#   - stream  : the socket.io tick server (built from mini-services/aurevia-stream)
+#
+# The app container writes its SQLite database to a named volume so state
+# survives container restarts. In production, swap the volume for a managed
+# Postgres instance and set DATABASE_URL accordingly.
+#
+# Usage:
+#   export NEXTAUTH_SECRET=$(openssl rand -base64 32)
+#   docker compose up --build
+#
+# Then open http://localhost:3000.
+
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      # SQLite dev database. Persisted to the aurevia-db volume.
+      # In production, replace with: postgresql://user:pass@host:5432/aurevia
+      - DATABASE_URL=file:./db/aurevia.db
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-dev-secret-change-in-production}
+      - NEXTAUTH_URL=http://localhost:3000
+      - TRADING_MODE=PAPER
+      # API key for /api/v1/* requireAuth() gate in production. Must be ≥16 chars
+      # or the auth helper fails closed (see src/lib/aurevia/auth/check.ts).
+      - AUREVIA_API_KEY=${AUREVIA_API_KEY:-}
+      - RATE_LIMIT_PER_MINUTE=60
+      - LOG_LEVEL=info
+      # When a real Polygon key is configured, the market-data gateway will
+      # serve live data instead of falling back to the simulated feed.
+      - POLYGON_API_KEY=${POLYGON_API_KEY:-}
+      # Stream server URL — consumed by the client-side useAureviaStream hook.
+      - NEXT_PUBLIC_STREAM_URL=http://localhost:3003
+    volumes:
+      - aurevia-db:/app/db
+    depends_on:
+      - stream
+    restart: unless-stopped
+
+  stream:
+    build:
+      context: ./mini-services/aurevia-stream
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=production
+      - PORT=3003
+    restart: unless-stopped
+
+volumes:
+  aurevia-db:

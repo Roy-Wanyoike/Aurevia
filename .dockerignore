@@ -1,0 +1,39 @@
+# Build artifacts — never copy into the image, they bloat layers and can
+# mask stale cached files.
+node_modules
+.next
+.git
+dev.log
+server.log
+*.log
+
+# Local databases — never ship dev data into a build.
+*.db
+*.db-journal
+prisma/migrations/dev.db
+
+# Local scratch directories (some scripts create these at runtime).
+download/
+upload/
+tool-results/
+agent-ctx/
+
+# Editor / OS noise.
+.DS_Store
+.idea
+.vscode
+*.swp
+
+# Audit tooling output.
+coverage
+*.lcov
+
+# Environment files — never bake secrets into the image.
+.env
+.env.local
+.env.*.local
+
+# Docker artifacts themselves.
+Dockerfile
+docker-compose.yml
+.dockerignore
