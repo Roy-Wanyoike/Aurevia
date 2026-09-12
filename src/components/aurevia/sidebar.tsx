@@ -23,6 +23,9 @@ import {
   Star,
   Filter,
   Gauge,
+  History,
+  Bell,
+  Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -53,6 +56,9 @@ const NAV: NavItem[] = [
   { key: "regimes", label: "Regimes", icon: Activity, group: "intelligence" },
   { key: "signals", label: "Signals", icon: Radio, group: "intelligence" },
   { key: "ml", label: "ML Predictions", icon: Brain, group: "intelligence" },
+  { key: "historical-memory", label: "Historical Memory", icon: History, group: "intelligence" },
+  { key: "alerts", label: "Alerts", icon: Bell, group: "intelligence" },
+  { key: "radar", label: "Opportunity Radar", icon: Radar, group: "intelligence" },
   { key: "strategies", label: "Strategies", icon: Cpu, group: "trading" },
   { key: "backtests", label: "Backtests", icon: FlaskConical, group: "trading" },
   { key: "portfolio", label: "Portfolio", icon: Wallet, group: "trading" },

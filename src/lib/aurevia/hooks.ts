@@ -211,6 +211,51 @@ export function useSetBreaker() {
 
 // --- Market Pulse (issue #43) ---
 
+// --- Historical Memory — Similarity Search (issue #45) ---
+// For a given symbol, the backend computes a feature vector (RSI, momentum,
+// MACD hist, trend strength, volatility) at the current bar and compares it
+// to the same vector computed at every 5th historical bar. Top-15 matches by
+// Euclidean similarity are returned along with forward 5d / 20d return stats.
+export interface SimilarityFeatures {
+  rsi: number;
+  momentum: number;
+  macdHist: number;
+  trendStrength: number;
+  volatility: number;
+}
+export interface SimilarityMatch {
+  time: number;
+  similarity: number;
+  forwardReturn5d: number;
+  forwardReturn20d: number;
+  regime: string;
+}
+export interface SimilarityStats {
+  sampleCount: number;
+  avgForwardReturn5d: number;
+  avgForwardReturn20d: number;
+  winRate5d: number;
+  winRate20d: number;
+  medianReturn5d: number;
+  medianReturn20d: number;
+}
+export interface SimilarityResponse {
+  symbol: string;
+  currentFeatures: SimilarityFeatures;
+  currentRegime: string;
+  matches: SimilarityMatch[];
+  stats: SimilarityStats;
+  disclaimer: string;
+}
+export function useSimilarity(symbol: string) {
+  return useQuery({
+    queryKey: ["similarity", symbol],
+    queryFn: () => fetchJson<SimilarityResponse>(`/api/v1/similarity/${encodeURIComponent(symbol)}`),
+    enabled: !!symbol,
+    refetchInterval: 60_000,
+  });
+}
+
 // --- Correlation Matrix (issue #44) ---
 // N×N Pearson correlation matrix across the tradeable universe, computed
 // from 30-day log returns server-side. `symbols` is the shared row + column
