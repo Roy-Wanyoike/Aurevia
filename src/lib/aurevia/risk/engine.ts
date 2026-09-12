@@ -105,25 +105,53 @@ export function evaluateRisk(
     decision = "REJECTED";
   }
 
-  // Rule 9: Portfolio exposure cap.
-  if (rc.portfolio.exposure > profile.maxPortfolioPct) {
-    reasons.push(`Portfolio exposure ${(rc.portfolio.exposure * 100).toFixed(0)}% exceeds cap ${profile.maxPortfolioPct * 100}%`);
+  // --- Post-fill hypothetical computation (#27) ---
+  // Rules 9/10/11 previously checked the CURRENT portfolio state, not the
+  // state AFTER this order fills. An order that would push exposure from
+  // 80% to 110% was approved because the check ran before the fill.
+  // Now we simulate the post-fill portfolio:
+  //   - For BUY: notional = qty × price added to long market value
+  //   - For SELL: notional subtracted (or added to short if no existing long)
+  // The signal's confidence doesn't carry quantity, so we estimate the
+  // order size as a fraction of equity (default position size).
+  const orderNotional = rc.signal.price > 0 && rc.portfolio.equity > 0
+    ? rc.portfolio.equity * profile.maxPositionPct  // conservative: assume max position size
+    : 0;
+  const isBuy = rc.signal.action === "BUY";
+  const currentLongMV = rc.portfolio.positions
+    .filter((p) => p.side === "LONG")
+    .reduce((a, b) => a + b.marketValue, 0);
+  const currentShortMV = rc.portfolio.positions
+    .filter((p) => p.side === "SHORT")
+    .reduce((a, b) => a + b.marketValue, 0);
+  const currentGrossExposure = currentLongMV + currentShortMV;
+  // Hypothetical gross exposure after this order fills.
+  const hypotheticalGrossExposure = currentGrossExposure + orderNotional;
+  const hypotheticalExposure = rc.portfolio.equity > 0
+    ? hypotheticalGrossExposure / rc.portfolio.equity
+    : 0;
+  const hypotheticalLeverage = hypotheticalExposure;
+  // Hypothetical position concentration for this symbol.
+  const existingPos = rc.portfolio.positions.find((p) => p.symbol === rc.signal.symbol);
+  const existingMV = existingPos?.marketValue ?? 0;
+  const hypotheticalPosMV = isBuy ? existingMV + orderNotional : Math.max(0, existingMV - orderNotional);
+  const hypotheticalPosPct = rc.portfolio.equity > 0 ? hypotheticalPosMV / rc.portfolio.equity : 0;
+
+  // Rule 9: Portfolio exposure cap — check HYPOTHETICAL post-fill state.
+  if (hypotheticalExposure > profile.maxPortfolioPct) {
+    reasons.push(`Post-fill exposure ${(hypotheticalExposure * 100).toFixed(0)}% would exceed cap ${profile.maxPortfolioPct * 100}% (current ${(rc.portfolio.exposure * 100).toFixed(0)}%)`);
     decision = "REJECTED";
   }
 
-  // Rule 10: Position concentration (single-symbol market value vs equity).
-  const existing = rc.portfolio.positions.find((p) => p.symbol === rc.signal.symbol);
-  if (existing) {
-    const posPct = rc.portfolio.equity > 0 ? existing.marketValue / rc.portfolio.equity : 0;
-    if (posPct > profile.maxPositionPct) {
-      reasons.push(`Position in ${rc.signal.symbol} at ${(posPct * 100).toFixed(0)}% of equity exceeds max ${profile.maxPositionPct * 100}%`);
-      decision = "REJECTED";
-    }
+  // Rule 10: Position concentration — check HYPOTHETICAL post-fill concentration.
+  if (hypotheticalPosPct > profile.maxPositionPct) {
+    reasons.push(`Post-fill position in ${rc.signal.symbol} at ${(hypotheticalPosPct * 100).toFixed(0)}% of equity would exceed max ${profile.maxPositionPct * 100}%`);
+    decision = "REJECTED";
   }
 
-  // Rule 11: Leverage.
-  if (rc.portfolio.leverage > profile.maxLeverage) {
-    reasons.push(`Leverage ${rc.portfolio.leverage.toFixed(2)}x exceeds max ${profile.maxLeverage}x`);
+  // Rule 11: Leverage — check HYPOTHETICAL post-fill leverage.
+  if (hypotheticalLeverage > profile.maxLeverage) {
+    reasons.push(`Post-fill leverage ${hypotheticalLeverage.toFixed(2)}x would exceed max ${profile.maxLeverage}x`);
     decision = "REJECTED";
   }
 
