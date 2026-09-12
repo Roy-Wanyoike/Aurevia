@@ -5,6 +5,14 @@ import { Toaster as SonnerToaster } from "sonner";
 import { ThemeProvider } from "@/components/aurevia/theme-provider";
 import { AuthProvider } from "@/components/aurevia/auth-provider";
 
+// CRITICAL: The root layout must be dynamic, not statically generated.
+// On Vercel, SSG of /_not-found tries to render the SessionProvider (which
+// fetches /api/auth/session). If DATABASE_URL or NEXTAUTH_URL is not
+// available at build time, this throws TypeError: Invalid URL, breaking
+// the entire build. Making the layout dynamic forces server-side rendering
+// at request time, where env vars are available. (#99)
+export const dynamic = "force-dynamic";
+
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -15,16 +23,21 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Safe URL fallback — never pass an empty string to new URL(). (#98)
+function safeMetadataBase(): URL {
+  const raw = process.env.NEXT_PUBLIC_APP_URL;
+  if (raw && raw.length > 0) {
+    try {
+      return new URL(raw);
+    } catch {
+      // Malformed URL — fall back to localhost
+    }
+  }
+  return new URL("http://localhost:3000");
+}
+
 export const metadata: Metadata = {
-  // metadataBase is REQUIRED when metadata references relative URLs (icons,
-  // openGraph images, etc.). Without it, Next.js tries to resolve them
-  // against process.env.NEXT_PUBLIC_APP_URL — and if that's an empty
-  // string (e.g. on Vercel without the env var set), `new URL('')` throws
-  // `TypeError: Invalid URL` during SSG of /_not-found, breaking the build.
-  // We fall back to localhost for dev and let production set the real URL.
-  metadataBase: new URL(
-    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
-  ),
+  metadataBase: safeMetadataBase(),
   title: "Aurevia — Market Intelligence Infrastructure",
   description:
     "Market intelligence, analysis, strategy backtesting, risk management, and controlled paper trading infrastructure.",
