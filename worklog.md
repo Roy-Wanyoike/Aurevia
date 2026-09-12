@@ -2294,3 +2294,177 @@ Modified files:
 - #82 ✅ Screener hydration (useSyncExternalStore)
 - #83 ✅ Prisma query logging (prod = ["error"])
 - #84 ✅ .env.example cleanup (28 unused vars commented out)
+
+## phase2/gaps-and-hardening
+
+**Agent:** Z.ai Code (Distinguished Engineer — production hardening pass)
+**Branch:** `phase2/gaps-and-hardening`
+**Commits:** 6 (5 deliverable commits + 1 audit-correction commit)
+
+### Summary
+Closes five production-hardening issues (#91–#95) — formal audit documentation,
+four financial state machines, a typed event emitter, a data-quality scorer,
+and a multi-stage Dockerfile + compose orchestration.
+
+### Verification gates (all green)
+- `bun run lint` — clean, 0 errors
+- `npx tsc --noEmit | grep -cE "aurevia|app/"` — **0**
+- `bun test` — **272 pass / 0 fail** (was 155 → added 99 state-machine tests + 18 quality tests = +117)
+- `ls docs/AUDIT/` — **10 files**
+- `test -f src/lib/aurevia/state-machines/order-state-machine.ts` — EXISTS
+- `test -f src/lib/aurevia/events/types.ts` — EXISTS
+- `test -f src/lib/aurevia/market-data/quality.ts` — EXISTS
+- `test -f Dockerfile` — EXISTS
+- `test -f docker-compose.yml` — EXISTS
+
+### Issue #91 — Audit Documentation
+Created `docs/AUDIT/` with 10 living documents, each verified by direct
+file/grep inspection of the repository:
+
+1. `CURRENT_SYSTEM.md` — tech stack, 29 engine modules, 34 API routes,
+   28 dashboard views, 26 Prisma models, side services, verification gates.
+2. `FEATURE_INVENTORY.md` — every feature with IMPLEMENTED/VERIFIED/DEFERRED
+   status across 9 domains (market data, quant, strategies, ML, risk,
+   backtest, execution, auth/tenancy, observability).
+3. `DATABASE_AUDIT.md` — 26 Prisma models, indexes per model, constraints
+   (unique, cascade, FK), 7 documented gaps.
+4. `API_AUDIT.md` — full 34-endpoint matrix with method × auth × validation
+   columns; 5 documented gaps.
+5. `SECURITY_AUDIT.md` — auth, RBAC, tenant isolation, rate limit, request
+   ID, HTTP headers, secrets, input validation, trading safety, audit
+   trail, build/deploy safety. 6 prioritized remediation items.
+6. `TESTING_AUDIT.md` — 155 baseline tests across 6 files; 13 modules with
+   zero coverage; recommended additions in priority order.
+7. `DEPENDENCY_AUDIT.md` — 60 prod + 12 dev deps, zero unused; pinning
+   policy; known advisories.
+8. `TECHNICAL_DEBT.md` — 15 debt items with remediation sketches.
+9. `ARCHITECTURE_DECISIONS.md` — 12 ADRs with context + consequences.
+10. `RISK_REGISTER.md` — 20 operational risks ranked by Severity ×
+    Likelihood with current mitigation + residual.
+
+A follow-up commit corrected CSP/HTTP-header claims after re-reading
+`next.config.ts` (which DOES define `headers()` with full strict set).
+
+### Issue #92 — Financial State Machines
+Created `src/lib/aurevia/state-machines/` with four pure state machines:
+
+- `order-state-machine.ts` — 9 states (CREATED → SUBMITTED →
+  ACKNOWLEDGED → PARTIALLY_FILLED → FILLED | CANCELLED | REJECTED |
+  UNKNOWN) with terminal-state enforcement + UNKNOWN reconciliation path.
+- `strategy-state-machine.ts` — 10 states (DRAFT → RESEARCH → BACKTESTED →
+  VALIDATED → PAPER → SANDBOX → APPROVED → PRODUCTION → DEGRADED →
+  PAUSED) with forward-only pipeline + DEGRADED/PAUSED recovery loops.
+- `trading-mode-machine.ts` — 6 states (MANUAL → ASSISTED → PAPER →
+  SANDBOX → CONTROLLED_LIVE → AUTONOMOUS). AUTONOMOUS promotion requires
+  all four safety gates (breakerNormal, autonomousArmed,
+  brokerLiveConnected, reconciliationFresh); kill-switch step-down
+  always allowed regardless of gates.
+- `risk-state-machine.ts` — 4 states (NORMAL → CAUTION → TRADING_PAUSED →
+  RE_EVALUATING) encoding the latching rule (BE-P0-006): TRADING_PAUSED
+  cannot auto-recover; must go through RE_EVALUATING first.
+
+Each machine exports `canTransition`, `assertTransition`, `isTerminal`,
+`legalNextStates`. `index.ts` re-exports under domain-prefixed names.
+
+**Tests:** `state-machines.test.ts` — 99 tests across 4 machines, covering
+every legal transition, every illegal transition, terminal state
+detection, and the AUTONOMOUS safety-gate matrix. **99 pass / 0 fail.**
+
+### Issue #93 — Event Type Constants + Typed Emitter
+Created `src/lib/aurevia/events/`:
+
+- `types.ts` — `EVENT_TYPES` const enum (21 events across market data,
+  signals, risk, order lifecycle, positions, broker lifecycle, alerts).
+  `AureviaEvent` interface with `correlationId` / `causationId` /
+  `actorId` / `tenantId` / `schemaVersion` / `payload`.
+  `EVENT_SCHEMA_VERSION = 1`.
+- `emitter.ts` — `emitEvent()` writes a single event row;
+  `emitEvents()` batches in a Prisma transaction. Both are failure-
+  tolerant: write failures log at ERROR but never rethrow — the trading
+  pipeline must not be broken by event logging.
+
+Writes to the existing `EventLog` Prisma model (Phase-0 schema). Payload
+is JSON.stringified (SQLite dev limitation; Postgres prod should use
+`Json` typed column per ADR-002 / DATABASE_AUDIT.md gap #5).
+
+### Issue #94 — Data Quality Scoring
+Created `src/lib/aurevia/market-data/quality.ts`:
+
+Composite 0–100 score = freshness × 0.4 + completeness × 0.3 + accuracy × 0.3:
+
+- **Freshness** — 100 if last bar <5min old, 0 if >60min old (linear
+  ramp in between).
+- **Completeness** — 100 minus (gap_count / total × 100). Gap = inter-bar
+  interval >2× the median interval.
+- **Accuracy** — 100 minus (outlier_count / total × 100). Outlier = bar
+  whose close moved >20% vs prior close.
+
+Empty / null input returns zeroed-out `DataQuality` — the gateway treats
+0 score as "data unusable, fall back to next provider".
+
+**Tests:** `quality.test.ts` — 18 tests covering empty/null input, fresh
+series, stale series (freshness decay ramp), gapped series (completeness
+decay), outlier series (accuracy decay), boundary conditions (exact
+20% threshold, zero-priced prior bar), composite weighting math, source
+propagation, lastUpdate propagation. **18 pass / 0 fail.**
+
+### Issue #95 — Dockerfile + docker-compose.yml
+Created three files:
+
+- **`Dockerfile`** — three-stage multi-stage build:
+  - `deps`    — `bun install --frozen-lockfile` (reproducible).
+  - `builder` — `prisma generate` + `next build` (standalone output).
+  - `runner`  — minimal runtime, non-root `bun` user (uid 1001),
+    `HEALTHCHECK` on `/api/v1/health`, exposes :3000, env defaults
+    (`NODE_ENV=production`, `TRADING_MODE=PAPER`).
+- **`.dockerignore`** — excludes `node_modules`, `.next`, `.git`,
+  `*.db`, `dev.log`, `tool-results/`, `agent-ctx/`, env files, etc.
+- **`docker-compose.yml`** — two services:
+  - `app`    — Next.js standalone on :3000, SQLite persisted to
+    `aurevia-db` named volume, env vars sourced from host
+    (`NEXTAUTH_SECRET`, `AUREVIA_API_KEY`, `POLYGON_API_KEY`).
+    `depends_on: stream`.
+  - `stream` — socket.io tick server from `mini-services/aurevia-stream`
+    on :3003.
+
+Both services use `restart: unless-stopped`. Default `NEXTAUTH_SECRET`
+is `dev-secret-change-in-production` for local `docker compose up`;
+production deployments must set a real secret via env.
+
+### Files created
+- `docs/AUDIT/CURRENT_SYSTEM.md`
+- `docs/AUDIT/FEATURE_INVENTORY.md`
+- `docs/AUDIT/DATABASE_AUDIT.md`
+- `docs/AUDIT/API_AUDIT.md`
+- `docs/AUDIT/SECURITY_AUDIT.md`
+- `docs/AUDIT/TESTING_AUDIT.md`
+- `docs/AUDIT/DEPENDENCY_AUDIT.md`
+- `docs/AUDIT/TECHNICAL_DEBT.md`
+- `docs/AUDIT/ARCHITECTURE_DECISIONS.md`
+- `docs/AUDIT/RISK_REGISTER.md`
+- `src/lib/aurevia/state-machines/order-state-machine.ts`
+- `src/lib/aurevia/state-machines/strategy-state-machine.ts`
+- `src/lib/aurevia/state-machines/trading-mode-machine.ts`
+- `src/lib/aurevia/state-machines/risk-state-machine.ts`
+- `src/lib/aurevia/state-machines/index.ts`
+- `src/lib/aurevia/state-machines/state-machines.test.ts`
+- `src/lib/aurevia/events/types.ts`
+- `src/lib/aurevia/events/emitter.ts`
+- `src/lib/aurevia/events/index.ts`
+- `src/lib/aurevia/market-data/quality.ts`
+- `src/lib/aurevia/market-data/quality.test.ts`
+- `Dockerfile`
+- `docker-compose.yml`
+- `.dockerignore`
+
+### Issues closed
+- #91 ✅ formal audit documentation — 10 living audit docs
+- #92 ✅ formal financial state machines — order, strategy, trading-mode, risk
+- #93 ✅ event type constants + typed emitter
+- #94 ✅ data quality scoring module
+- #95 ✅ Dockerfile + docker-compose.yml
+
+### Test delta
+- Baseline: 155 tests across 6 files, 1005 `expect()` calls
+- After: **272 tests across 8 files, 1155 `expect()` calls** (+117 tests, +150 expects)
+- 0 regressions
