@@ -26,6 +26,8 @@ import {
   History,
   Bell,
   Radar,
+  Newspaper,
+  Calendar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -59,6 +61,8 @@ const NAV: NavItem[] = [
   { key: "historical-memory", label: "Historical Memory", icon: History, group: "intelligence" },
   { key: "alerts", label: "Alerts", icon: Bell, group: "intelligence" },
   { key: "radar", label: "Opportunity Radar", icon: Radar, group: "intelligence" },
+  { key: "news", label: "News", icon: Newspaper, group: "intelligence" },
+  { key: "events", label: "Events", icon: Calendar, group: "intelligence" },
   { key: "strategies", label: "Strategies", icon: Cpu, group: "trading" },
   { key: "backtests", label: "Backtests", icon: FlaskConical, group: "trading" },
   { key: "portfolio", label: "Portfolio", icon: Wallet, group: "trading" },

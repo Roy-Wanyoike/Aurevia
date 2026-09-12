@@ -525,6 +525,73 @@ export function useScreenerOptions() {
   });
 }
 
+// --- News Intelligence (issue #46) ---
+// Market-aware synthetic news derived from the current market data. Each
+// article carries a headline, summary, sentiment (-1..1), importance
+// (high/medium/low) and the source symbol. All entries are CLEARLY LABELED
+// `isSynthetic: true` — they are AI-generated commentary based on current
+// data, NOT real news articles. Swapping the generator for a Finnhub /
+// Polygon / Tiingo feed later is a one-function change on the server.
+export interface NewsArticle {
+  id: string;
+  headline: string;
+  summary: string;
+  source: string;
+  symbol: string;
+  sentiment: number; // -1..1
+  importance: "high" | "medium" | "low";
+  publishedAt: number;
+  isSynthetic: boolean;
+}
+export interface NewsResponse {
+  articles: NewsArticle[];
+  total: number;
+  source: string;
+}
+export function useNews(symbol?: string) {
+  const params = new URLSearchParams();
+  if (symbol) params.set("symbol", symbol);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ["news", symbol],
+    queryFn: () => fetchJson<NewsResponse>(`/api/v1/news${qs ? `?${qs}` : ""}`),
+    refetchInterval: 60_000,
+  });
+}
+
+// --- Market Events (issue #47) ---
+// Upcoming synthetic calendar events derived from the asset catalog —
+// equities get monthly earnings + dividend events; crypto gets halving +
+// upgrade events. Each event carries a type, symbol, title, description,
+// importance and scheduled-at timestamp. All entries are CLEARLY LABELED
+// `isSynthetic: true`. Connect Finnhub for real earnings/dividend dates.
+export type EventType = "earnings" | "dividend" | "halving" | "upgrade";
+export interface MarketEvent {
+  id: string;
+  type: EventType;
+  symbol: string;
+  title: string;
+  description: string;
+  importance: "high" | "medium" | "low";
+  scheduledAt: number;
+  isSynthetic: boolean;
+}
+export interface EventsResponse {
+  events: MarketEvent[];
+  total: number;
+  source: string;
+}
+export function useEvents(symbol?: string) {
+  const params = new URLSearchParams();
+  if (symbol) params.set("symbol", symbol);
+  const qs = params.toString();
+  return useQuery({
+    queryKey: ["events", symbol],
+    queryFn: () => fetchJson<EventsResponse>(`/api/v1/events${qs ? `?${qs}` : ""}`),
+    refetchInterval: 60_000,
+  });
+}
+
 // --- Market Pulse (issue #43) ---
 // Global market health snapshot — advancers/decliners, regime distribution,
 // sector performance, market breadth vs SMA50/SMA200, fear/greed composite.
