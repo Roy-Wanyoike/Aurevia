@@ -13,10 +13,20 @@ import { logger } from "@/lib/aurevia/logger";
 //   2. Enforce a per-IP rate limit (default 60 req/min, configurable via
 //      RATE_LIMIT_PER_MINUTE). Exceeded requests get HTTP 429 with a
 //      `Retry-After` header.
+//
+// Issue #67: previously the generated requestId was set on the response only
+// and never propagated to the route handler — log correlation was broken.
 
 export function middleware(req: NextRequest) {
   // Step 1: request ID.
-  const requestId = req.headers.get("x-request-id") ?? crypto.randomUUID();
+  const inboundRequestId = req.headers.get("x-request-id");
+  const requestId = inboundRequestId ?? crypto.randomUUID();
+
+  // Propagate the request ID to the route handler by mutating the request
+  // headers via NextResponse.next({ request: { headers } }). This is the
+  // only way the route handler can read the auto-generated ID.
+  const requestHeaders = new Headers(req.headers);
+  requestHeaders.set("x-request-id", requestId);
 
   // Step 2: rate limit by IP. Behind Caddy/load balancer the client IP is in
   // `x-forwarded-for` (first hop). Fall back to the NextRequest `ip` and then
@@ -32,7 +42,7 @@ export function middleware(req: NextRequest) {
 
   // Always echo the request ID back so clients can correlate.
   const res = limit.ok
-    ? NextResponse.next()
+    ? NextResponse.next({ request: { headers: requestHeaders } })
     : NextResponse.json(
         { error: "rate limit exceeded", retryAfterMs: limit.retryAfterMs },
         { status: 429 },
