@@ -1285,3 +1285,178 @@ from a clean `main` HEAD (`c9b6440`).
   the task spec scoped changes to sidebar/sidebar-NAV only. Both new views
   are reachable from the sidebar and via URL (`?view=market-pulse`,
   `?view=correlation`).
+
+---
+
+## phase2/intelligence — Z.ai Code — COMPLETED
+
+### Scope
+Implemented three Phase-2 intelligence features on branch `phase2/intelligence`
+(issues #45 Historical Memory, #48 Alert Engine, #49 Opportunity Radar).
+Three focused commits — one per feature — so the branch history reads cleanly.
+Cut from `main` HEAD (`bbe7053`) which carries the merged Phase-1 watchlists /
+screener / market-pulse / correlation work.
+
+### Commit 1 — `feat(#45): historical memory — similarity search`
+- `src/app/api/v1/similarity/[symbol]/route.ts` — single GET endpoint.
+  Computes a 5-feature vector at the current bar (RSI normalized to 0..1,
+  10-bar momentum clipped to [-1, 1], MACD histogram scaled by 2% of
+  price clipped to [-1, 1], trend strength 0..1, annualized volatility
+  clipped to [0, 1]). Slides a 60-bar window across history stepping every
+  5 bars (so ~45 candidates from 300 bars — enough for a stable top-15
+  without 300 indicator recomputations), recomputes the same vector at
+  each historical bar, ranks matches by Euclidean similarity
+  `max(0, 1 - dist/2.5)`, and records the forward 5-bar / 20-bar returns
+  for each match. Top 15 returned with summary stats — avg / median /
+  win-rate of forward returns. Structured `logger.info` on success,
+  `store.health.apiErrors++` on failure. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `SimilarityFeatures`, `SimilarityMatch`,
+  `SimilarityStats`, `SimilarityResponse` interfaces + `useSimilarity(symbol)`
+  query (60s refetch; refetches on symbol change via the queryKey).
+- `src/lib/aurevia/ui-store.ts` — added `"historical-memory"` to `ViewKey`
+  and to the `VALID_VIEWS` URL whitelist.
+- `src/components/aurevia/sidebar.tsx` — `History` icon import + the
+  `historical-memory` nav item in the `intelligence` group (right after
+  the ML Predictions item).
+- `src/components/aurevia/views/historical-memory-view.tsx` — the view:
+  symbol selector (driven by `useMarkets()` so the universe is the single
+  source of truth — issue #29), a current-bar snapshot card (regime badge
+  + RSI / momentum / trend strength / volatility tiles), a forward-return
+  stats card, a win-rates card with color-banded progress bars (≥60%
+  emerald, 50–60% amber, <50% red), a top-15 matches table with
+  similarity %, forward 5d / 20d returns, regime badge per row, and an
+  amber disclaimer reminding the user this is evidence not prediction.
+  Loading skeleton + error card with retry; never throws into the router.
+- `src/app/page.tsx` — `case "historical-memory": return <HistoricalMemoryView />;`.
+
+### Commit 2 — `feat(#48): alert engine — price/rsi/change alerts + toasts`
+- `src/lib/aurevia/store.ts` —
+  - `Alert` / `AlertType` / `AlertCondition` types (string unions, not
+    enums, so the API can return them as plain JSON).
+  - `store.alerts` own-property bag + module-level `getAlerts()`,
+    `addAlert()`, `removeAlert()`, `checkAlerts()` functions. Module-level
+    rather than instance methods for the same reason watchlists already
+    are (issue #41): the dev server's long-lived singleton was constructed
+    before this PR existed, so its prototype predates any new methods.
+    Module-level functions operate on `store.alerts` directly and are
+    prototype-agnostic.
+  - `checkAlerts()` iterates active alerts, evaluates each against the
+    current `store.buildContext()` (price / RSI14 / changePct depending on
+    type), latches fired alerts (`active=false`, `triggeredAt=now`,
+    `triggerValue=value`), and records a `RiskEvent` of type
+    `ALERT_TRIGGERED` so fires also show up in the existing risk-event
+    log. Defensive initialization via `getAlerts()` ensures
+    `store.alerts` exists even on the pre-PR singleton.
+  - `scanSignals()` calls `checkAlerts()` on every scan, wrapped in a
+    try/catch so alert evaluation never breaks a signal scan.
+- `src/app/api/v1/alerts/route.ts` —
+  - GET runs `checkAlerts()` first (so any newly-satisfied conditions
+    fire before the response is sent), then returns
+    `{alerts, triggered, total}` so the client can toast on freshly fired
+    alerts in addition to the in-view list.
+  - POST branches on `action`: `create | delete | check`. Validated with
+    `zod`; rejects unknown symbols (same guard as `/api/v1/watchlists`
+    addSymbol). Structured logging on every action.
+- `src/lib/aurevia/hooks.ts` — `AlertRow`, `AlertsResponse`,
+  `AlertActionInput` interfaces + `useAlerts()` query (15s refetch) +
+  `useAlertAction()` mutation.
+- `src/lib/aurevia/ui-store.ts` — added `"alerts"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `Bell` icon import + the `alerts`
+  nav item in the `intelligence` group.
+- `src/components/aurevia/views/alerts-view.tsx` — the view:
+  - Create form (type / symbol / condition / threshold) with type-aware
+    threshold input ($ prefix for price, % suffix for changePct, plain
+    numeric for RSI) and RSI range validation (0..100).
+  - Active alerts table with remove buttons + color-coded condition
+    badges.
+  - Triggered history table with fired value, fired-at timestamp, and
+    original creation timestamp. Scrollable with sticky header
+    (`max-h-96 overflow-y-auto`).
+  - In-app toast on every fresh trigger — a `useRef<Set<string>>` guard
+    prevents duplicate toasts across refetches by alert id, so a fired
+    alert only toasts once even across multiple 15s refetches.
+  - Manual "Check now" button to evaluate alerts immediately without
+    waiting for the next scan.
+- `src/app/page.tsx` — `case "alerts": return <AlertsView />;`.
+
+### Commit 3 — `feat(#49): opportunity radar — universe-wide scan of setups + risk flags`
+- `src/app/api/v1/radar/route.ts` — single GET endpoint. Scans the
+  18-asset universe, builds a `MarketContext` per symbol, and classifies
+  each into one or more of 5 buckets per spec:
+    * `breakouts`      — `trend.breakout === true`
+    * `momentum`       — `trend.momentum > 0.02 && 50 <= RSI14 <= 70`
+    * `meanReversion`  — `price < bollingerLower && RSI14 < 35`
+    * `trendFollowing` — `price > sma20 > sma50 && ADX14 > 25`
+    * `riskEvents`     — `volatility > 0.5 || drawdown > 0.08`
+  An asset can appear in multiple buckets. Each opportunity carries a
+  conviction score (0..1, a blend of the strongest signals for that
+  category) and a risk score (max(volatility, drawdown), clamped 0..1).
+  Buckets sorted desc by conviction. Structured `logger.info` on success,
+  `store.health.apiErrors++` on failure. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `RadarOpportunity`, `RadarResponse`
+  interfaces + `useRadar()` query (30s auto-refresh per spec).
+- `src/lib/aurevia/ui-store.ts` — added `"radar"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `Radar` icon import + the `radar`
+  nav item in the `intelligence` group.
+- `src/components/aurevia/views/radar-view.tsx` — the view: header +
+  subtitle, then 5 category cards in a responsive grid (1 col mobile → 2
+  cols md → 3 cols xl). Each card has the category name, a count badge, a
+  one-line hint explaining the criterion, and a scrollable list of
+  opportunities (symbol, name, price, conviction `Progress` bar, risk
+  badge with 4 bands: low/mod/elevated/high, one-line reason). Clicking
+  an opportunity calls `openAsset(symbol)` so the user drills into the
+  asset-detail view. Loading skeleton + error card with retry.
+- `src/app/page.tsx` — `case "radar": return <RadarView />;`.
+
+### Verification (all run during development on `phase2/intelligence`)
+1. `bun run lint` — clean (no output).
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — **0** type errors.
+3. `bun test` — **155 pass / 0 fail** (1005 expect() calls, 6 files).
+4. `curl /api/v1/similarity/AAPL` → `{ symbol: "AAPL", currentFeatures:
+   {rsi, momentum, macdHist, trendStrength, volatility}, currentRegime:
+   "SIDEWAYS", matches: [15 sorted-by-similarity entries with time /
+   similarity / forwardReturn5d / forwardReturn20d / regime], stats:
+   {sampleCount: 15, avgForwardReturn5d, avgForwardReturn20d, winRate5d,
+   winRate20d, medianReturn5d, medianReturn20d}, disclaimer: "..." }`.
+5. `curl /api/v1/alerts` → `{ alerts: [], triggered: [], total: 0 }`.
+   After `POST {action:"create", type:"price", symbol:"AAPL",
+   condition:"above", threshold:1}` → returns the new alert active.
+   A subsequent GET shows the alert has fired (active=false,
+   triggeredAt=<ts>, triggerValue=418.09 — current AAPL price well above
+   the $1 threshold) and is listed in `triggered`. `POST {action:"delete",
+   id:...}` removes it cleanly.
+6. `curl /api/v1/radar` → `{ categories: { breakouts: 1, momentum: 3,
+   meanReversion: 0, trendFollowing: 5, riskEvents: 5 }, scannedAt,
+   universeSize: 18 }` — every opportunity carries a conviction 0..1 and
+   a risk 0..1 score, with a human-readable `reason` string.
+7. Dev server log shows all three routes returning 200 with structured
+   `logger.info` lines (`Similarity search computed`, `Alerts list`,
+   `Alerts checked`, `Alert created`, `Alert deleted`, `Radar scan
+   computed`). Root page `/` returns HTTP 200.
+
+### Notes
+- No data is hardcoded — every figure derives from `store.buildContext()`
+  / `store.getCandles()` (the same deterministic simulated feed the rest
+  of the app trusts).
+- The `checkAlerts()` function defensively initializes `store.alerts`
+  via `getAlerts()` before iterating. Without this guard, the dev
+  server's HMR-preserved singleton (constructed before this PR added
+  `alerts: Alert[] = []` to the class) had `store.alerts === undefined`
+  and `for (const a of store.alerts)` threw `store.alerts is not
+  iterable`. Spotted in the dev log as a `logger.warn("Alert check
+  threw", ...)` line during smoke testing; fixed before the alert-engine
+  commit landed (amended into the same commit so the branch history
+  stays one-commit-per-feature).
+- Three sidebar nav items added in the `intelligence` group: Historical
+  Memory (`History` icon), Alerts (`Bell` icon), Opportunity Radar
+  (`Radar` icon). All three are also reachable via URL (`?view=...`).
+- Alert-engine toasts use `sonner`'s `toast.success()` with a `BellRing`
+  icon; the `useRef<Set<string>>` guard means a fired alert only toasts
+  once even across multiple 15s refetches — recreated alerts get fresh
+  ids so their fires toast normally.
+- Radar view's `Progress` bar uses the theme's `bg-primary` color (the
+  shadcn `Progress` component bakes this in). Per-category visual
+  differentiation comes from the card border tint, icon color, and count
+  badge color (emerald / cyan / amber / purple / red per category) —
+  consistent with the existing color helpers in `format.ts`.
+

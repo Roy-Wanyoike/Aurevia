@@ -211,6 +211,131 @@ export function useSetBreaker() {
 
 // --- Market Pulse (issue #43) ---
 
+// --- Historical Memory — Similarity Search (issue #45) ---
+// For a given symbol, the backend computes a feature vector (RSI, momentum,
+// MACD hist, trend strength, volatility) at the current bar and compares it
+// to the same vector computed at every 5th historical bar. Top-15 matches by
+// Euclidean similarity are returned along with forward 5d / 20d return stats.
+export interface SimilarityFeatures {
+  rsi: number;
+  momentum: number;
+  macdHist: number;
+  trendStrength: number;
+  volatility: number;
+}
+export interface SimilarityMatch {
+  time: number;
+  similarity: number;
+  forwardReturn5d: number;
+  forwardReturn20d: number;
+  regime: string;
+}
+export interface SimilarityStats {
+  sampleCount: number;
+  avgForwardReturn5d: number;
+  avgForwardReturn20d: number;
+  winRate5d: number;
+  winRate20d: number;
+  medianReturn5d: number;
+  medianReturn20d: number;
+}
+export interface SimilarityResponse {
+  symbol: string;
+  currentFeatures: SimilarityFeatures;
+  currentRegime: string;
+  matches: SimilarityMatch[];
+  stats: SimilarityStats;
+  disclaimer: string;
+}
+export function useSimilarity(symbol: string) {
+  return useQuery({
+    queryKey: ["similarity", symbol],
+    queryFn: () => fetchJson<SimilarityResponse>(`/api/v1/similarity/${encodeURIComponent(symbol)}`),
+    enabled: !!symbol,
+    refetchInterval: 60_000,
+  });
+}
+
+// --- Alerts (issue #48) ---
+// User-defined price / RSI / change-% alerts. The route runs `checkAlerts`
+// on each GET so any newly-satisfied conditions fire before the response is
+// returned; the freshly triggered alerts are surfaced in `triggered` so the
+// view can toast on them.
+export interface AlertRow {
+  id: string;
+  type: "price" | "rsi" | "changePct";
+  symbol?: string;
+  condition: "above" | "below";
+  threshold: number;
+  active: boolean;
+  triggeredAt?: number;
+  triggerValue?: number;
+  createdAt: number;
+}
+export interface AlertsResponse {
+  alerts: AlertRow[];
+  triggered: AlertRow[];
+  total: number;
+}
+export function useAlerts() {
+  return useQuery({
+    queryKey: ["alerts"],
+    queryFn: () => fetchJson<AlertsResponse>("/api/v1/alerts"),
+    refetchInterval: 15_000,
+  });
+}
+export interface AlertActionInput {
+  action: "create" | "delete" | "check";
+  type?: "price" | "rsi" | "changePct";
+  symbol?: string;
+  condition?: "above" | "below";
+  threshold?: number;
+  id?: string;
+}
+export function useAlertAction() {
+  return useMutation({
+    mutationFn: (input: AlertActionInput) =>
+      fetchJson<{ ok: boolean; alert?: AlertRow; alerts: AlertRow[]; total: number; triggered?: AlertRow[]; deleted?: boolean }>(
+        "/api/v1/alerts",
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+  });
+}
+
+// --- Opportunity Radar (issue #49) ---
+// Scans the universe and categorizes each asset into one or more opportunity
+// buckets: breakouts, momentum, mean reversion, trend following, risk events.
+// An asset can appear in multiple buckets. Each opportunity carries a
+// conviction score (0..1) and a risk score (0..1) for in-bucket sorting.
+export interface RadarOpportunity {
+  symbol: string;
+  name: string;
+  assetType: string;
+  sector?: string;
+  price: number;
+  conviction: number; // 0..1
+  risk: number;       // 0..1
+  reason: string;
+}
+export interface RadarResponse {
+  categories: {
+    breakouts: { opportunities: RadarOpportunity[] };
+    momentum: { opportunities: RadarOpportunity[] };
+    meanReversion: { opportunities: RadarOpportunity[] };
+    trendFollowing: { opportunities: RadarOpportunity[] };
+    riskEvents: { opportunities: RadarOpportunity[] };
+  };
+  scannedAt: number;
+  universeSize: number;
+}
+export function useRadar() {
+  return useQuery({
+    queryKey: ["radar"],
+    queryFn: () => fetchJson<RadarResponse>("/api/v1/radar"),
+    refetchInterval: 30_000,
+  });
+}
+
 // --- Correlation Matrix (issue #44) ---
 // N×N Pearson correlation matrix across the tradeable universe, computed
 // from 30-day log returns server-side. `symbols` is the shared row + column
