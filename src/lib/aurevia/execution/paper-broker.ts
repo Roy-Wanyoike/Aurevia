@@ -146,7 +146,13 @@ export class PortfolioManager {
       else this.cash += fill.filledPrice * closeQty;
       if (existing.quantity < 1e-9) {
         this.positions.delete(fill.symbol);
-      } else if (fill.filledQty > closeQty) {
+      }
+      // Independent check: leftover quantity means we flipped direction. This
+      // was previously an `else if` of the fully-closed branch above, making
+      // it unreachable (any flip fully closes the existing leg first), so
+      // LONG→SHORT and SHORT→LONG flips silently dropped the leftover leg
+      // and the cash ledger drifted by the leftover notional. BE-P0-004.
+      if (fill.filledQty > closeQty) {
         // Flipped direction. The `closeQty` portion closed the existing
         // position (cash already adjusted above). The `leftover` portion
         // opens a NEW position in the opposite direction — cash MUST be
