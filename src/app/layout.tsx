@@ -16,6 +16,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
+  // metadataBase is REQUIRED when metadata references relative URLs (icons,
+  // openGraph images, etc.). Without it, Next.js tries to resolve them
+  // against process.env.NEXT_PUBLIC_APP_URL — and if that's an empty
+  // string (e.g. on Vercel without the env var set), `new URL('')` throws
+  // `TypeError: Invalid URL` during SSG of /_not-found, breaking the build.
+  // We fall back to localhost for dev and let production set the real URL.
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  ),
   title: "Aurevia — Market Intelligence Infrastructure",
   description:
     "Market intelligence, analysis, strategy backtesting, risk management, and controlled paper trading infrastructure.",
