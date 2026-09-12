@@ -256,6 +256,52 @@ export function useSimilarity(symbol: string) {
   });
 }
 
+// --- Alerts (issue #48) ---
+// User-defined price / RSI / change-% alerts. The route runs `checkAlerts`
+// on each GET so any newly-satisfied conditions fire before the response is
+// returned; the freshly triggered alerts are surfaced in `triggered` so the
+// view can toast on them.
+export interface AlertRow {
+  id: string;
+  type: "price" | "rsi" | "changePct";
+  symbol?: string;
+  condition: "above" | "below";
+  threshold: number;
+  active: boolean;
+  triggeredAt?: number;
+  triggerValue?: number;
+  createdAt: number;
+}
+export interface AlertsResponse {
+  alerts: AlertRow[];
+  triggered: AlertRow[];
+  total: number;
+}
+export function useAlerts() {
+  return useQuery({
+    queryKey: ["alerts"],
+    queryFn: () => fetchJson<AlertsResponse>("/api/v1/alerts"),
+    refetchInterval: 15_000,
+  });
+}
+export interface AlertActionInput {
+  action: "create" | "delete" | "check";
+  type?: "price" | "rsi" | "changePct";
+  symbol?: string;
+  condition?: "above" | "below";
+  threshold?: number;
+  id?: string;
+}
+export function useAlertAction() {
+  return useMutation({
+    mutationFn: (input: AlertActionInput) =>
+      fetchJson<{ ok: boolean; alert?: AlertRow; alerts: AlertRow[]; total: number; triggered?: AlertRow[]; deleted?: boolean }>(
+        "/api/v1/alerts",
+        { method: "POST", body: JSON.stringify(input) },
+      ),
+  });
+}
+
 // --- Correlation Matrix (issue #44) ---
 // N×N Pearson correlation matrix across the tradeable universe, computed
 // from 30-day log returns server-side. `symbols` is the shared row + column

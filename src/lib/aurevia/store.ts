@@ -43,6 +43,23 @@ export interface Watchlist {
   symbols: string[];
 }
 
+// Alert types — kept as string unions (not enums) so the API can return them
+// as plain JSON. (Issue #48 — Alert Engine.)
+export type AlertType = "price" | "rsi" | "changePct";
+export type AlertCondition = "above" | "below";
+
+export interface Alert {
+  id: string;
+  type: AlertType;
+  symbol?: string;
+  condition: AlertCondition;
+  threshold: number;
+  active: boolean;
+  triggeredAt?: number;
+  triggerValue?: number;
+  createdAt: number;
+}
+
 class AureviaStore {
   assetCatalog: AssetInfo[] = ASSET_CATALOG;
   candleCache: Map<string, Candle[]> = new Map();
@@ -74,6 +91,18 @@ class AureviaStore {
   // `store.watchlists` as an own-property data bag, so they work regardless
   // of which AureviaStore prototype version the singleton happens to have.
   watchlists: Watchlist[] = [];
+
+  // --- Alerts (issue #48) ---------------------------------------------------
+  // User-defined price / RSI / change-% alerts. The bag is an own property
+  // here; the CRUD operations live as module-level functions (see bottom of
+  // file) rather than instance methods so they're reachable from the
+  // dev-server's long-lived singleton — whose prototype was set at
+  // construction time and therefore predates this PR's methods. Module-level
+  // functions operate on `store.alerts` as an own-property data bag, so they
+  // work regardless of which AureviaStore prototype version the singleton
+  // happens to have. (Same pattern watchlists already use for #41.)
+  alerts: Alert[] = [];
+
   health: {
     marketDataLatencyMs: number;
     lastTickAt: number;
@@ -149,6 +178,16 @@ class AureviaStore {
     // Keep latest SIGNAL_RETENTION signals.
     this.signals = [...newSignals, ...this.signals].slice(0, SIGNAL_RETENTION);
     this.lastSignalScan = Date.now();
+    // Check user-defined alerts against the fresh market data — fires any
+    // alerts whose condition is now satisfied. (Issue #48 — Alert Engine.)
+    // checkAlerts is module-level; called from here so alerts are evaluated
+    // on every scan without requiring callers to remember to invoke it.
+    try {
+      checkAlerts();
+    } catch {
+      // Never let alert evaluation break a signal scan — alerts are a UX
+      // feature, not part of the trade decision path.
+    }
     return newSignals;
   }
 
@@ -432,6 +471,100 @@ export function deleteWatchlist(watchlistId: string): boolean {
   if (idx === -1) return false;
   list.splice(idx, 1);
   return true;
+}
+
+// --- Alerts (issue #48) — module-level API ---------------------------------
+// CRUD + check operations on user-defined alerts. Module-level rather than
+// instance methods for the same reason watchlists are: the dev server's
+// long-lived singleton was constructed before this PR existed, so its
+// prototype predates any new methods. Module-level functions reach into
+// `store.alerts` (an own property on the instance) and mutate it directly,
+// which is prototype-agnostic.
+export function getAlerts(): Alert[] {
+  if (!Array.isArray(store.alerts)) store.alerts = [];
+  return store.alerts;
+}
+
+export function addAlert(
+  type: AlertType,
+  symbol: string | undefined,
+  condition: AlertCondition,
+  threshold: number,
+): Alert {
+  const a: Alert = {
+    id: `alrt-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+    type,
+    symbol: symbol?.toUpperCase(),
+    condition,
+    threshold,
+    active: true,
+    createdAt: Date.now(),
+  };
+  store.alerts.unshift(a);
+  if (store.alerts.length > 100) store.alerts.length = 100;
+  return a;
+}
+
+export function removeAlert(id: string): boolean {
+  const idx = store.alerts.findIndex((a) => a.id === id);
+  if (idx === -1) return false;
+  store.alerts.splice(idx, 1);
+  return true;
+}
+
+// Evaluate every active alert against current market data. Triggered alerts
+// are latched (active=false, triggeredAt=now) and a RiskEvent is recorded so
+// they show up in the existing risk-event log too. Returns the freshly
+// triggered alerts so the route can emit them in the response (the client
+// then surfaces a toast).
+export function checkAlerts(): Alert[] {
+  // Defensive initialization — the dev server's long-lived singleton may have
+  // been constructed before this PR added `alerts: Alert[] = []` to the
+  // class, in which case `store.alerts` is undefined and `for (...of...)`
+  // would throw. `getAlerts()` ensures the own-property exists. (Issue #48.)
+  const all = getAlerts();
+  const triggered: Alert[] = [];
+  for (const a of all) {
+    if (!a.active) continue;
+    const sym = a.symbol;
+    if (!sym) continue;
+    const ctx = store.buildContext(sym, 300);
+    if (!ctx) continue;
+    let value = 0;
+    switch (a.type) {
+      case "price":
+        value = ctx.quote.price;
+        break;
+      case "rsi":
+        value = ctx.indicators.rsi14;
+        break;
+      case "changePct":
+        value = ctx.quote.changePct;
+        break;
+    }
+    const fired =
+      (a.condition === "above" && value > a.threshold) ||
+      (a.condition === "below" && value < a.threshold);
+    if (!fired) continue;
+    a.active = false;
+    a.triggeredAt = Date.now();
+    a.triggerValue = value;
+    triggered.push(a);
+    store.recordRiskEvent(
+      "ALERT_TRIGGERED",
+      "INFO",
+      `Alert ${a.id} (${a.symbol} ${a.type} ${a.condition} ${a.threshold}) fired at ${value.toFixed(4)}`,
+      {
+        alertId: a.id,
+        type: a.type,
+        symbol: a.symbol,
+        condition: a.condition,
+        threshold: a.threshold,
+        value,
+      },
+    );
+  }
+  return triggered;
 }
 
 // Singleton. Reused across hot reloads in dev via globalThis.

@@ -20,6 +20,7 @@ import { BrokersView } from "@/components/aurevia/views/brokers-view";
 import { MarketPulseView } from "@/components/aurevia/views/market-pulse-view";
 import { CorrelationView } from "@/components/aurevia/views/correlation-view";
 import { HistoricalMemoryView } from "@/components/aurevia/views/historical-memory-view";
+import { AlertsView } from "@/components/aurevia/views/alerts-view";
 import { WatchlistsView } from "@/components/aurevia/views/watchlists-view";
 import { ScreenerView } from "@/components/aurevia/views/screener-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
@@ -92,6 +93,7 @@ function ViewRouter() {
     case "market-pulse": return <MarketPulseView />;
     case "correlation": return <CorrelationView />;
     case "historical-memory": return <HistoricalMemoryView />;
+    case "alerts": return <AlertsView />;
     case "watchlists": return <WatchlistsView />;
     case "screener": return <ScreenerView />;
     case "system": return <SystemView />;
