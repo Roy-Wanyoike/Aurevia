@@ -1106,3 +1106,143 @@ Applied 2 audit fixes to the Aurevia trading platform:
 ### Commit
 Single commit on branch `fix/dropdowns-order-ticket` (NOT merged into main):
 `fix(#18,#19): dynamic symbol dropdowns, order ticket validation + cost preview`
+
+## Task phase0-ci-testing — Z.ai Code — COMPLETED
+
+### Summary
+Set up the testing + CI/CD foundation for Aurevia: vitest installed and
+configured, 155 unit tests written across 6 test files (target was 100+),
+and a GitHub Actions CI pipeline that runs lint + tsc + tests + build on
+every push and pull request.
+
+### Branch
+`phase0/ci-testing` (created from `main`, committed, NOT merged).
+
+### Setup
+- `bun add -d vitest @vitejs/plugin-react` → vitest@5.0.0 + plugin-react@6.1.1.
+- New `vitest.config.ts` — `environment: "node"`, includes `src/**/*.test.{ts,tsx}`,
+  v8 coverage reporting on `src/lib/aurevia/**/*.ts`, `@` alias → `./src`.
+- `package.json` scripts added: `test` (`vitest run`), `test:watch` (`vitest`),
+  `test:coverage` (`vitest run --coverage`).
+
+### Test files written (155 tests, all passing)
+1. `src/lib/aurevia/quant/indicators.test.ts` — 33 tests covering
+   `sma`, `ema`, `rsi` (incl. all-up→100 / all-down→0), `macd` (macdLine =
+   emaFast − emaSlow, hist = macdLine − signalLine), `bollingerBands`
+   (upper>middle>lower, middle=SMA, collapse-to-middle on constant input),
+   `atr`, `adx` (0–100 bounds), `stochastic` (K∈[0,100]), `vwap`, `obv`
+   (up-bar increases, down-bar decreases, flat unchanged), `roc` (constant → 0).
+2. `src/lib/aurevia/risk/engine.test.ts` — 29 tests covering all 11 rules
+   independently (trading-mode gate, circuit-breaker gate, cooldown/duplicate,
+   spread, liquidity, daily loss, weekly loss, drawdown, post-fill exposure,
+   post-fill position concentration, leverage), APPROVED happy path,
+   CAUTION→PAUSED downgrade, and the `nextBreakerState` state machine
+   (NORMAL→CAUTION, CAUTION→NORMAL, TRADING_PAUSED latches,
+   RE_EVALUATING→NORMAL, severe trigger escalation).
+3. `src/lib/aurevia/execution/paper-broker.test.ts` — 23 tests covering BUY
+   (cash decreases, LONG position created), SELL closes long (cash increases,
+   realized P&L), SHORT (equity = cash − shortMarketValue, NOT +), position
+   flip LONG→SHORT and SHORT→LONG (cash adjusts for leftover), commission
+   math, slippage direction (BUY pays more, SELL receives less),
+   mark-to-market P&L updates, exposure = grossExposure / equity,
+   drawdown + peakEquity tracking, and broker reconciliation (match / missing
+   position / qty mismatch).
+4. `src/lib/aurevia/backtest/engine.test.ts` — 18 tests covering COMPLETED
+   vs FAILED status (unknown strategy, <60 bars), finalEquity sanity (finite,
+   non-negative, not NaN), metrics field types + sharpe finite,
+   equityCurve non-empty + point shape, benchmark tracking, trade shape +
+   non-empty reasons, stop loss triggers, take profit triggers,
+   `allowShort=true` permits SHORT trades, `allowShort=false` produces no
+   SHORT trades, and commission + slippage monotonicity (higher cost → lower
+   final equity).
+5. `src/lib/aurevia/strategies/index.test.ts` — 15 tests covering the
+   STRATEGIES / STRATEGY_MAP registry invariants, each strategy's BUY/SELL/null
+   branch with hand-crafted `MarketContext`s (momentum, trend-following,
+   MA-crossover, mean-reversion, breakout), confidence∈[0,1], non-empty
+   reasons, and `evaluateAll` aggregate.
+6. `src/lib/aurevia/format.test.ts` — 37 tests covering `fmtPrice`, `fmtPct`
+   (sign handling for positive/negative/zero), `fmtUsd` (thousands separators),
+   `fmtCompact`, `fmtTime` / `fmtDateTime` / `fmtDuration`, `gainColor`,
+   `gainBg`, `actionColor`, `drawdownColor` (the full 4-tier ladder:
+   <3% emerald, 3–8% amber, 8–15% orange, ≥15% red), `regimeColor`,
+   `breakerColor`, `decisionColor`, `trendColor`.
+
+### Test-runner compatibility
+Verified the test files run cleanly under BOTH:
+- `bun run test` (vitest) → 155 pass, 0 fail, 1005 expect() calls, ~1.4s.
+- `bun test` (bun's built-in runner, used by CI) → 155 pass, 0 fail,
+  1005 expect() calls, ~520ms.
+Bun's runner picks up vitest-style `describe/it/expect` imports because
+vitest executes the test bodies eagerly at module load; both runners share
+the same chai-like assertion API surface.
+
+### Incidental bug fix discovered by the new tests
+The paper-broker `applyFill` flip branch was unreachable: it was written as
+`else if (fill.filledQty > closeQty)` attached to `if (existing.quantity < 1e-9)`,
+but any flip fully closes the existing leg first (so `existing.quantity`
+always hits zero first, taking the `if` branch and skipping the `else if`).
+Effect: LONG→SHORT and SHORT→LONG flips silently dropped the leftover leg
+and the cash ledger drifted by the leftover notional on every flip.
+Fix: split the `else if` into an independent `if` in
+`src/lib/aurevia/execution/paper-broker.ts:147-155`, with an inline comment
+referencing BE-P0-004. The two flip tests now pass and assert the cash
+ledger matches the expected `+leftover*price` (LONG→SHORT) /
+`-leftover*price` (SHORT→LONG) adjustment.
+
+### CI/CD foundation (issue #32)
+- `.github/workflows/ci.yml` — `name: CI`, triggers on push to `main`,
+  `phase0/*`, `fix/*`, `feat/*` and PRs to `main`. Single `quality` job on
+  `ubuntu-latest`: checkout → `oven-sh/setup-bun@v1` (latest) → `bun install`
+  → lint (`bun run lint`) → type check (`npx tsc --noEmit`) → unit tests
+  (`bun test`) → build (`bun run build`).
+- `.github/PULL_REQUEST_TEMPLATE.md` — Description / Related Issue / Type of
+  Change / Testing (lint, tsc, tests, manual) / Checklist (no secrets, no
+  hardcoded data, follows style, self-reviewed).
+- `.github/ISSUE_TEMPLATE/bug_report.md` — Summary, steps to reproduce,
+  expected/actual, environment, logs/screenshots, severity.
+- `.github/ISSUE_TEMPLATE/feature_request.md` — Summary, motivation, proposed
+  solution, alternatives, scope checkboxes, acceptance criteria, out-of-scope.
+
+### Supporting tsconfig change
+`tsc --noEmit` previously surfaced 3 pre-existing errors in `examples/`
+and `skills/` (an unused `socket.io` import and two SDK type mismatches in
+the bundled skill samples). These directories were already gitignored by
+eslint (`ignores: [..., "examples/**", "skills"]`) but were still picked up
+by tsc. Added `examples`, `skills`, `.zscripts`, `mini-services` to
+`tsconfig.json` `exclude` so `tsc --noEmit` is clean across the project —
+required for the new CI step to be green.
+
+### Files created
+- `vitest.config.ts`
+- `src/lib/aurevia/quant/indicators.test.ts`
+- `src/lib/aurevia/risk/engine.test.ts`
+- `src/lib/aurevia/execution/paper-broker.test.ts`
+- `src/lib/aurevia/backtest/engine.test.ts`
+- `src/lib/aurevia/strategies/index.test.ts`
+- `src/lib/aurevia/format.test.ts`
+- `.github/workflows/ci.yml`
+- `.github/PULL_REQUEST_TEMPLATE.md`
+- `.github/ISSUE_TEMPLATE/bug_report.md`
+- `.github/ISSUE_TEMPLATE/feature_request.md`
+
+### Files modified
+- `package.json` — added `test`, `test:watch`, `test:coverage` scripts;
+  vitest + @vitejs/plugin-react added to devDependencies.
+- `bun.lock` — updated for new dev deps.
+- `tsconfig.json` — added `examples`, `skills`, `.zscripts`, `mini-services`
+  to `exclude` so `tsc --noEmit` is green for CI.
+- `src/lib/aurevia/execution/paper-broker.ts` — fixed unreachable
+  LONG→SHORT / SHORT→LONG flip branch (BE-P0-004 follow-up) so the new
+  position-flip tests pass.
+
+### Verification
+- `cd /home/z/my-project && bun run test 2>&1 | tail -10` → 155 pass, 0 fail,
+  6 test files, 1005 expect() calls, ~1.4s.
+- `cd /home/z/my-project && bun test 2>&1 | tail -5` → 155 pass, 0 fail
+  (bun's built-in runner — used by CI).
+- `cd /home/z/my-project && bun run lint 2>&1 | tail -3` → `$ eslint .` clean.
+- `cd /home/z/my-project && npx tsc --noEmit 2>&1 | tail -5` → no output (clean).
+
+### Commit
+Single commit on branch `phase0/ci-testing` (NOT merged into main):
+`feat(#31,#32): vitest + 100+ tests + GitHub Actions CI`
