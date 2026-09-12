@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -29,7 +30,9 @@ const OrderSchema = z
   );
 
 // GET /api/v1/portfolio — current paper-trading portfolio state.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     return NextResponse.json({ portfolio: store.getPortfolio() });
   } catch (e: any) {
@@ -40,6 +43,8 @@ export async function GET() {
 // POST /api/v1/portfolio — operator actions: reset, or place a manual order.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = OrderSchema.safeParse(body);

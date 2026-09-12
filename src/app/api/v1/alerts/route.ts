@@ -10,6 +10,7 @@ import {
 } from "@/lib/aurevia/store";
 import { getAsset } from "@/lib/aurevia/market-data/assets";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -67,7 +68,9 @@ function serialize(a: Alert) {
 }
 
 // GET /api/v1/alerts — list all alerts, fire any newly-satisfied ones.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const requestId = "alerts";
   try {
     // Run checkAlerts so any condition that became true since the last scan
@@ -102,6 +105,8 @@ export async function GET() {
 // POST /api/v1/alerts — action-based mutations.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = ActionSchema.safeParse(body);

@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useMarkets, type MarketAsset } from "@/lib/aurevia/hooks";
 import { fmtPrice, fmtPct, fmtCompact, gainBg, accentColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { ArrowUpRight, ArrowDownRight, Search, ArrowUpDown } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, Search, ArrowUpDown, AlertCircle, RefreshCw } from "lucide-react";
 
 type AssetType = "All" | "Equity" | "ETF" | "Crypto" | "FX";
 type SortKey = "symbol" | "changePct" | "volume24h";
@@ -19,7 +19,7 @@ type SortDir = "asc" | "desc";
 const TYPE_TABS: AssetType[] = ["All", "Equity", "ETF", "Crypto", "FX"];
 
 export function MarketsView() {
-  const { data, isLoading } = useMarkets();
+  const { data, isLoading, isError, error, refetch } = useMarkets();
   const { openAsset } = useUI();
   const [query, setQuery] = useState("");
   const [type, setType] = useState<AssetType>("All");
@@ -68,6 +68,28 @@ export function MarketsView() {
           Live universe screener across equities, ETFs, crypto and FX. Click any row to open detailed analysis.
         </p>
       </div>
+
+      {/* Error state — issue #74: surface the error + retry instead of masking
+          it with the loading skeleton. */}
+      {isError && (
+        <Card className="p-6">
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Failed to load markets</p>
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">
+                {error instanceof Error ? error.message : "The universe feed is unavailable. Try again in a moment."}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </Button>
+          </div>
+        </Card>
+      )}
 
       {/* Summary bar */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

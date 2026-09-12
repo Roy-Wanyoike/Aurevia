@@ -26,13 +26,13 @@ import { usePortfolio, useResetPortfolio, usePlaceOrder, useMarkets, useAsset } 
 import { fmtPrice, fmtUsd, fmtPct, gainColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
-import { Wallet, ArrowUpRight, ArrowDownRight, RotateCcw, Send, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Wallet, ArrowUpRight, ArrowDownRight, RotateCcw, Send, AlertTriangle, CheckCircle2, AlertCircle, RefreshCw } from "lucide-react";
 
 type OrderType = "MARKET" | "LIMIT" | "STOP";
 const COMMISSION_BPS = 5; // 5 bps = 0.05% — matches default backtest commission
 
 export function PortfolioView() {
-  const { data, isLoading } = usePortfolio();
+  const { data, isLoading, isError, error, refetch } = usePortfolio();
   const markets = useMarkets();
   const reset = useResetPortfolio();
   const place = usePlaceOrder();
@@ -135,6 +135,39 @@ export function PortfolioView() {
       },
       onError: (e: any) => toast.error(e.message),
     });
+  }
+
+  if (isError) {
+    const message = error instanceof Error ? error.message : "Portfolio state is unavailable. Try again in a moment.";
+    return (
+      <div className="space-y-6 p-6">
+        <Header />
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="space-y-2 rounded-lg border border-border/60 p-4">
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          ))}
+        </div>
+        <div className="rounded-lg border border-red-500/30 bg-red-500/5 p-6">
+          <div className="flex flex-col items-center justify-center gap-3 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Failed to load portfolio</p>
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">{message}</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={() => refetch()} className="gap-1.5">
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (isLoading && !data) {

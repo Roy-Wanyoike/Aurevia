@@ -68,24 +68,54 @@ export function BrokersView() {
           <h3 className="text-sm font-semibold">Registered Brokers</h3>
         </div>
         <div className="space-y-2">
-          {(brokers.data ?? []).map((b) => (
-            <div key={b.kind} className="flex items-center justify-between rounded-md border border-border/60 bg-card/40 px-3 py-2.5">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-8 w-8 items-center justify-center rounded-full ${b.healthy ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"}`}>
-                  {b.connected ? <Plug className="h-4 w-4" /> : <Unplug className="h-4 w-4" />}
-                </div>
-                <div>
-                  <div className="text-sm font-medium capitalize">{b.kind === "ibkr" ? "Interactive Brokers" : b.kind}</div>
-                  <div className="text-xs text-muted-foreground">
-                    {b.connected ? "Connected" : "Disconnected"} · {b.healthy ? "Healthy" : "Unhealthy"}
+          {(brokers.data ?? []).map((b) => {
+            // Issue #78 — paper broker is the only real adapter. Alpaca + IBKR
+            // adapters are dev stubs (see src/lib/aurevia/brokers/{alpaca,ibkr}.ts).
+            // Surface that loudly with a SIMULATED badge + amber inline warning
+            // so an operator never mistakes a stubbed connection for a real one.
+            const isStub = b.kind !== "paper";
+            return (
+              <div
+                key={b.kind}
+                className="flex flex-col gap-2 rounded-md border border-border/60 bg-card/40 px-3 py-2.5"
+              >
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-full ${b.healthy ? "bg-emerald-500/15 text-emerald-400" : "bg-muted text-muted-foreground"}`}>
+                      {b.connected ? <Plug className="h-4 w-4" /> : <Unplug className="h-4 w-4" />}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium capitalize">{b.kind === "ibkr" ? "Interactive Brokers" : b.kind}</span>
+                        {isStub && (
+                          <Badge
+                            variant="outline"
+                            className="border-amber-500/40 bg-amber-500/10 text-[10px] uppercase tracking-wider text-amber-400"
+                          >
+                            Simulated
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {b.connected ? "Connected" : "Disconnected"} · {b.healthy ? "Healthy" : "Unhealthy"}
+                      </div>
+                    </div>
                   </div>
+                  <Badge variant="outline" className={b.healthy ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-muted text-muted-foreground"}>
+                    {b.healthy ? "● ONLINE" : "○ OFFLINE"}
+                  </Badge>
                 </div>
+                {isStub && (
+                  <div className="flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 px-2.5 py-1.5 text-[11px] text-amber-300">
+                    <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                    <span>
+                      Adapter is a stub — real API calls not implemented in dev. Set credentials in <code className="rounded bg-amber-500/15 px-1 py-0.5 font-mono text-[10px]">.env</code> to enable live network requests (Phase 7).
+                    </span>
+                  </div>
+                )}
               </div>
-              <Badge variant="outline" className={b.healthy ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-400" : "border-muted text-muted-foreground"}>
-                {b.healthy ? "● ONLINE" : "○ OFFLINE"}
-              </Badge>
-            </div>
-          ))}
+            );
+          })}
           {(brokers.data ?? []).length === 0 && brokers.isLoading && (
             <div className="space-y-2">
               {Array.from({ length: 3 }).map((_, i) => (

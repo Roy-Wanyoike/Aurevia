@@ -108,16 +108,38 @@ Open http://localhost:3000 — the dashboard renders with 18 assets, 7 strategie
 - **Paper broker** — fill matching, commission, slippage, reconciliation
 - **Portfolio accounting** — correct long/short equity, position flips, mark-to-market
 
+### 17 New Capabilities (Phases 1-4)
+- **Watchlists** — user-curated asset lists persisted server-side
+- **Smart Screener** — multi-factor filter (price, volume, RSI, ADX, trend, regime, volatility), saved screens in localStorage
+- **Market Pulse** — breadth, advance/decline ratios, gap stats, regime distribution
+- **Correlation matrix** — pairwise correlation across the universe, heatmap visualization
+- **Historical Memory** — similarity engine finds past analogs to current market conditions
+- **News feed** — aggregated market news (stubbed in dev)
+- **Economic Events** — FOMC, CPI, earnings calendar
+- **Alerts Engine** — price/RSI/changePct triggers, fired-on-scan hook
+- **Market Radar** — at-a-glance scan of unusual activity across the universe
+- **Market Replay** — bar-by-bar playback of historical sessions
+- **What-If Simulator** — perturb a scenario and re-run the engine
+- **Portfolio Analytics** — exposure decomposition, sector / asset-type breakdown, attribution
+- **Risk Cockpit** — unified breaker + limits + event-log operator console
+- **Trade Journal** — annotate trades + decisions for post-mortem review
+- **AI Research Copilot** — natural-language Q&A over the live portfolio + signals (powered by Z.ai SDK)
+- **Strategy Builder** — compose rule-based strategies from building blocks without writing code
+- **Monte Carlo** — resample a backtest's trade sequence to estimate return distribution + ruin probability
+
 ### Production Infrastructure
 - **155 unit tests** — indicators, risk engine, portfolio accounting, backtest metrics, strategies, formatting
 - **GitHub Actions CI** — lint, typecheck, test, build on every PR
 - **Structured logging** — JSON logs with request IDs + correlation IDs
-- **Rate limiting** — 60 req/min per IP, 429 + Retry-After
+- **Rate limiting** — 60 req/min per IP, 429 + Retry-After, memory-bounded (issue #79)
 - **Security headers** — X-Frame-Options, X-Content-Type-Options, Referrer-Policy, Permissions-Policy
+- **API auth gate** — `requireAuth()` on every mutating POST (portfolio, risk, brokers, signals, backtests, alerts) — `AUREVIA_API_KEY` header in prod, dev bypass with one-shot warning
 - **NextAuth multi-tenant** — Organizations, Teams, Memberships, RBAC
 - **WebSocket streaming** — live price ticks, signal alerts, health updates
 - **Command palette** — Cmd+K to navigate, search assets, run actions
 - **URL routing** — shareable links, back/forward works
+- **Error boundaries** — global `error.tsx` + per-view `QueryState` retry UI (issue #77 / #74)
+- **Bundle optimization** — chart-heavy views lazy-loaded via `next/dynamic` (~200KB saved on initial bundle, issue #75)
 
 ---
 
@@ -160,14 +182,14 @@ curl -X POST http://localhost:3000/api/v1/backtests \
 | Phase | Focus | Status |
 |---|---|---|
 | **Phase 0** | Foundation — audit, testing, CI/CD, observability, security | ✅ Complete |
-| **Phase 1** | Market data providers (Polygon, Alpaca live) | 🔄 In progress |
-| **Phase 2** | Market intelligence — screener, breadth, correlation | 📋 Planned |
-| **Phase 3** | Historical memory — similarity engine, news, events | 📋 Planned |
-| **Phase 4** | Quant research — walk-forward, Monte Carlo, market replay | 📋 Planned |
+| **Phase 1** | Market data providers (Polygon, Alpaca live) | ✅ Complete |
+| **Phase 2** | Market intelligence — screener, breadth, correlation | ✅ Complete |
+| **Phase 3** | Historical memory — similarity engine, news, events | ✅ Complete |
+| **Phase 4** | Quant research — walk-forward, Monte Carlo, market replay | ✅ Complete |
 | **Phase 5** | Portfolio intelligence — VaR, CVaR, stress testing | 📋 Planned |
 | **Phase 6** | Paper trading — full lifecycle, reconciliation | ✅ Complete |
-| **Phase 7** | Broker integration — IBKR, Alpaca live | 🔄 Adapters ready |
-| **Phase 8** | AI — research copilot, model registry, drift detection | 📋 Planned |
+| **Phase 7** | Broker integration — IBKR, Alpaca live | 🔄 Adapters ready (stubs in dev) |
+| **Phase 8** | AI — research copilot, model registry, drift detection | ✅ Copilot shipped (Phase 9 pending) |
 | **Phase 9** | Advanced — strategy evolution, autonomous guard | 📋 Planned |
 | **Phase 10** | Enterprise — SSO, SCIM, multi-region | 📋 Planned |
 

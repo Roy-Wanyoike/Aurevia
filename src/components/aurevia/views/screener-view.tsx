@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -80,25 +80,50 @@ interface SavedScreen {
   createdAt: number;
 }
 
-function readSavedScreens(): SavedScreen[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(SAVED_SCREENS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
 function writeSavedScreens(items: SavedScreen[]) {
   if (typeof window === "undefined") return;
   try {
     window.localStorage.setItem(SAVED_SCREENS_KEY, JSON.stringify(items));
+    // Notify same-tab subscribers — the `storage` event only fires in
+    // OTHER tabs, not the one that wrote. Dispatch a synthetic event so
+    // useSyncExternalStore picks up the change immediately.
+    window.dispatchEvent(new StorageEvent("storage", { key: SAVED_SCREENS_KEY }));
   } catch {
     /* localStorage may be unavailable — non-fatal */
   }
+}
+
+// --- useSyncExternalStore wiring (issue #82) -------------------------------
+//
+// Reading localStorage during render (the original `useState(() =>
+// readSavedScreens())` lazy initializer) caused a hydration mismatch:
+// SSR returned `[]` (window is undefined server-side), the client
+// hydration called the initializer with `window` defined and got the
+// actual saved value, and React flagged the divergence.
+//
+// `useSyncExternalStore` is the React 18+ primitive designed exactly for
+// external mutable stores. It calls `getServerSnapshot` for SSR + the
+// *first* client render (both return ""), then switches to `getSnapshot`
+// (the real localStorage value) AFTER hydration. React handles the
+// transition without a hydration warning. As a bonus, the `storage`
+// event keeps the UI in sync across tabs.
+//
+// The hooks rule `react-hooks/set-state-in-effect` does NOT flag
+// useSyncExternalStore because there's no setState-in-effect — React
+// manages the snapshot internally.
+function subscribeSavedScreens(callback: () => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", callback);
+  return () => window.removeEventListener("storage", callback);
+}
+
+function getSavedScreensSnapshot(): string {
+  if (typeof window === "undefined") return "";
+  return window.localStorage.getItem(SAVED_SCREENS_KEY) ?? "";
+}
+
+function getSavedScreensServerSnapshot(): string {
+  return "";
 }
 
 const DEFAULT_FILTER: ScreenerFilter = {};
@@ -112,11 +137,24 @@ export function ScreenerView() {
   const [results, setResults] = useState<ScreenerResultRow[]>([]);
   const [universeSize, setUniverseSize] = useState<number | null>(null);
   const [hasRun, setHasRun] = useState(false);
-  // Read saved screens from localStorage via useState's lazy initializer —
-  // avoids the useEffect + setState pattern that triggers
-  // react-hooks/set-state-in-effect. The initializer is guarded for SSR
-  // (typeof window === "undefined") so the server render returns [].
-  const [savedScreens, setSavedScreens] = useState<SavedScreen[]>(() => readSavedScreens());
+  // Issue #82 — see module-level comment above. `useSyncExternalStore`
+  // returns the raw localStorage string (stable snapshot), so React
+  // handles the SSR→client transition without a hydration warning.
+  // We parse the string into SavedScreen[] via useMemo below.
+  const savedScreensRaw = useSyncExternalStore(
+    subscribeSavedScreens,
+    getSavedScreensSnapshot,
+    getSavedScreensServerSnapshot,
+  );
+  const savedScreens: SavedScreen[] = useMemo(() => {
+    if (!savedScreensRaw) return [];
+    try {
+      const parsed = JSON.parse(savedScreensRaw);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  }, [savedScreensRaw]);
   const [saveOpen, setSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
 
@@ -173,7 +211,9 @@ export function ScreenerView() {
       createdAt: Date.now(),
     };
     const next = [item, ...savedScreens];
-    setSavedScreens(next);
+    // `writeSavedScreens` updates localStorage + dispatches a synthetic
+    // `storage` event. `useSyncExternalStore` sees it, re-reads the snapshot,
+    // and re-renders with the new list — no manual setState needed.
     writeSavedScreens(next);
     setSaveOpen(false);
     setSaveName("");
@@ -182,7 +222,6 @@ export function ScreenerView() {
 
   function deleteSaved(id: string) {
     const next = savedScreens.filter((s) => s.id !== id);
-    setSavedScreens(next);
     writeSavedScreens(next);
   }
 

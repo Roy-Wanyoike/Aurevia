@@ -14,7 +14,7 @@ import { useSignals, useScanSignals, useStrategies } from "@/lib/aurevia/hooks";
 import { fmtPrice, fmtTime, actionColor, decisionColor, gainColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
-import { Radio, RefreshCw, Filter, X } from "lucide-react";
+import { Radio, RefreshCw, Filter, X, AlertCircle } from "lucide-react";
 
 export function SignalsView() {
   const [symbol, setSymbol] = useState("");
@@ -41,6 +41,43 @@ export function SignalsView() {
   }
 
   const rows = signals.data ?? [];
+
+  // Error state takes priority over loading (issue #74 / #15) — surface the
+  // error message + a retry button instead of leaving the user staring at a
+  // skeleton that never resolves.
+  if (signals.isError) {
+    const message = signals.error instanceof Error ? signals.error.message : "Failed to load signals feed.";
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold tracking-tight">Signals</h2>
+          <p className="text-sm text-muted-foreground">
+            Live signal feed produced by strategy engines against the universe. Filter by symbol or strategy, or trigger a manual scan.
+          </p>
+        </div>
+        <Card className="p-6">
+          <div className="flex flex-col items-center justify-center gap-3 py-10 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-500/10">
+              <AlertCircle className="h-6 w-6 text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-foreground">Failed to load signals</p>
+              <p className="mt-1 max-w-sm text-xs text-muted-foreground">{message}</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => signals.refetch()}
+              className="gap-1.5"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 p-6">

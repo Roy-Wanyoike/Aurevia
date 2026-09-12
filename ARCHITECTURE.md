@@ -42,15 +42,20 @@ Quant Engine  ──►  Trend Engine  ──►  Regime Engine
 
 | Layer | Module | Responsibility | Side-effects |
 |-------|--------|---------------|--------------|
-| Market Data | `lib/aurevia/market-data/` | Deterministic candle generation (GBM + regime switching), quote building, asset catalog | None (pure) |
+| Market Data | `lib/aurevia/market-data/gateway.ts` + `lib/aurevia/market-data/providers/` | Provider abstraction (Polygon / Alpaca / simulated), deterministic candle generation (GBM + regime switching), quote building, asset catalog | None (pure) |
 | Quant | `lib/aurevia/quant/` | SMA, EMA, RSI, MACD, Bollinger, ATR, ADX, Stochastic, VWAP, OBV, ROC; trend + regime detection | None (pure) |
 | Strategy | `lib/aurevia/strategies/` | Plugin contract `evaluate(ctx) → Signal \| null`. 5 built-in strategies. | None (pure — never orders) |
-| Backtest | `lib/aurevia/backtest/` | Bar-by-bar simulation with slippage, commission, stops, partial fills, full metrics | None (own local state) |
+| ML | `lib/aurevia/ml/models.ts` | ALM (logistic regression) + ARF (random-forest sketch) predictors. Feature engineering, prob-of-up, expected magnitude, risk score. | None (pure) |
+| Backtest | `lib/aurevia/backtest/` | Bar-by-bar simulation with slippage, commission, stops, partial fills, full metrics, walk-forward, Monte Carlo resampling | None (own local state) |
 | Risk | `lib/aurevia/risk/` | 11-rule gate + circuit breaker state machine. Only path to APPROVE an order | Mutates breaker state |
-| Execution | `lib/aurevia/execution/` | Paper broker (fill matching, reconciliation) + Portfolio manager (positions, equity, P&L) | Mutates portfolio |
-| Store | `lib/aurevia/store.ts` | Singleton runtime: caches, signal log, backtest history, portfolio, risk profile | In-memory state |
-| API | `app/api/v1/` | REST endpoints exposing each engine | HTTP I/O |
-| UI | `components/aurevia/` | Single-page dashboard with 13 views | Client-only |
+| Execution | `lib/aurevia/execution/` | Paper broker (fill matching, reconciliation) + Portfolio manager (positions, equity, P&L, exposure, drawdown) | Mutates portfolio |
+| Brokers | `lib/aurevia/brokers/adapter.ts` + `lib/aurevia/brokers/router.ts` + `lib/aurevia/brokers/{alpaca,ibkr}.ts` | BrokerAdapter contract + multi-venue router. Alpaca/IBKR adapters are dev stubs — wire real API calls before enabling LIVE. Paper broker always preferred in dev. | Mutates broker connection state |
+| Auth | `lib/aurevia/auth/check.ts` | `requireAuth()` / `checkAuth()` / `unauthorized()`. API-key gate for /api/v1/* in prod, dev-bypass with one-shot warning. 401 echoes `x-request-id`. | Logs warning |
+| Logging | `lib/aurevia/logger.ts` | Structured JSON logger with request-id + correlation-id propagation, level filter via `LOG_LEVEL` | stdout |
+| Rate limiting | `lib/aurevia/rate-limit.ts` | Sliding-window per-IP (60/min default, configurable via `RATE_LIMIT_PER_MINUTE`). Probabilistic GC of stale IPs (issue #79) | In-memory |
+| Store | `lib/aurevia/store.ts` | Singleton runtime: caches, signal log, backtest history, portfolio, risk profile, broker registry, alert engine | In-memory state |
+| API | `app/api/v1/` | REST endpoints exposing each engine. Every mutating POST calls `requireAuth()`. | HTTP I/O |
+| UI | `components/aurevia/` | Single-page dashboard with 30+ views. Chart-heavy views (Backtests, ML, Copilot, Replay, Strategy Builder) lazy-loaded via `next/dynamic` (issue #75). | Client-only |
 
 ## 3. Critical Safety Properties
 
@@ -93,25 +98,31 @@ Prisma + SQLite. Durable records: `User`, `Asset`, `Strategy`, `Signal`, `Backte
 
 ## 7. Known Limitations (honest)
 
-- **Simulated market data only.** No live broker credentials; the paper broker simulates fills. Real broker adapters (IBKR, Alpaca, OANDA, Coinbase) would slot in behind the `PaperBroker` interface.
-- **No live WebSocket streaming.** Data refreshes via polling (TanStack Query refetchInterval).
-- **No authentication.** Single-user demo. NextAuth is available but not wired.
-- **No ML models.** The quant engine is rule-based. ML would plug into the same `MarketContext → Signal` contract.
-- **No CI/CD pipeline.** This is a dev environment.
+- **Simulated market data only by default.** Real market data flows when a provider API key is set (Polygon / Alpaca). Without it, the deterministic simulated feed runs (clearly labeled).
+- **Broker adapters are stubs.** `lib/aurevia/brokers/alpaca.ts` and `lib/aurevia/brokers/ibkr.ts` define the BrokerAdapter contract but do NOT make real API calls — responses are simulated so the platform runs end-to-end. Wiring real network calls is Phase 7.
+- **WebSocket streaming available.** The `aurevia-stream` mini-service (port 3003) emits price ticks + signal alerts. Connect from the client via `io("/?XTransformPort=3003")` (Caddy forwards the query param).
+- **API auth gate wired.** Every mutating POST (portfolio, risk, brokers, signals, backtests, alerts) calls `requireAuth()`. In dev it bypasses with a one-shot warning; in prod it requires `AUREVIA_API_KEY` header.
+- **NextAuth multi-tenant available.** Organizations, Teams, Memberships schema exists; UI for org admin is Phase 10.
+- **ML models.** Two ML strategies (ALM logistic, ARF random-forest sketch) are wired into the strategy framework. Drift detection is Phase 8.
+- **CI/CD pipeline.** GitHub Actions runs lint + typecheck + 155 tests + build on every PR.
 
 ## 8. Definition of Done (current state)
 
 - [x] Architecture: modular, documented, typed contracts
-- [x] Market data: deterministic, normalized, regime-aware
+- [x] Market data: deterministic, normalized, regime-aware, provider-abstraction (gateway + providers/)
 - [x] Quant engine: 14 indicators + trend + regime
-- [x] Strategies: 5 plugins, modular, no order side-effects
-- [x] Backtesting: realistic costs, full metrics, no look-ahead
+- [x] Strategies: 5 rule-based + 2 ML plugins, modular, no order side-effects
+- [x] Backtesting: realistic costs, full metrics, no look-ahead, Monte Carlo + walk-forward
 - [x] Risk: 11-rule gate + circuit breaker state machine
 - [x] Execution: paper broker + portfolio reconciliation
-- [x] Portfolio: mark-to-market, P&L, exposure, drawdown
-- [x] Observability: health endpoint + system view
-- [x] UI: 13 views, dark theme, responsive
-- [ ] Real broker integration (future)
-- [ ] ML predictions (future)
-- [ ] Auth + multi-tenant (future)
-- [ ] Live trading mode (future, requires safeguards)
+- [x] Portfolio: mark-to-market, P&L, exposure, drawdown, analytics + risk cockpit
+- [x] Brokers: adapter contract + router + Alpaca/IBKR stubs (paper always preferred in dev)
+- [x] Auth: API-key gate + NextAuth multi-tenant schema
+- [x] Observability: structured logger + rate limiter + health endpoint
+- [x] UI: 30+ views, dark theme, responsive, lazy-loaded chart-heavy views, error boundaries
+- [x] Market intelligence: watchlists, screener, market pulse, correlation, historical memory, news, events, alerts, radar, replay, what-if
+- [x] Quant research: strategy builder, Monte Carlo, replay
+- [ ] Real broker integration (Phase 7 — adapters are stubs)
+- [ ] Portfolio intelligence: VaR, CVaR, stress testing (Phase 5)
+- [ ] Drift detection, model registry (Phase 8 remainder)
+- [ ] Live trading mode (Phase 7+, requires safeguards + real adapter)

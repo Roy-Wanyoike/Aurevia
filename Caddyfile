@@ -1,23 +1,51 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# Aurevia Caddyfile
+#
+# DEV ONLY — port 81 is for the sandbox preview. The `:81` listener accepts
+# any host and proxies to the Next.js dev server on :3000 (with a query-param
+# escape hatch for mini-services via `?XTransformPort=NNNN`). This is NOT a
+# production config.
+#
+# Production should use a real domain + Caddy auto-TLS. Swap the listener:
+#
+#   aurevia.io {
+#     reverse_proxy localhost:3000 {
+#       header_up Host {host}
+#       header_up X-Forwarded-For {remote_host}
+#       header_up X-Forwarded-Proto {scheme}
+#       header_up X-Real-IP {remote_host}
+#     }
+#     # Caddy auto-provisions + auto-renews Let's Encrypt TLS certs.
+#     # Add `tls you@aurevia.io` to pin the registration email.
+#   }
+#
+# For the mini-service query-param escape hatch in production, add a
+# subdomain route block per service instead:
+#
+#   stream.aurevia.io {
+#     reverse_proxy localhost:3003
+#   }
+# ─────────────────────────────────────────────────────────────────────────────
 :81 {
-	@transform_port_query {
-		query XTransformPort=*
-	}
+        @transform_port_query {
+                query XTransformPort=*
+        }
 
-	handle @transform_port_query {
-		reverse_proxy localhost:{query.XTransformPort} {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
+        handle @transform_port_query {
+                reverse_proxy localhost:{query.XTransformPort} {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
 
-	handle {
-		reverse_proxy localhost:3000 {
-			header_up Host {host}
-			header_up X-Forwarded-For {remote_host}
-			header_up X-Forwarded-Proto {scheme}
-			header_up X-Real-IP {remote_host}
-		}
-	}
+        handle {
+                reverse_proxy localhost:3000 {
+                        header_up Host {host}
+                        header_up X-Forwarded-For {remote_host}
+                        header_up X-Forwarded-Proto {scheme}
+                        header_up X-Real-IP {remote_host}
+                }
+        }
 }

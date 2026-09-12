@@ -9,6 +9,12 @@
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
+    // Issue #81 — strict mode is on. `noUncheckedIndexedAccess` is
+    // intentionally left off (default) — enabling it would force `T | undefined`
+    // annotations on every array/record access and break too much existing
+    // engine code that's already proven correct via the 155-test suite.
+    // Re-evaluate when the engine layer is fully converted to branded types.
+    "noUncheckedIndexedAccess": false,
     "noEmit": true,
     "noImplicitAny": false,
     "esModuleInterop": true,
