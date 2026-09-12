@@ -14,6 +14,7 @@ import {
   gainBg,
   regimeColor,
   trendColor,
+  drawdownColor,
 } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { CandlestickChart } from "@/components/aurevia/charts/candlestick-chart";
@@ -144,7 +145,7 @@ export function AssetDetailView() {
             <Row label="Duration" value={`${trend.durationBars} bars`} />
             <Row label="Momentum" value={fmtPrice(trend.momentum, 4)} className={gainColor(trend.momentum)} />
             <Row label="Volatility" value={fmtPrice(trend.volatility, 4)} />
-            <Row label="Drawdown" value={fmtPct(trend.drawdown * 100)} className={gainColor(-trend.drawdown)} />
+            <Row label="Drawdown" value={fmtPct(trend.drawdown * 100)} className={drawdownColor(trend.drawdown)} />
             <Row label="Support" value={fmtPrice(trend.support)} />
             <Row label="Resistance" value={fmtPrice(trend.resistance)} />
             <div className="flex gap-2 pt-1">

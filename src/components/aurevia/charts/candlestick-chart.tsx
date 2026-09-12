@@ -89,9 +89,23 @@ export function CandlestickChart({ candles, overlays = [], height = 320, showVol
             fontSize: "12px",
           }}
           labelFormatter={(t) => fmtDateTime(t as number)}
-          formatter={(value: any, name: string) => {
+          formatter={(value: any, name: string, props: any) => {
+            // Show explicit OHLC values from the row's payload
+            const row = props?.payload;
+            if (row && name === "body") {
+              return [
+                <div key="ohlc" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <span>O <span style={{ color: "oklch(0.95 0.005 250)" }}>{fmtPrice(row.open)}</span></span>
+                  <span>H <span style={{ color: "oklch(0.72 0.17 162)" }}>{fmtPrice(row.high)}</span></span>
+                  <span>L <span style={{ color: "oklch(0.65 0.21 25)" }}>{fmtPrice(row.low)}</span></span>
+                  <span>C <span style={{ color: row.up ? "oklch(0.72 0.17 162)" : "oklch(0.65 0.21 25)" }}>{fmtPrice(row.close)}</span></span>
+                  <span style={{ marginTop: 2, color: "oklch(0.68 0.012 250)" }}>Vol {fmtPrice(row.volume, 0)}</span>
+                </div>,
+                "OHLC",
+              ];
+            }
             if (name === "range") return null;
-            if (Array.isArray(value)) return [`${fmtPrice(value[0])} – ${fmtPrice(value[1])}`, "OHLC"];
+            if (name === "volume") return [fmtPrice(value, 0), "Volume"];
             return [fmtPrice(value), name];
           }}
         />

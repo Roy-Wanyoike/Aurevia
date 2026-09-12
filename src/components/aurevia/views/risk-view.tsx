@@ -10,6 +10,17 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import {
+  AlertDialog,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+} from "@/components/ui/alert-dialog";
 import { useRisk, useUpdateRisk, useSetBreaker } from "@/lib/aurevia/hooks";
 import { breakerColor, fmtTime, fmtPct } from "@/lib/aurevia/format";
 import { toast } from "sonner";
@@ -51,8 +62,17 @@ export function RiskView() {
   const { data, isLoading } = useRisk();
   const setBreaker = useSetBreaker();
   const qc = useQueryClient();
+  // Track which breaker state the user is trying to confirm.
+  // null = dialog closed; non-null = confirmation dialog open for that state.
+  const [pendingBreaker, setPendingBreaker] = useState<string | null>(null);
+  // For TRADING_PAUSED, require typed confirmation.
+  const [typedConfirm, setTypedConfirm] = useState("");
 
-  function setBreakerState(state: string) {
+  function confirmBreaker() {
+    if (!pendingBreaker) return;
+    // Require typed "PAUSE" for the dangerous TRADING_PAUSED state.
+    if (pendingBreaker === "TRADING_PAUSED" && typedConfirm !== "PAUSE") return;
+    const state = pendingBreaker;
     setBreaker.mutate(
       { state, reason: "manual override from risk console" },
       {
@@ -64,6 +84,8 @@ export function RiskView() {
         onError: (e: any) => toast.error(e.message),
       }
     );
+    setPendingBreaker(null);
+    setTypedConfirm("");
   }
 
   if (isLoading && !data) {
@@ -83,6 +105,14 @@ export function RiskView() {
   const events: any[] = data?.events ?? [];
   const initialProfile: RiskProfile = { ...DEFAULT_PROFILE, ...(data?.profile ?? {}) };
 
+  // Description for each breaker transition — shown in the confirmation dialog.
+  const breakerDescriptions: Record<string, string> = {
+    NORMAL: "Resume normal trading. All risk rules will be evaluated normally.",
+    CAUTION: "Enter caution mode. New orders will be held for manual review (PAUSED).",
+    TRADING_PAUSED: "HALT all new orders. Existing positions remain protected. Operator action required to resume. This blocks every new order immediately.",
+    RE_EVALUATING: "Mark the system as re-evaluating. On the next clean risk evaluation, it will auto-recover to NORMAL.",
+  };
+
   return (
     <div className="space-y-6 p-6">
       <Header />
@@ -101,16 +131,55 @@ export function RiskView() {
         </div>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {BREAKER_STATES.map((s) => (
-            <Button
-              key={s}
-              size="sm"
-              variant={breakerState === s ? "default" : "outline"}
-              onClick={() => setBreakerState(s)}
-              disabled={setBreaker.isPending}
-              className="text-xs"
-            >
-              {s}
-            </Button>
+            <AlertDialog key={s}>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="sm"
+                  variant={breakerState === s ? "default" : "outline"}
+                  disabled={setBreaker.isPending || breakerState === s}
+                  className="text-xs"
+                  onClick={() => { setPendingBreaker(s); setTypedConfirm(""); }}
+                >
+                  {s}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Set circuit breaker to {s}?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {breakerDescriptions[s]}
+                    {s === "TRADING_PAUSED" && (
+                      <span className="mt-2 block font-medium text-red-400">
+                        This is a destructive operation — all new orders will be immediately blocked.
+                      </span>
+                    )}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                {s === "TRADING_PAUSED" && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Type <span className="font-mono font-bold text-red-400">PAUSE</span> to confirm
+                    </Label>
+                    <Input
+                      value={typedConfirm}
+                      onChange={(e) => setTypedConfirm(e.target.value)}
+                      placeholder="PAUSE"
+                      className="font-mono"
+                    />
+                  </div>
+                )}
+                <AlertDialogFooter>
+                  <AlertDialogCancel onClick={() => setTypedConfirm("")}>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={confirmBreaker}
+                    disabled={s === "TRADING_PAUSED" && typedConfirm !== "PAUSE"}
+                    className={s === "TRADING_PAUSED" ? "bg-red-600 hover:bg-red-700" : ""}
+                  >
+                    Confirm
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           ))}
         </div>
         <div className="mt-4 rounded-md border border-border/60 p-3">

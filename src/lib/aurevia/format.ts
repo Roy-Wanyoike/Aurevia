@@ -121,3 +121,12 @@ export function trendColor(direction: string): string {
     default: return "text-muted-foreground";
   }
 }
+
+// Graduated drawdown color — low drawdown is good (green), high is bad (red).
+// Fixes the inverted logic that colored all drawdowns red.
+export function drawdownColor(drawdown: number): string {
+  if (drawdown < 0.03) return "text-emerald-400";   // <3% — healthy
+  if (drawdown < 0.08) return "text-amber-400";      // 3-8% — caution
+  if (drawdown < 0.15) return "text-orange-400";     // 8-15% — elevated
+  return "text-red-400";                              // >15% — severe
+}

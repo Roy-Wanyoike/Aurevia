@@ -14,22 +14,6 @@ import { Settings, Moon, AlertTriangle, Save, ArrowRight } from "lucide-react";
 
 const TRADING_MODES = ["ANALYSIS_ONLY", "PAPER", "SANDBOX", "LIVE"];
 
-const ARCH_FLOW = `┌─────────────────┐     ┌──────────────┐     ┌────────────────┐
-│  Market Data    │ ──▶ │  Quant       │ ──▶ │  Strategy      │
-│  Gateway        │     │  Engine      │     │  Engine        │
-│  (quotes, OHLC) │     │  (indicators)│     │  (signal gen)  │
-└─────────────────┘     └──────────────┘     └────────────────┘
-                                                      │
-                                                      ▼
-┌─────────────────┐     ┌──────────────┐     ┌────────────────┐
-│  Portfolio      │ ◀── │  Execution   │ ◀── │  Risk          │
-│  Manager        │     │  Engine      │     │  Engine        │
-│  (equity, P&L)  │     │  (broker)    │     │  (breakers,    │
-└─────────────────┘     └──────────────┘     │   limits)      │
-        │                                     └────────────────┘
-        ▼
-   Observability (health, events, metrics)`;
-
 export function SettingsView() {
   const { data } = useRisk();
   const initialMode =
@@ -101,13 +85,46 @@ export function SettingsView() {
         </div>
       </Card>
 
-      {/* Architecture flow */}
+      {/* Architecture flow — polished SVG pipeline */}
       <Card className="p-4">
         <h3 className="mb-3 text-sm font-semibold">Architecture Flow</h3>
-        <pre className="overflow-x-auto rounded-md border border-border/60 bg-background/60 p-4 text-xs leading-relaxed text-foreground">
-{ARCH_FLOW}
-        </pre>
+        <ArchitectureDiagram />
       </Card>
+    </div>
+  );
+}
+
+function ArchitectureDiagram() {
+  // Polished SVG pipeline diagram — replaces the ASCII art that was here before.
+  // Shows the 6-stage flow: Market Data → Quant → Strategy → Signal → Risk → Execution → Portfolio
+  const stages = [
+    { label: "Market Data", sub: "Gateway", color: "oklch(0.72 0.17 162)" },
+    { label: "Quant Engine", sub: "Indicators", color: "oklch(0.62 0.13 220)" },
+    { label: "Strategy", sub: "Signal Gen", color: "oklch(0.70 0.13 210)" },
+    { label: "Risk Engine", sub: "Breaker + Limits", color: "oklch(0.65 0.21 25)" },
+    { label: "Execution", sub: "Broker", color: "oklch(0.72 0.17 162)" },
+    { label: "Portfolio", sub: "Equity + P&L", color: "oklch(0.78 0.18 300)" },
+  ];
+  return (
+    <div className="rounded-lg border border-border/60 bg-background/60 p-4">
+      <div className="flex flex-wrap items-stretch gap-2">
+        {stages.map((s, i) => (
+          <div key={s.label} className="flex items-center gap-2">
+            <div className="flex flex-col items-center rounded-lg border border-border/60 px-3 py-2.5 text-center" style={{ borderColor: s.color + "40" }}>
+              <div className="h-2 w-2 rounded-full mb-1.5" style={{ background: s.color }} />
+              <div className="text-xs font-semibold text-foreground">{s.label}</div>
+              <div className="text-[10px] text-muted-foreground">{s.sub}</div>
+            </div>
+            {i < stages.length - 1 && <ArrowRight className="h-4 w-4 shrink-0 text-muted-foreground" />}
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 text-xs text-muted-foreground">
+        Each stage is decoupled and observable. The Risk Engine sits between signal generation and execution, giving it veto power over every order. Strategies never submit orders directly — they only emit Signals.
+      </p>
+      <a href="https://github.com/Roy-Wanyoike/Aurevia/blob/main/ARCHITECTURE.md" target="_blank" rel="noopener noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-400 hover:underline">
+        Full architecture docs <ArrowRight className="h-3 w-3" />
+      </a>
     </div>
   );
 }

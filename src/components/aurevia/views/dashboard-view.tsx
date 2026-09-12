@@ -4,13 +4,14 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { useMarkets, usePortfolio, useHealth, useSignals, useTrends } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtPct, fmtUsd, fmtCompact, gainColor, gainBg, regimeColor, breakerColor, actionColor, fmtTime } from "@/lib/aurevia/format";
+import { Skeleton } from "@/components/ui/skeleton";
+import { useMarkets, usePortfolio, useHealth, useSignals, useTrends, useSparklines, useScanSignals } from "@/lib/aurevia/hooks";
+import { fmtPrice, fmtPct, fmtUsd, fmtCompact, gainColor, regimeColor, actionColor, fmtTime } from "@/lib/aurevia/format";
 import { StatTile } from "@/components/aurevia/charts/stat-tile";
 import { Sparkline } from "@/components/aurevia/charts/sparkline";
+import { QueryState } from "@/components/aurevia/query-state";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { Activity, ArrowUpRight, ArrowDownRight, ShieldAlert, Radio, Zap, RefreshCw } from "lucide-react";
-import { useScanSignals } from "@/lib/aurevia/hooks";
+import { Activity, ArrowUpRight, ArrowDownRight, ShieldAlert, Radio, Zap, RefreshCw, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 
 export function DashboardView() {
@@ -19,6 +20,7 @@ export function DashboardView() {
   const health = useHealth();
   const signals = useSignals();
   const trends = useTrends();
+  const sparklines = useSparklines(30);
   const scan = useScanSignals();
   const qc = useQueryClient();
   const { openAsset, setView } = useUI();
@@ -55,7 +57,6 @@ export function DashboardView() {
           sub={`Unrealized P&L ${fmtUsd(pnl)}`}
           delta={pnlPct}
           accent={pnl >= 0 ? "gain" : "loss"}
-          spark={(portfolio.data?.positions.flatMap((p: any) => [p.marketValue]) ?? []).length > 0 ? [equity * 0.98, equity * 0.99, equity, equity * 1.01, equity] : undefined}
         />
         <StatTile
           label="Exposure"
@@ -110,10 +111,7 @@ export function DashboardView() {
                   </div>
                   <div className="flex items-center gap-4">
                     <Sparkline
-                      data={(markets.data ?? [])
-                        .find((m) => m.symbol === a.symbol)
-                        ? [a.quote.price * 0.98, a.quote.price * 0.99, a.quote.price]
-                        : [a.quote.price]}
+                      data={sparklines.data?.[a.symbol]?.closes ?? [a.quote.price]}
                       width={60}
                       height={20}
                       positive={up}
@@ -147,7 +145,7 @@ export function DashboardView() {
             </Button>
           </div>
           <div className="space-y-2.5 text-sm">
-            <StatusRow label="Trading Mode" value={health.data?.tradingMode ?? "—"} accent="gain" pulse />
+            <StatusRow label="Trading Mode" value={health.data?.tradingMode ?? "—"} accent="default" pulse />
             <StatusRow
               label="Circuit Breaker"
               value={health.data?.circuitBreakerState ?? "—"}

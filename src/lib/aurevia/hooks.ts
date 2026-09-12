@@ -69,6 +69,20 @@ export function useStrategies() {
   });
 }
 
+// --- Sparklines (batch recent closes for all assets) ---
+export interface SparklineData {
+  closes: number[];
+  changePct: number;
+  price: number;
+}
+export function useSparklines(bars = 30) {
+  return useQuery({
+    queryKey: ["sparklines", bars],
+    queryFn: () => fetchJson<{ sparklines: Record<string, SparklineData>; bars: number }>(`/api/v1/sparklines?bars=${bars}`).then((d) => d.sparklines),
+    refetchInterval: 60_000,
+  });
+}
+
 // --- Signals ---
 export interface SignalRow {
   id: string;
