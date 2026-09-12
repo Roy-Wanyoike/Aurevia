@@ -592,6 +592,41 @@ export function useEvents(symbol?: string) {
   });
 }
 
+// --- What-If Simulator (issue #51) ---
+// Applies a hypothetical shock to the current portfolio and returns the
+// per-position P&L impact + the projected new equity. Read-only: never
+// mutates the portfolio. When `symbol` is omitted, every position takes
+// the full shock (whole-book shock); when supplied, only that symbol takes
+// the full shock, and same-sector positions take 50% (correlated impact).
+export interface ScenarioImpact {
+  symbol: string;
+  side: string;
+  marketValue: number;
+  shockPct: number;
+  pnlImpact: number;
+  correlated: boolean;
+}
+export interface ScenarioResult {
+  originalEquity: number;
+  newEquity: number;
+  pnlImpact: number;
+  equityImpactPct: number;
+  impacts: ScenarioImpact[];
+}
+export interface ScenarioInput {
+  symbol?: string;
+  shockPct: number;
+}
+export function useRunScenario() {
+  return useMutation({
+    mutationFn: (input: ScenarioInput) =>
+      fetchJson<ScenarioResult>("/api/v1/scenario", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
 // --- Market Pulse (issue #43) ---
 // Global market health snapshot — advancers/decliners, regime distribution,
 // sector performance, market breadth vs SMA50/SMA200, fear/greed composite.
