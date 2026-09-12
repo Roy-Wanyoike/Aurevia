@@ -20,6 +20,7 @@ import {
   AlertDialogAction,
 } from "@/components/ui/alert-dialog";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { Skeleton } from "@/components/ui/skeleton";
 import { StatTile } from "@/components/aurevia/charts/stat-tile";
 import { usePortfolio, useResetPortfolio, usePlaceOrder } from "@/lib/aurevia/hooks";
 import { fmtPrice, fmtUsd, fmtPct, gainColor } from "@/lib/aurevia/format";
@@ -69,7 +70,28 @@ export function PortfolioView() {
     return (
       <div className="space-y-6 p-6">
         <Header />
-        <div className="py-12 text-center text-sm text-muted-foreground">Loading portfolio…</div>
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div key={i} className="space-y-2 rounded-lg border border-border/60 p-4">
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-6 w-3/4" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
+          ))}
+        </div>
+        <div className="space-y-2 rounded-lg border border-border/60 p-4">
+          <Skeleton className="h-4 w-32" />
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-3 py-2">
+              <Skeleton className="h-4 w-12" />
+              <Skeleton className="h-4 w-10" />
+              <Skeleton className="h-4 flex-1" />
+              <Skeleton className="h-4 w-16" />
+              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-4 w-16" />
+            </div>
+          ))}
+        </div>
       </div>
     );
   }
@@ -153,7 +175,19 @@ export function PortfolioView() {
                   const pnl = p.unrealizedPnl ?? 0;
                   const pnlPct = p.unrealizedPnlPct ?? (p.avgEntryPrice ? (pnl / (p.avgEntryPrice * p.quantity)) * 100 : 0);
                   return (
-                    <TableRow key={p.symbol} onClick={() => openAsset(p.symbol)} className="cursor-pointer">
+                    <TableRow
+                      key={p.symbol}
+                      onClick={() => openAsset(p.symbol)}
+                      tabIndex={0}
+                      role="button"
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          openAsset(p.symbol);
+                        }
+                      }}
+                      className="cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    >
                       <TableCell className="sticky left-0 z-10 bg-card font-semibold">{p.symbol}</TableCell>
                       <TableCell>
                         <Badge variant="outline" className={p.side === "LONG" || p.side === "BUY" ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}>

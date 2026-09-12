@@ -128,7 +128,26 @@ export function DashboardView() {
               );
             })}
             {topMovers.length === 0 && (
-              <div className="py-8 text-center text-sm text-muted-foreground">Loading market data…</div>
+              <div className="space-y-2">
+                {Array.from({ length: 6 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-md px-2 py-2">
+                    <div className="flex items-center gap-3">
+                      <Skeleton className="h-8 w-8 rounded" />
+                      <div className="space-y-1.5">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-2.5 w-32" />
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      <Skeleton className="h-5 w-16" />
+                      <div className="space-y-1.5 text-right">
+                        <Skeleton className="h-3 w-12 ml-auto" />
+                        <Skeleton className="h-2.5 w-14 ml-auto" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </Card>
@@ -170,7 +189,7 @@ export function DashboardView() {
             </div>
             <Button
               variant="outline"
-              size="sm"
+              size="default"
               disabled={scan.isPending}
               onClick={() => {
                 scan.mutate(undefined, {
@@ -181,9 +200,9 @@ export function DashboardView() {
                   onError: (e: any) => toast.error(e.message),
                 });
               }}
-              className="gap-1.5 text-xs"
+              className="gap-1.5"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${scan.isPending ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 ${scan.isPending ? "animate-spin" : ""}`} />
               Scan
             </Button>
           </div>
@@ -242,7 +261,14 @@ export function DashboardView() {
                 </div>
               ))}
             {Object.keys(regimeCounts).length === 0 && (
-              <div className="py-6 text-center text-xs text-muted-foreground">Loading…</div>
+              <div className="space-y-2">
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <div key={i} className="flex items-center justify-between">
+                    <Skeleton className="h-5 w-24" />
+                    <Skeleton className="h-4 w-8" />
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </Card>

@@ -2,6 +2,7 @@
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useRegimes } from "@/lib/aurevia/hooks";
 import { regimeColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
@@ -58,9 +59,19 @@ export function RegimesView() {
               </div>
             );
           })}
-          {entries.length === 0 && (
+          {entries.length === 0 && isLoading && (
+            <div className="space-y-2">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="flex items-center gap-3">
+                  <Skeleton className="h-5 w-44" />
+                  <Skeleton className="h-6 flex-1" />
+                </div>
+              ))}
+            </div>
+          )}
+          {entries.length === 0 && !isLoading && (
             <div className="py-8 text-center text-sm text-muted-foreground">
-              {isLoading ? "Loading regime distribution…" : "No regime data available."}
+              No regime data available.
             </div>
           )}
         </div>
