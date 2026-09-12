@@ -1,5 +1,11 @@
 import Link from "next/link";
 
+// Prevent SSG — this page must not be prerendered at build time.
+// On Vercel, NEXTAUTH_URL and DATABASE_URL may not be set during build,
+// causing URL parsing errors when the root layout (which includes
+// SessionProvider) renders server-side.
+export const dynamic = "force-dynamic";
+
 export default function NotFound() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background text-foreground">
