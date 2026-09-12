@@ -26,6 +26,8 @@ import { NewsView } from "@/components/aurevia/views/news-view";
 import { EventsView } from "@/components/aurevia/views/events-view";
 import { WatchlistsView } from "@/components/aurevia/views/watchlists-view";
 import { ScreenerView } from "@/components/aurevia/views/screener-view";
+import { WhatIfView } from "@/components/aurevia/views/what-if-view";
+import { ReplayView } from "@/components/aurevia/views/replay-view";
 import { SystemView } from "@/components/aurevia/views/system-view";
 import { SettingsView } from "@/components/aurevia/views/settings-view";
 import { CommandPalette } from "@/components/aurevia/command-palette";
@@ -102,6 +104,8 @@ function ViewRouter() {
     case "events": return <EventsView />;
     case "watchlists": return <WatchlistsView />;
     case "screener": return <ScreenerView />;
+    case "what-if": return <WhatIfView />;
+    case "replay": return <ReplayView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
     default: return <DashboardView />;

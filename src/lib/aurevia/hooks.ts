@@ -592,6 +592,113 @@ export function useEvents(symbol?: string) {
   });
 }
 
+// --- Market Replay (issue #50) ---
+// A bar-by-bar replay trainer. The operator picks a symbol + bar count +
+// starting capital; the server seeds a session with the first 60 bars
+// visible. Each `next` advances the cursor by N bars; `trade` fills a
+// BUY/SELL at the cursor bar's close (no look-ahead). The active session
+// is the most recently started one — sessions are per-process and not
+// tied to a specific client.
+export interface ReplayCandle {
+  time: number;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+}
+export interface ReplayPosition {
+  side: string;
+  qty: number;
+  price: number;
+}
+export interface ReplayTrade {
+  side: string;
+  qty: number;
+  price: number;
+  time: number;
+  bar: number;
+}
+export interface ReplayState {
+  sessionId?: string;
+  symbol: string;
+  cursor: number;
+  totalBars: number;
+  currentPrice: number;
+  cash: number;
+  capital: number;
+  positions: ReplayPosition[];
+  trades: ReplayTrade[];
+  visibleCandles: ReplayCandle[];
+}
+export interface ReplayStartInput {
+  action: "start";
+  symbol: string;
+  bars?: number;
+  capital?: number;
+}
+export interface ReplayNextInput {
+  action: "next";
+  cursor?: number; // advance N bars (default 1)
+}
+export interface ReplayTradeInput {
+  action: "trade";
+  side: "BUY" | "SELL";
+  quantity: number;
+}
+export interface ReplayStateInput {
+  action: "state";
+}
+export type ReplayInput =
+  | ReplayStartInput
+  | ReplayNextInput
+  | ReplayTradeInput
+  | ReplayStateInput;
+export function useReplay() {
+  return useMutation({
+    mutationFn: (input: ReplayInput) =>
+      fetchJson<ReplayState>("/api/v1/replay", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
+// --- What-If Simulator (issue #51) ---
+// Applies a hypothetical shock to the current portfolio and returns the
+// per-position P&L impact + the projected new equity. Read-only: never
+// mutates the portfolio. When `symbol` is omitted, every position takes
+// the full shock (whole-book shock); when supplied, only that symbol takes
+// the full shock, and same-sector positions take 50% (correlated impact).
+export interface ScenarioImpact {
+  symbol: string;
+  side: string;
+  marketValue: number;
+  shockPct: number;
+  pnlImpact: number;
+  correlated: boolean;
+}
+export interface ScenarioResult {
+  originalEquity: number;
+  newEquity: number;
+  pnlImpact: number;
+  equityImpactPct: number;
+  impacts: ScenarioImpact[];
+}
+export interface ScenarioInput {
+  symbol?: string;
+  shockPct: number;
+}
+export function useRunScenario() {
+  return useMutation({
+    mutationFn: (input: ScenarioInput) =>
+      fetchJson<ScenarioResult>("/api/v1/scenario", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  });
+}
+
 // --- Market Pulse (issue #43) ---
 // Global market health snapshot — advancers/decliners, regime distribution,
 // sector performance, market breadth vs SMA50/SMA200, fear/greed composite.

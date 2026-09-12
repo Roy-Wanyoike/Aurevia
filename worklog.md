@@ -1559,3 +1559,131 @@ drill-through to the asset-detail view.
   `Math.random()` would generate different dates each call). The hash gives
   each asset a stable 3-17 day and 17-31 day offset for the lifetime of the
   process, while still spreading events across the calendar.
+
+## phase3/whatif-replay — Z.ai Code — COMPLETED
+
+### Scope
+Implemented two Phase 3 trading features on branch `phase3/whatif-replay`
+(issues #51 What-If Simulator and #50 Market Replay). Two focused commits —
+one per feature — so the branch history reads cleanly. Cut from `main` HEAD
+(`b852cc2`) which carries the merged Phase-1 + Phase-2 intelligence work.
+
+### Commit 1 — `efeff8f feat(#51): what-if simulator — preset + custom portfolio shock scenarios`
+- `src/app/api/v1/scenario/route.ts` — POST endpoint. Walks the current
+  open positions and applies a hypothetical shock. If a `symbol` is
+  supplied, only that symbol takes the full shock — positions in the SAME
+  sector take 50% of the shock (a simple correlated-impact model). If no
+  symbol is supplied, every position takes the full shock directly (useful
+  for "market crash" scenarios where the whole book should move together).
+  Rejects unknown symbols early. Read-only — never mutates portfolio /
+  risk / order state. Zod-validated. Structured `logger.info` on success,
+  `store.health.apiErrors++` on failure. `force-dynamic`.
+- `src/lib/aurevia/hooks.ts` — `ScenarioImpact`, `ScenarioResult`,
+  `ScenarioInput` interfaces + `useRunScenario()` mutation.
+- `src/lib/aurevia/ui-store.ts` — added `"what-if"` to `ViewKey` and to
+  the `VALID_VIEWS` URL whitelist.
+- `src/components/aurevia/sidebar.tsx` — `GitCompareArrows` icon import +
+  the `what-if` nav item in the `trading` group (between Backtests and
+  Portfolio).
+- `src/components/aurevia/views/what-if-view.tsx` — the view:
+  - Preset scenario buttons (4): Tech Crash (-10% on AAPL/Technology
+    sector), Market Crash (-15% whole book), Crypto Crash (-30% on
+    BTC/Digital Asset), Rate Hike (+1% whole book). Color-coded by
+    severity.
+  - Custom scenario form: shock target (Whole Book / Single Symbol),
+    symbol selector (driven by `useMarkets()` so the universe is the
+    single source of truth), shock percentage slider (-50%..+50%).
+  - Portfolio context card showing current equity, cash, open positions,
+    gross market value.
+  - Results panel: Original Equity → Shocked Equity strip (big colored
+    numbers), P&L Impact tile (dollar + % of equity), affected-positions
+    table sorted by abs(P&L impact), with per-row Direct / Correlated /
+    Unaffected badges.
+  - Red warning banner when the simulated equity would go negative.
+
+### Commit 2 — `a41d8e3 feat(#50): market replay — bar-by-bar trainer with hidden future`
+- `src/app/api/v1/replay/route.ts` — POST endpoint with action branching:
+  - `start`: seeds a session with the first 60 bars visible. Validates
+    the symbol against the asset catalog; rejects unknown symbols.
+    Configurable `bars` (60..2000, default 300) and `capital`
+    (default $100k). Returns sessionId + visible candles + cursor +
+    cash state.
+  - `next`: advances the cursor by N bars (default 1). Bars after the
+    cursor remain hidden — no look-ahead bias.
+  - `trade`: fills a BUY/SELL at the cursor bar's close (no look-ahead).
+    Cash adjusts by ±price*qty. Records the trade with its bar number
+    for the history table.
+  - `state`: returns the current visible candles + cash + positions +
+    trades.
+  - Sessions are in-memory + per-process; the most recently created
+    session is the active one. The live paper portfolio in
+    /api/v1/portfolio is NEVER modified. Zod-validated.
+- `src/lib/aurevia/hooks.ts` — `ReplayCandle`, `ReplayPosition`,
+  `ReplayTrade`, `ReplayState`, `ReplayStartInput`, `ReplayNextInput`,
+  `ReplayTradeInput`, `ReplayStateInput`, `ReplayInput` interfaces +
+  `useReplay()` mutation.
+- `src/lib/aurevia/ui-store.ts` — added `"replay"` to `ViewKey` + `VALID_VIEWS`.
+- `src/components/aurevia/sidebar.tsx` — `PlayCircle` icon import + the
+  `replay` nav item in the `trading` group (between What-If and Portfolio).
+- `src/components/aurevia/views/replay-view.tsx` — the view:
+  - Setup form (rendered before a session is active): symbol selector,
+    bars input (default 300), starting capital (default $100k), "Start
+    Replay" button. Amber "Future is hidden" disclaimer banner.
+  - Active session: candlestick chart showing visible bars only,
+    progress bar of cursor/total, current price + bar count badges.
+  - Step controls: Step Forward (advance 1), Step 5 (advance 5), Speed
+    selector (1x/5x/10x bars per tick), auto-play toggle. End-of-series
+    detection on tick (in success callback) — calling setState directly
+    in the effect body is a React anti-pattern.
+  - Trade ticket: side (BUY/SELL toggle), quantity input, Place Order
+    button. Cost preview + cash-after row + colored cash projection.
+  - P&L panel: Cash tile, Unrealized P&L tile, open positions list.
+  - Trades history table (scrollable, sticky header, latest first).
+  - "Future is hidden" amber badge in the chart header.
+
+### Verification (all run on `phase3/whatif-replay`)
+1. `bun run lint` — clean (no output).
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — **0** type errors.
+   (Note: the dev server's `.next/dev/types/validator.ts` cache may
+   carry stale references to routes from sibling branches like
+   `phase3/portfolio-risk-journal` — clearing `.next/dev/types/{validator,routes}.d.ts`
+   resolves those pre-existing errors; they are unrelated to this PR.)
+3. `bun test` — **155 pass / 0 fail** (1005 expect() calls, 6 files).
+4. `curl -s -X POST /api/v1/scenario -d '{"symbol":"AAPL","shockPct":-0.15}'`
+   → `{ originalEquity, newEquity, pnlImpact: -3340.86, equityImpactPct:
+   -3.34, impacts: [{ symbol:"AAPL", side:"LONG", marketValue, shockPct:
+   -0.15, pnlImpact: -3340.86, correlated: false }] }`.
+5. `curl -s -X POST /api/v1/replay -d '{"action":"start","symbol":"AAPL","bars":300}'`
+   → `{ sessionId, sessionIdHint, symbol:"AAPL", cursor:60, totalBars:300,
+   currentPrice, cash:100000, capital:100000, positions:[], trades:[],
+   visibleCandles:[60 candles] }`.
+6. End-to-end replay smoke test: start → next (advance 5) → trade (BUY 100)
+   → returns cash=76,731.40, 1 position, 1 trade. Dev log shows structured
+   `logger.info` lines for every action (`Replay session started`, `Replay
+   advanced`, `Replay trade filled`, `Scenario simulated`). Root page `/`
+   returns HTTP 200.
+
+### Notes
+- No data is hardcoded — every figure derives from `store.getPortfolio()` /
+  `store.getCandles()` (the same deterministic simulated feed the rest of
+  the app trusts).
+- The What-If same-sector correlation model (50% of shock for same-sector
+  positions) is intentionally crude — it captures the dominant
+  tech↔tech / crypto↔crypto clustering without requiring a covariance matrix.
+  Swapping in a real correlation matrix later is a one-function change in
+  the route file.
+- The replay "active session" model (most-recently-created wins) is a
+  simplification for the training-tool use case — there's no per-client
+  session management. For multi-user replay, add a session-id cookie + a
+  sessions map keyed by client id.
+- Two sidebar nav items added in the `trading` group: What-If
+  (`GitCompareArrows` icon), Market Replay (`PlayCircle` icon). Both are
+  reachable via URL (`?view=what-if`, `?view=replay`) and via the sidebar.
+- The lint rule `react-hooks/set-state-in-effect` flagged calling
+  `setAutoPlay(false)` directly inside the auto-play `useEffect`. Fixed by
+  moving the end-of-series detection into the tick success callback —
+  state changes now happen in response to data, not in the effect body.
+- Sandbox note: the shell working tree was occasionally auto-restored to
+  `main` between Bash calls. Each verification command therefore starts
+  with `git checkout phase3/whatif-replay` to ensure the working tree
+  reflects the branch under test.

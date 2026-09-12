@@ -28,6 +28,8 @@ import {
   Radar,
   Newspaper,
   Calendar,
+  GitCompareArrows,
+  PlayCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -65,6 +67,8 @@ const NAV: NavItem[] = [
   { key: "events", label: "Events", icon: Calendar, group: "intelligence" },
   { key: "strategies", label: "Strategies", icon: Cpu, group: "trading" },
   { key: "backtests", label: "Backtests", icon: FlaskConical, group: "trading" },
+  { key: "what-if", label: "What-If", icon: GitCompareArrows, group: "trading" },
+  { key: "replay", label: "Market Replay", icon: PlayCircle, group: "trading" },
   { key: "portfolio", label: "Portfolio", icon: Wallet, group: "trading" },
   { key: "orders", label: "Orders", icon: ScrollText, group: "trading" },
   { key: "risk", label: "Risk Engine", icon: ShieldAlert, group: "trading" },
