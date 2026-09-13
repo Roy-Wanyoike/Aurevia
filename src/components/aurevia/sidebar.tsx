@@ -35,6 +35,8 @@ import {
   BookOpen,
   Bot,
   Blocks,
+  Globe,
+  Boxes,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -70,6 +72,8 @@ const NAV: NavItem[] = [
   { key: "radar", label: "Opportunity Radar", icon: Radar, group: "intelligence" },
   { key: "news", label: "News", icon: Newspaper, group: "intelligence" },
   { key: "events", label: "Events", icon: Calendar, group: "intelligence" },
+  { key: "macro", label: "Macro", icon: Globe, group: "intelligence" },
+  { key: "onchain", label: "On-Chain", icon: Boxes, group: "intelligence" },
   { key: "strategies", label: "Strategies", icon: Cpu, group: "trading" },
   { key: "strategy-builder", label: "Strategy Builder", icon: Blocks, group: "trading" },
   { key: "backtests", label: "Backtests", icon: FlaskConical, group: "trading" },

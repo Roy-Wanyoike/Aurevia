@@ -32,6 +32,8 @@ const AlertsView = dynamic(() => import("@/components/aurevia/views/alerts-view"
 const RadarView = dynamic(() => import("@/components/aurevia/views/radar-view").then((m) => ({ default: m.RadarView })), { ssr: false });
 const NewsView = dynamic(() => import("@/components/aurevia/views/news-view").then((m) => ({ default: m.NewsView })), { ssr: false });
 const EventsView = dynamic(() => import("@/components/aurevia/views/events-view").then((m) => ({ default: m.EventsView })), { ssr: false });
+const MacroView = dynamic(() => import("@/components/aurevia/views/macro-view").then((m) => ({ default: m.MacroView })), { ssr: false });
+const OnchainView = dynamic(() => import("@/components/aurevia/views/onchain-view").then((m) => ({ default: m.OnchainView })), { ssr: false });
 const WatchlistsView = dynamic(() => import("@/components/aurevia/views/watchlists-view").then((m) => ({ default: m.WatchlistsView })), { ssr: false });
 const ScreenerView = dynamic(() => import("@/components/aurevia/views/screener-view").then((m) => ({ default: m.ScreenerView })), { ssr: false });
 const WhatIfView = dynamic(() => import("@/components/aurevia/views/what-if-view").then((m) => ({ default: m.WhatIfView })), { ssr: false });
@@ -114,6 +116,8 @@ function ViewRouter() {
     case "radar": return <RadarView />;
     case "news": return <NewsView />;
     case "events": return <EventsView />;
+    case "macro": return <MacroView />;
+    case "onchain": return <OnchainView />;
     case "watchlists": return <WatchlistsView />;
     case "screener": return <ScreenerView />;
     case "what-if": return <WhatIfView />;
