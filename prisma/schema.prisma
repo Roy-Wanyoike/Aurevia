@@ -186,6 +186,19 @@ model Backtest {
   userId         String?
   organizationId String?
 
+  // ─── Research reproducibility metadata (issue #113) ──────────────────────
+  // Captured at backtest-write time so any run can be replayed bit-for-bit.
+  // `codeVersion` is the short git SHA at the time of the run; `parameters`
+  // is the full JSON of the RunSchema payload (strategyKey, symbol,
+  // timeframe, bars, initialCapital, commissionBps, …); `randomSeed` is the
+  // seed used by any RNG in the engine (currently the engine is deterministic
+  // — these are forward-compatible columns for when ML / Monte-Carlo paths
+  // land); `environment` is development | test | production (NODE_ENV).
+  codeVersion   String?
+  parameters    String?
+  randomSeed    Int?
+  environment   String?
+
   @@index([userId])
   @@index([organizationId])
   @@index([symbol, createdAt])

@@ -160,6 +160,14 @@ export interface BacktestResult {
   trades: BacktestTrade[];
   status: "COMPLETED" | "FAILED";
   createdAt: number;
+  // ─── Research reproducibility metadata (issue #113) ──────────────────────
+  // All four are optional because the in-memory store may contain backtests
+  // created before this field was added; the POST handler populates them on
+  // every new run. Mirrors the Prisma Backtest columns of the same names.
+  codeVersion?: string;
+  parameters?: string;
+  randomSeed?: number;
+  environment?: string;
 }
 
 export type RiskDecision = "APPROVED" | "REJECTED" | "PAUSED";
