@@ -1,6 +1,8 @@
 import type { Candle, Quote, Timeframe } from "../types";
 import type { MarketDataProvider } from "./provider";
 import { PolygonProvider } from "./providers/polygon";
+import { AlphaVantageProvider } from "./providers/alpha-vantage";
+import { FinnhubProvider } from "./providers/finnhub";
 import { SimulatedProvider } from "./providers/simulated";
 import { logger } from "../logger";
 
@@ -31,10 +33,10 @@ export class MarketDataGateway {
 
   constructor() {
     this.providers = [
-      new PolygonProvider(),   // tries POLYGON_API_KEY
-      // new AlpacaProvider(),  // future
-      // new FinnhubProvider(), // future
-      new SimulatedProvider(),  // always available fallback
+      new PolygonProvider(),         // tries POLYGON_API_KEY
+      new AlphaVantageProvider(),    // tries ALPHA_VANTAGE_API_KEY (free tier: 25/day, 5/min)
+      new FinnhubProvider(),          // tries FINNHUB_API_KEY (quotes + candles)
+      new SimulatedProvider(),        // always available fallback
     ];
   }
 
