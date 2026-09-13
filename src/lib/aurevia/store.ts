@@ -1,5 +1,6 @@
 import { ASSET_CATALOG, getAsset } from "./market-data/assets";
 import { generateCandles, buildQuote } from "./market-data/feed";
+import { MarketDataGateway } from "./market-data/gateway";
 import { computeIndicators } from "./quant/indicators";
 import { detectTrend } from "./quant/trend";
 import { detectRegime } from "./quant/regime";
@@ -71,7 +72,11 @@ class AureviaStore {
   broker: PaperBroker = new PaperBroker();
   portfolio: PortfolioManager = new PortfolioManager(INITIAL_CASH);
   brokerRouter: BrokerRouter = new BrokerRouter();
+  marketDataGateway: MarketDataGateway = new MarketDataGateway();
   mlPredictions: Map<string, MLPrediction> = new Map(); // keyed by `${modelKey}:${symbol}`
+  // Track whether live market data has been initialized
+  private liveDataInitialized: boolean = false;
+  private liveDataInitPromise: Promise<void> | null = null;
   startedAt: number = Date.now();
   dayStartEquity: number = INITIAL_CASH;
   weekStartEquity: number = INITIAL_CASH;
@@ -122,6 +127,9 @@ class AureviaStore {
   }
 
   // --- Market data ----------------------------------------------------------
+  // getCandles returns candles from cache. If live data has been fetched
+  // (via initLiveData), the cache contains real Polygon data. Otherwise it
+  // falls back to the deterministic simulated feed.
   getCandles(symbol: string, bars: number = 300): Candle[] {
     const key = `${symbol}-${bars}`;
     const cached = this.candleCache.get(key);
@@ -149,6 +157,73 @@ class AureviaStore {
     const trend = detectTrend(candles);
     const regime = detectRegime(candles);
     return { asset, candles, quote, indicators, trend, regime };
+  }
+
+  // --- Live market data initialization --------------------------------------
+  // Called on first API request. If POLYGON_API_KEY (or any provider key) is
+  // configured, fetches real candles for all assets and populates the cache.
+  // The synchronous getCandles() then returns live data from cache. If no key
+  // is set, this is a no-op — the simulated feed remains in the cache.
+  async initLiveData(): Promise<void> {
+    if (this.liveDataInitialized) return;
+    if (this.liveDataInitPromise) return this.liveDataInitPromise;
+
+    this.liveDataInitPromise = this._doInitLiveData();
+    await this.liveDataInitPromise;
+  }
+
+  private async _doInitLiveData(): Promise<void> {
+    const activeProvider = this.marketDataGateway.getActiveProvider();
+    if (!activeProvider.isLive) {
+      // No live provider configured — keep simulated data
+      this.liveDataInitialized = true;
+      return;
+    }
+
+    // Fetch real candles for all assets in the universe
+    for (const asset of this.assetCatalog) {
+      try {
+        const result = await this.marketDataGateway.getCandles(asset.symbol, "1d", 300);
+        if (result.candles.length > 0) {
+          // Replace the simulated cache with live data
+          const key = `${asset.symbol}-300`;
+          this.candleCache.set(key, result.candles);
+          // Also cache the 60-bar subset used by getQuote
+          const key60 = `${asset.symbol}-60`;
+          this.candleCache.set(key60, result.candles.slice(-60));
+        }
+      } catch (e: any) {
+        // Log but continue — partial live data is better than none
+        console.warn(`[aurevia] Live data fetch failed for ${asset.symbol}:`, e?.message);
+      }
+    }
+
+    this.liveDataInitialized = true;
+    console.log(`[aurevia] Live market data initialized via ${activeProvider.id}`);
+  }
+
+  // Check if live data is available
+  getDataSource(): { source: string; isLive: boolean } {
+    const p = this.marketDataGateway.getActiveProvider();
+    return { source: p.id, isLive: p.isLive };
+  }
+
+  // Refresh live data — called periodically to keep cache fresh
+  async refreshLiveData(): Promise<void> {
+    const activeProvider = this.marketDataGateway.getActiveProvider();
+    if (!activeProvider.isLive) return;
+
+    for (const asset of this.assetCatalog) {
+      try {
+        const result = await this.marketDataGateway.getCandles(asset.symbol, "1d", 300);
+        if (result.candles.length > 0) {
+          this.candleCache.set(`${asset.symbol}-300`, result.candles);
+          this.candleCache.set(`${asset.symbol}-60`, result.candles.slice(-60));
+        }
+      } catch (e: any) {
+        console.warn(`[aurevia] Live data refresh failed for ${asset.symbol}:`, e?.message);
+      }
+    }
   }
 
   // --- Signal scan ----------------------------------------------------------
