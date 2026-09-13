@@ -865,3 +865,66 @@ export function useMonteCarlo() {
       ),
   });
 }
+
+// --- Macro Intelligence — FRED Economic Indicators (issue #105) ---
+// Macro overlay from the St. Louis Fed's free FRED API: GDP, CPI, Unemployment,
+// Fed Funds, 10Y Treasury, 2Y Treasury. The latest observation + period-over-
+// period change is returned for each series. When FRED_API_KEY is unset the
+// route returns 200 with `source: "disabled"` and an empty list — the UI shows
+// a clear empty state, never an error.
+export interface EconomicIndicator {
+  seriesId: string;
+  label: string;
+  value: number;
+  unit: "pct" | "index" | "usd-bn";
+  date: string;
+  changePct: number;
+}
+export interface EconomicResponse {
+  indicators: EconomicIndicator[];
+  total: number;
+  source: "fred" | "disabled";
+  updatedAt: number;
+}
+export function useEconomic() {
+  return useQuery({
+    queryKey: ["economic"],
+    queryFn: () => fetchJson<EconomicResponse>("/api/v1/economic"),
+    refetchInterval: 5 * 60_000,
+  });
+}
+
+// --- On-Chain Intelligence — DeFi Llama (issue #106) ---
+// Free public API (no key required). Current TVL per chain + 90-day total TVL
+// history + top-20 protocols by TVL. When the upstream is unreachable the
+// route returns 200 with empty arrays so the UI renders a clean empty state.
+export interface ChainTvl {
+  name: string;
+  tvl: number;
+  chainSymbol: string;
+}
+export interface TvlHistoryPoint {
+  date: number;
+  tvl: number;
+}
+export interface ProtocolTvl {
+  name: string;
+  tvl: number;
+  chain: string;
+  category: string;
+}
+export interface OnchainSnapshot {
+  chains: ChainTvl[];
+  totalTvlUsd: number;
+  history: TvlHistoryPoint[];
+  protocols: ProtocolTvl[];
+  source: "defillama";
+  updatedAt: number;
+}
+export function useOnchain() {
+  return useQuery({
+    queryKey: ["onchain"],
+    queryFn: () => fetchJson<OnchainSnapshot>("/api/v1/onchain"),
+    refetchInterval: 5 * 60_000,
+  });
+}
