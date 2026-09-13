@@ -25,6 +25,8 @@ export type ViewKey =
   | "radar"
   | "news"
   | "events"
+  | "macro"
+  | "onchain"
   | "what-if"
   | "replay"
   | "portfolio-analytics"
@@ -57,7 +59,8 @@ const VALID_VIEWS: ReadonlySet<ViewKey> = new Set<ViewKey>([
   "signals", "trends", "regimes", "risk", "portfolio",
   "orders", "ml", "brokers", "watchlists", "screener",
   "market-pulse", "correlation", "historical-memory",
-  "alerts", "radar", "news", "events", "system", "settings", "what-if", "replay",
+  "alerts", "radar", "news", "events", "macro", "onchain",
+  "system", "settings", "what-if", "replay",
   "portfolio-analytics", "risk-cockpit", "journal", "copilot", "strategy-builder",
 ]);
 

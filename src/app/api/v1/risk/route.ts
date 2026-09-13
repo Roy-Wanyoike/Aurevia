@@ -4,6 +4,7 @@ import { store } from "@/lib/aurevia/store";
 import { nextBreakerState } from "@/lib/aurevia/risk/engine";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { auditLog } from "@/lib/aurevia/audit/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -90,8 +91,13 @@ export async function POST(req: Request) {
         "tradingMode",
       ];
       const changed: string[] = [];
+      const changes: Record<string, { from: any; to: any }> = {};
       for (const k of allowed) {
         if ((data as any)[k] !== undefined) {
+          changes[String(k)] = {
+            from: (store.riskProfile as any)[k],
+            to: (data as any)[k],
+          };
           (store.riskProfile as any)[k] = (data as any)[k];
           changed.push(String(k));
         }
@@ -109,6 +115,17 @@ export async function POST(req: Request) {
         circuitBreakerState: store.riskProfile.circuitBreakerState,
         tradingMode: store.riskProfile.tradingMode,
       });
+      // Issue #112 — risk profile changes (especially `tradingMode`) are the
+      // most sensitive mutations in the system. Audit-log the full before/
+      // after diff so a compliance review can reconstruct exactly which
+      // threshold moved from what to what, by whom, when.
+      await auditLog({
+        actor: "system",
+        action: "RISK_PROFILE_UPDATED",
+        entity: "risk_profile",
+        detail: JSON.stringify(changes),
+        requestId,
+      });
       return NextResponse.json({ ok: true, profile: store.riskProfile });
     }
     if (data.action === "setBreaker") {
@@ -122,6 +139,7 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: "state is required for setBreaker action" }, { status: 400 });
       }
       const reason = data.reason ?? "Manual override";
+      const fromState = store.riskProfile.circuitBreakerState;
       store.setBreakerState(state, reason);
       logger.warn("Circuit breaker set", {
         requestId,
@@ -130,20 +148,43 @@ export async function POST(req: Request) {
         circuitBreakerState: state,
         reason,
       });
+      // Issue #112 — manual breaker override is a high-impact operator action.
+      // Audit-log the from→to transition + reason so a post-incident review
+      // can determine whether the breaker was tripped by the engine (via
+      // evaluateBreaker) or by a human operator (via setBreaker).
+      await auditLog({
+        actor: "system",
+        action: "CIRCUIT_BREAKER_CHANGED",
+        entity: "circuit_breaker",
+        detail: JSON.stringify({ from: fromState, to: state, reason }),
+        requestId,
+      });
       return NextResponse.json({ ok: true, profile: store.riskProfile });
     }
     if (data.action === "evaluateBreaker") {
       const triggers = data.triggers ?? {};
+      const fromState = store.riskProfile.circuitBreakerState;
       const { next, reason } = nextBreakerState(store.riskProfile.circuitBreakerState, triggers);
       store.setBreakerState(next, reason);
       logger.info("Circuit breaker evaluated", {
         requestId,
         action: "evaluateBreaker",
         status: "OK",
-        from: store.riskProfile.circuitBreakerState,
+        from: fromState,
         to: next,
         reason,
         triggers: Object.keys(triggers),
+      });
+      // Issue #112 — engine-driven breaker transitions are audited with the
+      // same shape as manual ones so a compliance review can filter by
+      // `action: "CIRCUIT_BREAKER_CHANGED"` and see every transition,
+      // regardless of source.
+      await auditLog({
+        actor: "system",
+        action: "CIRCUIT_BREAKER_CHANGED",
+        entity: "circuit_breaker",
+        detail: JSON.stringify({ from: fromState, to: next, reason }),
+        requestId,
       });
       return NextResponse.json({ ok: true, next, reason, profile: store.riskProfile });
     }

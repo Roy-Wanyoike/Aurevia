@@ -4,6 +4,7 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/aurevia/auth/check";
 import { requireTenant } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
+import { captureExperimentMetadata } from "@/lib/aurevia/research/metadata";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
     const result = store.runBacktest(parsed.data);
+    // Issue #113 — attach reproducibility metadata to the in-memory record so
+    // the run can be replayed bit-for-bit. The Prisma Backtest row carries
+    // the same four columns; when the store moves off in-memory, the same
+    // object can be persisted without reshaping.
+    const meta = captureExperimentMetadata(parsed.data);
+    result.codeVersion = meta.codeVersion;
+    result.parameters = meta.parameters;
+    result.randomSeed = meta.randomSeed;
+    result.environment = meta.environment;
     return NextResponse.json({ result });
   } catch (e: any) {
     return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });

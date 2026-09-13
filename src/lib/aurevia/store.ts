@@ -10,6 +10,7 @@ import { DEFAULT_RISK_PROFILE, evaluateRisk, nextBreakerState } from "./risk/eng
 import { PaperBroker, PortfolioManager } from "./execution/paper-broker";
 import { BrokerRouter } from "./brokers/router";
 import { ML_MODELS, ML_MODEL_MAP, mlPredictionToSignal, type MLPrediction } from "./ml/models";
+import { HealthMonitor } from "./monitoring/health-monitor";
 import type {
   AssetInfo,
   BacktestResult,
@@ -61,7 +62,7 @@ export interface Alert {
   createdAt: number;
 }
 
-class AureviaStore {
+export class AureviaStore {
   assetCatalog: AssetInfo[] = ASSET_CATALOG;
   candleCache: Map<string, Candle[]> = new Map();
   signals: Signal[] = [];
@@ -108,6 +109,19 @@ class AureviaStore {
   // happens to have. (Same pattern watchlists already use for #41.)
   alerts: Alert[] = [];
 
+  // --- Health monitor (issue #108) -----------------------------------------
+  // Long-lived background ticker. The store owns the instance so it survives
+  // hot reloads (via the globalThis singleton pattern below) exactly the way
+  // `broker` / `portfolio` / `marketDataGateway` do. `start()` is idempotent.
+  //
+  // The store passes itself in via the constructor (rather than the monitor
+  // statically importing `../store`) to avoid a load-time circular
+  // dependency: store.ts constructs a HealthMonitor at module-init time, so
+  // a static `import { store } from "../store"` inside health-monitor.ts
+  // would resolve to the partially-initialized module namespace and crash
+  // with "HealthMonitor is not a constructor".
+  healthMonitor: HealthMonitor = new HealthMonitor(this);
+
   health: {
     marketDataLatencyMs: number;
     lastTickAt: number;
@@ -124,6 +138,10 @@ class AureviaStore {
     // Register the paper broker with the router. Real brokers (Alpaca/IBKR)
     // are registered on-demand via /api/v1/brokers/connect.
     this.brokerRouter.registerPaper(this.broker);
+    // Start the periodic health check (issue #108). Idempotent across hot
+    // reloads — the globalThis singleton preserves this instance, so a
+    // subsequent constructor call is a no-op inside HealthMonitor.start().
+    this.healthMonitor.start();
   }
 
   // --- Market data ----------------------------------------------------------
