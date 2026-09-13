@@ -1,17 +1,19 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
-import { marketDataGateway } from "@/lib/aurevia/market-data/gateway";
 import { logger } from "@/lib/aurevia/logger";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/health — observability snapshot.
-// Public endpoint (no requireAuth — used by uptime checks / load balancers).
+// Also triggers live data initialization on first request.
 export async function GET() {
   try {
+    // Initialize live market data on first health check (idempotent)
+    await store.initLiveData();
+
     const portfolio = store.getPortfolio();
     const uptimeMs = Date.now() - store.startedAt;
-    const activeProvider = marketDataGateway.getActiveProvider();
+    const dataSource = store.getDataSource();
     return NextResponse.json({
       status: "ok",
       uptimeMs,
@@ -29,12 +31,9 @@ export async function GET() {
       portfolioDrawdown: portfolio.drawdown,
       universeSize: store.assetCatalog.length,
       strategiesInstalled: 5,
-      // Issue #35 — surface the active market data provider so the UI can
-      // badge LIVE vs SIMULATED. When a real provider (polygon, alpaca, ...)
-      // has a configured API key, dataSource = its id and dataIsLive = true.
-      // Otherwise we are transparently running off the simulated feed.
-      dataSource: activeProvider.id,
-      dataIsLive: activeProvider.isLive,
+      dataSource: dataSource.source,
+      dataIsLive: dataSource.isLive,
+      liveDataInitialized: store.getDataSource().isLive,
       version: "0.1.0",
     });
   } catch (e: any) {
