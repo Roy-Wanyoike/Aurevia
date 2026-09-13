@@ -2742,3 +2742,316 @@ non-empty out of the box.
   `_count` / `_last` per histogram rather than Prometheus' bucketed
   `_bucket{le="..."}`) is sufficient for a dev dashboard; the proper
   bucketing can be added when wiring up `prom-client`.
+
+## phase1/errors-flags-audit — Z.ai Code — COMPLETED
+
+### Summary
+Closed 3 Phase 1 gaps on branch `phase1/errors-flags-audit` (off `main`,
+NOT merged). Three independent commits, one per issue:
+
+1. **#110 — Centralized error handling with typed codes.** Introduces a
+   single `ApiError` type + `handleError()` entry point so the 37 v1 API
+   routes can stop hand-rolling bespoke `try/catch` envelopes. Every
+   failure now carries a stable `code` (one of `ERROR_CODES`), a
+   human-readable `message`, an HTTP status, and optional structured
+   `details`. Unknown errors are logged with full detail and surfaced to
+   the client as a generic 500 `INTERNAL_ERROR` — no more leaking Prisma
+   connection strings or Zod internals through `error.message`. Adoption
+   is incremental: existing routes keep working; new routes throw
+   `ApiError` and let `handleError()` shape the response.
+
+2. **#111 — Feature flags system.** Minimal env-var-backed flag layer
+   (`NEXT_PUBLIC_ENABLE_*` prefix so the client bundle can read flags
+   too). Phase 1 ships read-only `GET /api/v1/admin/feature-flags`; flag
+   flips happen via deploy-time env changes — a deliberate, reviewable
+   step rather than a careless admin click. Phase 2 will grow a DB-backed
+   `FlagStore` with tenant/user/percentage rollouts behind the same
+   `isFeatureEnabled()` API.
+
+3. **#112 — Audit log enforcement on sensitive operations.** Wires the
+   existing `AuditLog` table into the three routes that mutate operator-
+   controlled state: order placement, risk profile update, circuit
+   breaker change. The `auditLog()` writer NEVER throws — audit logging
+   is a safety control on the hot path of the trading pipeline. If the
+   DB is unreachable the failure is logged to stderr and swallowed; the
+   order still goes through. Added a read-only, paginated, filterable
+   `GET /api/v1/admin/audit-logs` endpoint (immutable — no POST/PUT/DELETE).
+
+### Files created (8)
+1. `src/lib/aurevia/errors/codes.ts` — 9-code registry
+   (`VALIDATION_ERROR`, `AUTHENTICATION_ERROR`, `AUTHORIZATION_ERROR`,
+   `NOT_FOUND`, `CONFLICT`, `RATE_LIMITED`, `DEPENDENCY_FAILURE`,
+   `DATA_QUALITY_ERROR`, `INTERNAL_ERROR`) + `ErrorCode` type.
+2. `src/lib/aurevia/errors/api-error.ts` — `ApiError extends Error` class
+   with 9 static factory methods mapping each code to its canonical HTTP
+   status (400/401/403/404/409/422/429/500/503). Single class (not a
+   subclass per code) so `instanceof ApiError` is one check, not a union.
+3. `src/lib/aurevia/errors/handler.ts` — `handleError(error, requestId)`
+   returns a `NextResponse` with envelope
+   `{ error: { code, message, requestId, details? } }`. Known `ApiError`s
+   pass through with their own code/status/details; unknown errors are
+   logged (incl. `errorType` so ops can distinguish `TypeError` from
+   `PrismaClientInitializationError`) and returned as a safe 500.
+4. `src/lib/aurevia/errors/handler.test.ts` — 19 tests covering factory
+   → status/code mapping, envelope shape, details pass-through,
+   unknown-error path (plain Error, string throw, null/undefined),
+   Prisma-string-leak guard (verifies `postgres://` does NOT reach the
+   client), and requestId propagation.
+5. `src/lib/aurevia/config/feature-flags.ts` — `isFeatureEnabled(flag)`,
+   `getAllFlags()`, `FLAG_NAMES`. Truthiness: only `"true"` and `"1"`
+   count as on; `"false"`/`"0"`/`""`/unset and unknown flag names all
+   fail closed.
+6. `src/lib/aurevia/config/feature-flags.test.ts` — 11 tests covering
+   truthiness rules (true/1/false/0/empty/unset/unknown) and snapshot
+   shape (count, default state, mixed-state reflection, stable order).
+7. `src/lib/aurevia/audit/logger.ts` — `auditLog({ actor, action, entity,
+   entityId?, detail?, before?, after?, reason?, requestId? })`. Serializes
+   before/after/reason/requestId into the `detail` column when an
+   explicit `detail` string isn't supplied. NEVER throws — failures are
+   logged to stderr and swallowed so the trading pipeline isn't broken
+   by the audit sink.
+8. `src/lib/aurevia/audit/logger.test.ts` — 6 tests using `vi.mock` on
+   `@/lib/db`: happy-path shape (detail verbatim + before/after/reason
+   serialization), `entityId` nullable, and failure isolation
+   (rejected promise + synchronous throw both resolve to `undefined`
+   without propagating; stderr captured for ops visibility).
+
+### Files modified (2)
+- `src/app/api/v1/portfolio/route.ts` — POST handler now calls
+  `auditLog({ actor: "system", action: "ORDER_PLACED", entity: "order",
+  entityId: order.id, detail: JSON.stringify({ symbol, side, quantity }),
+  requestId })` after `store.submitOrder()` succeeds, before returning
+  the response. `actor: "system"` because the v1 API is API-key-only;
+  will become `tenant.userId` once NextAuth sessions thread through
+  `requireTenant()`.
+- `src/app/api/v1/risk/route.ts` — three audit calls wired:
+  - `action: "updateProfile"` → `auditLog({ action:
+    "RISK_PROFILE_UPDATED", entity: "risk_profile", detail:
+    JSON.stringify(changes) })` where `changes` is a `{ field: { from,
+    to } }` diff captured BEFORE the assignment loop runs.
+  - `action: "setBreaker"` → `auditLog({ action:
+    "CIRCUIT_BREAKER_CHANGED", entity: "circuit_breaker", detail:
+    JSON.stringify({ from, to, reason }) })` capturing the manual
+    operator override. `from` is captured BEFORE `store.setBreakerState()`.
+  - `action: "evaluateBreaker"` → same `CIRCUIT_BREAKER_CHANGED` shape
+    so a compliance review can filter by action and see every breaker
+    transition regardless of source (engine vs human).
+
+### Files created — admin endpoints (2)
+9. `src/app/api/v1/admin/feature-flags/route.ts` — `GET
+   /api/v1/admin/feature-flags` returns `{ flags, source: "env",
+   readOnly: true }`. `requireAuth()` enforced.
+10. `src/app/api/v1/admin/audit-logs/route.ts` — `GET
+    /api/v1/admin/audit-logs` paginated + filterable (`?actor=&action=
+    &entity=&limit=&cursor=&order=`). Cursor-based pagination via Prisma
+    `cursor`/`skip:1` on the `id` column for stable ordering on a
+    growing table. `take: limit + 1` to detect `hasMore` without a
+    separate count query. Echoes applied filters in the response so the
+    client can render active filter state without re-parsing the URL.
+    IMMUTABLE — no POST/PUT/DELETE handlers.
+
+### Verification (run on `phase1/errors-flags-audit`)
+1. `bun run lint` → clean (exit 0, no output)
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → 0 errors
+3. `bun test 2>&1 | tail -5` → **354 pass / 11 fail** across 16 files
+   (11 pre-existing baseline failures — `WorkflowEngine` retry/timeout/
+   compensation + `HealthMonitor` interval scheduling — unchanged by
+   this PR; my 36 new tests all pass: 19 + 11 + 6)
+4. `test -f src/lib/aurevia/errors/codes.ts` → EXISTS
+5. `test -f src/lib/aurevia/config/feature-flags.ts` → EXISTS
+6. `test -f src/lib/aurevia/audit/logger.ts` → EXISTS
+
+### Test delta
+- Baseline: 318 pass / 11 fail across 13 files, 1282 `expect()` calls
+- After: **354 pass / 11 fail across 16 files** (+36 tests across 3 new
+  files: 19 errors + 11 feature-flags + 6 audit)
+- 0 new regressions
+
+### Commits (3, NOT merged)
+1. `8634548` — `feat(#110): centralized error handling with typed codes`
+2. `8457310` — `feat(#111): feature flags system`
+3. `4375f58` — `feat(#112): audit log enforcement on sensitive operations`
+
+### Design notes
+- **Single ApiError class, not a subclass per code.** The code → status
+  mapping is the contract: `VALIDATION_ERROR` is ALWAYS 400, `NOT_FOUND`
+  is ALWAYS 404, etc. Forcing every site through the factory methods
+  keeps that invariant true by construction. The single class also makes
+  `instanceof ApiError` in `handleError()` one check, not a union of
+  nine subclasses.
+- **Unknown errors never echo `error.message` to the client.** A
+  Prisma connection error like `postgres://user:pw@host/db` is exactly
+  the kind of string that ends up in `Error.message`; the handler logs
+  it (for ops) and returns a generic `"Internal server error"`. There's
+  a dedicated test (`'converts a plain Error into a generic 500
+  INTERNAL_ERROR'`) that asserts the leaked Prisma string does NOT
+  appear in the response body.
+- **Feature flag truthiness — `"false"` is OFF.** A naive `if
+  (process.env.X)` check treats the string `"false"` as truthy because
+  it's a non-empty string. Only `"true"` and `"1"` count as on; this is
+  pinned by 7 truthiness tests so a future refactor can't silently flip
+  `LIVE_TRADING` on by deleting an env var.
+- **`auditLog()` never throws.** Audit logging is on the hot path of
+  every order placement and risk-profile mutation. A DB outage must NOT
+  propagate up — the function logs to stderr and returns normally.
+  Compliance trade-off: a missed audit record is recoverable via the
+  `EventLog` table; a missed order is not. Three tests pin the
+  no-throw contract (rejected promise, synchronous throw, both →
+  `resolves.toBeUndefined()`).
+- **Audit log shape: single `detail` column, structured JSON inside.**
+  The Prisma `AuditLog` model has only `actor`/`action`/`entity`/
+  `entityId`/`detail`/`timestamp`. Rather than add `before`/`after`/
+  `reason` columns (forcing a migration on every deployment), the
+  writer serializes them into `detail` when no explicit `detail` string
+  is supplied. Phase 2 can promote `detail` to a JSON-typed column
+  without changing any caller's signature.
+- **Breaker-change audit covers both manual AND engine transitions.**
+  `setBreaker` (operator) and `evaluateBreaker` (engine) both emit
+  `CIRCUIT_BREAKER_CHANGED` with the same `{ from, to, reason }` shape
+  so a compliance review can filter by `action` and see every breaker
+  transition regardless of source. The `reason` field ("Manual
+  override" vs the engine's evaluated reason) is what distinguishes
+  them.
+- **Admin audit-logs endpoint uses cursor pagination, not offset.**
+  Audit logs grow monotonically; offset pagination (`skip: N`) degrades
+  as the table grows and produces duplicate / missing rows when records
+  are inserted between page fetches. Cursor pagination (`cursor: { id
+  }` + `skip: 1`) is stable on a growing table. `take: limit + 1` lets
+  us detect `hasMore` without a separate `count()` query.
+
+## Task phase1/python-research-health — Z.ai Code — COMPLETED
+
+### Goal
+Close three Phase 1 gaps on `main`:
+- #109 Python quant workspace foundation
+- #113 research reproducibility metadata on the Backtest model
+- #114 liveness + readiness health endpoints
+
+Three commits on `phase1/python-research-health`, NOT merged.
+
+### Summary
+- **#109** — Laid down `python/` alongside the TypeScript app: PEP 621
+  `pyproject.toml`, four packages (`aurevia_quant`, `aurevia_research`,
+  `aurevia_ml`, `aurevia_backtesting`), and a pytest suite. Shipped the
+  numpy-first indicator module (`sma`/`ema`/`rsi`) mirroring
+  `src/lib/aurevia/quant/indicators.ts`. Statistics, portfolio, ML
+  features, and the backtesting engine are Phase 2 stubs with module-level
+  docstrings pinning the public surface. All 5 pytest cases pass.
+- **#113** — Added four reproducibility columns to the Prisma `Backtest`
+  model (`codeVersion`, `parameters`, `randomSeed`, `environment`) and
+  applied to SQLite via `bun run db:push`. Built
+  `src/lib/aurevia/research/metadata.ts` exposing
+  `captureExperimentMetadata(params)` (mirrored by
+  `python/aurevia_research/experiments.py:capture_metadata()`). The
+  `BacktestResult` TypeScript interface gained the same four optional
+  fields so the in-memory store can carry them. The POST
+  `/api/v1/backtests` handler attaches the captured metadata to every
+  new run; the GET `/api/v1/backtests/[id]` handler explicitly surfaces
+  them in the response shape with `?? null` fallbacks so the contract is
+  documented and survives destructuring refactors.
+- **#114** — Added Kubernetes-style probe pair:
+  - `GET /api/v1/health/live` — liveness, no dependency checks, always
+    200 if the process is alive.
+  - `GET /api/v1/health/ready` — readiness, checks market_data /
+    portfolio / memory (<500 MiB heap), returns 503 when any check fails
+    so traffic is paused but the container is NOT restarted.
+  Both routes use `export const dynamic = "force-dynamic"`. The legacy
+  `/api/v1/health` endpoint is unchanged — it remains the human-readable
+  observability snapshot (uptime, breaker state, portfolio equity, etc.).
+
+### Files created (16)
+1. `python/pyproject.toml` — PEP 621 metadata, runtime + dev deps,
+   pytest config.
+2. `python/README.md` — quick-start + reproducibility contract doc.
+3. `python/aurevia_quant/__init__.py` — package init + version.
+4. `python/aurevia_quant/indicators.py` — `sma`/`ema`/`rsi` (numpy).
+5. `python/aurevia_quant/statistics.py` — Phase 2 stub.
+6. `python/aurevia_quant/portfolio.py` — Phase 2 stub (`PortfolioState`
+   dataclass mirroring the TS interface).
+7. `python/aurevia_research/__init__.py`.
+8. `python/aurevia_research/experiments.py` — `get_code_version()` +
+   `capture_metadata(params)`; mirrors the TS #113 helpers.
+9. `python/aurevia_ml/__init__.py`.
+10. `python/aurevia_ml/features.py` — Phase 2 stub.
+11. `python/aurevia_backtesting/__init__.py`.
+12. `python/aurevia_backtesting/engine.py` — Phase 2 stub
+    (`BacktestResult` dataclass + `run_backtest`).
+13. `python/tests/__init__.py`.
+14. `python/tests/test_indicators.py` — 5 pytest cases.
+15. `src/lib/aurevia/research/metadata.ts` — `getCodeVersion()` +
+    `captureExperimentMetadata(params)`.
+16. `src/app/api/v1/health/live/route.ts` — liveness probe.
+17. `src/app/api/v1/health/ready/route.ts` — readiness probe (with
+    market_data / portfolio / memory checks).
+
+### Files modified (5)
+- `prisma/schema.prisma` — +4 columns on `Backtest` (`codeVersion`,
+  `parameters`, `randomSeed`, `environment`) with explanatory comment.
+- `src/lib/aurevia/types.ts` — +4 optional fields on `BacktestResult`
+  mirroring the Prisma columns.
+- `src/app/api/v1/backtests/route.ts` — POST handler now imports
+  `captureExperimentMetadata` and attaches the captured metadata to the
+  in-memory `BacktestResult` after `store.runBacktest()` returns.
+- `src/app/api/v1/backtests/[id]/route.ts` — GET handler now explicitly
+  surfaces the four metadata fields in the response shape, with
+  `?? null` fallbacks so the contract is documented and survives
+  destructuring refactors.
+
+### Verification (run on `phase1/python-research-health`)
+1. `bun run lint` → clean (exit 0, no output)
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → **0** errors
+3. `bun test 2>&1 | tail -5` → **318 pass / 11 fail** across 13 files
+   (11 pre-existing baseline failures — `WorkflowEngine` retry/timeout/
+   compensation + `HealthMonitor` interval scheduling — unchanged by
+   this PR; no new regressions, my work touches none of these files)
+4. `python -m pytest` (inside `python/`) → **5 passed in 0.24s**
+5. `test -d python/aurevia_quant` → EXISTS
+6. `test -f python/pyproject.toml` → EXISTS
+7. `test -f src/lib/aurevia/research/metadata.ts` → EXISTS
+8. `test -f src/app/api/v1/health/live/route.ts` → EXISTS
+9. `test -f src/app/api/v1/health/ready/route.ts` → EXISTS
+10. `bun run db:push` → "Your database is now in sync with your Prisma
+    schema" (Prisma Client v6.19.2 regenerated).
+
+### Test delta
+- Baseline: 318 pass / 11 fail across 13 files (1282 `expect()` calls)
+- After:    318 pass / 11 fail across 13 files (1282 `expect()` calls)
+- Python:   +5 pass in `python/tests/test_indicators.py` (separate suite)
+- 0 new regressions
+
+### Commits (3, NOT merged)
+1. `c4b409e` — `feat(#109): Python quant workspace foundation`
+2. `0a1be0e` — `feat(#113): research reproducibility metadata`
+3. `3d1426d` — `feat(#114): liveness/readiness health endpoints`
+
+### Design notes
+- **`ema()` casts its input to float64 before `np.zeros_like`.** The
+  provided reference implementation crashed on integer input arrays
+  (`np.array([42,42,42,42,42])`) because `np.zeros_like` preserves the
+  int dtype and `result[:period-1] = np.nan` raises
+  `ValueError: cannot convert float NaN to integer`. A single
+  `np.asarray(prices, dtype=float)` at function entry fixes it without
+  changing the public signature; `test_ema_constant` now passes.
+- **All four reproducibility fields are nullable on both sides.** The
+  in-memory store may contain backtests created before #113 landed, and
+  the Prisma `db push` is non-destructive (existing rows get NULL). New
+  runs always populate the four fields via `captureExperimentMetadata`;
+  the GET-by-id handler falls back to `null` (not `undefined`) so the
+  JSON response shape is stable for clients that destructure the field.
+- **Liveness has no dependency checks; readiness has three.** A slow
+  downstream (market-data provider outage, DB blip) should pause traffic,
+  not cause a cascading restart. The 500 MiB memory ceiling is
+  conservative — Node's default heap limit is ~4 GiB on 64-bit boxes, so
+  the readiness probe degrades well before the V8 OOM killer fires. The
+  market_data check is always `ok: true` because the simulated feed is
+  always available; live-provider health is reported separately in the
+  main `/api/v1/health` payload's `dataIsLive` field.
+- **Python mirror contract.** `python/aurevia_research/experiments.py`
+  ships the same four fields as `src/lib/aurevia/research/metadata.ts`
+  so a backtest run from Python and one run from the Next.js API produce
+  identical reproducibility records — persisted on the same Prisma
+  `Backtest` row. This keeps the TypeScript ↔ Python port path honest.
+- **No worklog commit.** Per the deliverable ("3 commits, one per issue"),
+  the worklog append is left uncommitted alongside the pre-existing
+  uncommitted worklog additions from the prior `phase1/errors-flags-audit`
+  task. Matches the precedent set by the immediately prior phase1 task.
