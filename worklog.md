@@ -2578,3 +2578,167 @@ facade or Prisma-backed implementation.
 ### Commits (2)
 1. `664c475` — `test(#96): integration + financial regression tests`
 2. `f00f75e` — `feat(#97): tenant isolation helper + API route enforcement`
+
+---
+
+## Task backend/workflow-sse-monitoring — Distinguished Backend Engineer — COMPLETED
+
+### Scope
+Three critical backend features for Aurevia (Issues #102, #107, #108):
+- **Durable workflow engine** with retry, timeout, and reverse-order
+  compensation (Issue #102)
+- **SSE streaming endpoint** + React client hook (Issue #107)
+- **Health monitor** + Prometheus metrics endpoint (Issue #108)
+
+### Branch
+`backend/workflow-sse-monitoring` branched from `main`. Four commits —
+one per issue plus a refinement commit that instruments the metrics
+endpoint with live store-derived gauges so the Prometheus exposition is
+non-empty out of the box.
+
+### Issue #102 — Durable Workflow Engine
+
+**Files created**
+1. `src/lib/aurevia/workflow/types.ts` — `WorkflowState` /
+   `StepResult` / `WorkflowStep` / `Workflow` type contract. State
+   machine: PENDING → RUNNING → COMPLETED (or → COMPENSATING →
+   COMPENSATED on failure). The `correlationId` is propagated through
+   every log line for end-to-end tracing; `currentStep` is mutable so
+   a future resumable executor could pick up where a crashed process
+   left off.
+2. `src/lib/aurevia/workflow/engine.ts` — `WorkflowEngine.run(workflow)`:
+   sequential executor with per-step retry (default 3, exponential
+   backoff 1s/2s/4s), per-attempt timeout (default 30s), and reverse-
+   order compensation on irrecoverable failure. Compensation errors
+   are caught + logged per-step so a single broken compensation doesn't
+   abort the remaining ones. In-memory for dev — the Prisma `EventLog`
+   table already exists for future persistence checkpointing; the
+   engine is structured so a `prisma.eventLog.create()` checkpoint
+   could be inserted between steps without touching the type contract.
+3. `src/lib/aurevia/workflow/engine.test.ts` — 15 unit tests across 6
+   describe blocks: happy path, retry-then-succeed (default + per-step
+   maxRetries override), retry exhaustion, reverse-order compensation,
+   compensation error isolation, timeout triggering compensation,
+   timeout-retry-before-compensation, log surface (info/warn/error),
+   edge cases (zero steps, pre-set startedAt). Time is controlled via
+   `vi.useFakeTimers()` + `vi.advanceTimersByTimeAsync()` so the
+   exponential backoff doesn't slow the suite.
+
+### Issue #107 — SSE Streaming
+
+**Files created**
+1. `src/app/api/v1/stream/route.ts` — `GET /api/v1/stream` returns a
+   `ReadableStream`-backed `text/event-stream` Response. Wire format:
+   - `connected` event on stream open (immediate)
+   - `tick` event every 2s with first 6 assets' quotes
+     (`{symbol, price, changePct, timestamp}`)
+   - `heartbeat` event every 15s (prevents nginx from closing idle
+     connections)
+   Idempotent teardown via `ReadableStream.cancel` clears both
+   intervals when the client disconnects. Headers include
+   `X-Accel-Buffering: no` to disable nginx buffering so bytes flush
+   immediately. `maxDuration=300` hints Vercel not to cap the long-lived
+   stream at the default function timeout.
+2. `src/lib/aurevia/hooks/use-sse-stream.ts` — `useSSEStream()` React
+   hook opens an `EventSource` against `/api/v1/stream`. Returns
+   `{ connected, ticks: Map<symbol, SSETick>, lastHeartbeat }`. Map is
+   replaced on each tick so React detects the change. Ticks cache
+   bounded to 50 symbols. SSR-safe (guard in `useEffect`). Auto-
+   reconnect via the browser's built-in `EventSource` retry.
+
+### Issue #108 — Health Monitor + Metrics
+
+**Files created**
+1. `src/lib/aurevia/monitoring/health-monitor.ts` — `HealthMonitor`
+   class: 30s background interval that checks market data provider
+   health (simulated vs live — warns after first check so cold-start
+   doesn't generate noise), Node heap memory (>500MB threshold),
+   portfolio drawdown (>5% threshold), circuit breaker state. Refreshes
+   `store.health.lastTickAt` and `store.health.brokerConnected` on every
+   check. Idempotent `start()` / `stop()`. The store is passed via
+   constructor (dependency injection) to avoid a load-time circular
+   dependency with `store.ts` — `store.ts` constructs a `HealthMonitor`
+   at module-init time, so a static `import { store } from "../store"`
+   inside `health-monitor.ts` would resolve to the partially-initialized
+   module namespace and crash with "HealthMonitor is not a constructor".
+   The type-only `import type { AureviaStore }` is erased at runtime.
+2. `src/lib/aurevia/monitoring/metrics.ts` — `MetricsCollector` class
+   exported as a singleton `metrics`. Three families: counters, gauges,
+   histograms (rolling-window capped at 100 observations). `toPrometheus()`
+   emits the Prometheus exposition format (text/plain version=0.0.4)
+   with stable alphabetical ordering of `# TYPE` declarations so diffs
+   are readable. Includes `snapshot()` / `reset()` for tests.
+3. `src/app/api/v1/metrics/route.ts` — `GET /api/v1/metrics` returns
+   Prometheus exposition text. `force-dynamic`. On every scrape the
+   route refreshes live gauges derived from the store (portfolio equity,
+   drawdown, exposure, signals/orders/backtests counts, asset universe
+   size, circuit breaker 0/1 active flag) and increments a self-
+   referential `metrics_requests_total` counter so the body is never
+   empty.
+4. `src/lib/aurevia/monitoring/metrics.test.ts` — 14 unit tests covering
+   counters (default +1, custom increment, fresh name), gauges (overwrite),
+   histograms (avg/count/last, 100-obs window cap, fresh name),
+   `toPrometheus()` (empty string, counter/gauge/histogram `# TYPE`
+   declarations, alphabetical ordering, trailing newline), `reset()`.
+5. `src/lib/aurevia/monitoring/health-monitor.test.ts` — 12 unit tests
+   covering lifecycle (start idempotent, stop safe + idempotent),
+   `check()` (refreshes store.health, brokerConnected=true, checkCount
+   increments, simulated-provider warning after first check, elevated
+   drawdown warning, non-NORMAL breaker warning, doesn't crash on
+   downstream failure), 30s interval scheduling (fake-timer driven).
+
+**Files modified**
+- `src/lib/aurevia/store.ts` — added `import { HealthMonitor }`, exported
+  the `AureviaStore` class (for the type-only circular reference), added
+  `healthMonitor: HealthMonitor = new HealthMonitor(this)` field, and
+  called `this.healthMonitor.start()` in the constructor.
+
+### Verification (run on `backend/workflow-sse-monitoring`)
+1. `bun run lint` → clean (exit 0, no output)
+2. `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` → 0 errors
+3. `bun run test` → **329 pass / 0 fail** across 13 files (baseline 288
+   + 15 workflow + 14 metrics + 12 health-monitor = 329)
+4. `test -f src/lib/aurevia/workflow/engine.ts` → EXISTS
+5. `test -f src/app/api/v1/stream/route.ts` → EXISTS
+6. `test -f src/lib/aurevia/monitoring/health-monitor.ts` → EXISTS
+7. `curl -s http://localhost:3000/api/v1/metrics | head -3` → Prometheus
+   format with `# TYPE metrics_requests_total counter` /
+   `metrics_requests_total N` / `# TYPE asset_universe_size gauge`.
+   Content-Type `text/plain; version=0.0.4; charset=utf-8`.
+8. `curl -is http://localhost:3000/api/v1/stream` → `200 OK`,
+   `content-type: text/event-stream; charset=utf-8`,
+   `x-accel-buffering: no`, `connection: keep-alive`. Body emits
+   `data: {"type":"connected",...}` then `data: {"type":"tick","quotes":[...]}`
+   every 2s with 6 assets.
+
+### Test delta
+- Baseline: 288 tests across 10 files, 1226 `expect()` calls
+- After: **329 tests across 13 files** (+41 tests across 3 new files)
+- 0 regressions
+
+### Commits (4)
+1. `6e1a6ab` — `feat(#102): durable workflow engine with retry, timeout, compensation`
+2. `840a897` — `feat(#107): SSE streaming endpoint + useSSEStream client hook`
+3. `f1bf1a9` — `feat(#108): health monitor + Prometheus metrics endpoint`
+4. `2fd1002` — `feat(#108): instrument metrics endpoint with live store gauges`
+
+### Design notes
+- **Circular dependency avoidance** (store ↔ health-monitor): the store
+  constructs the monitor at module-init time, so a static import in
+  health-monitor.ts would resolve to the partially-initialized namespace.
+  Solved via dependency injection (store passed via constructor) +
+  type-only `import type { AureviaStore }` (erased at runtime).
+- **Idempotent start/stop**: HealthMonitor.start() guards on
+  `this.interval` so the dev-server's hot-reload singleton pattern
+  (globalThis) doesn't accumulate multiple intervals.
+- **Compensation robustness**: per-step try/catch inside `compensate()`
+  so a single broken compensation doesn't prevent the remaining ones
+  from running — partial rollback is better than no rollback.
+- **SSE teardown**: `ReadableStream.cancel()` is the single teardown
+  signal in Next.js. The cleanup closure is shared between `start()`
+  (where the intervals are registered) and `cancel()` (where they're
+  cleared) via a closure variable rather than controller monkey-patching.
+- **Metrics exposition**: simplified exposition format (single `_avg` /
+  `_count` / `_last` per histogram rather than Prometheus' bucketed
+  `_bucket{le="..."}`) is sufficient for a dev dashboard; the proper
+  bucketing can be added when wiring up `prom-client`.
