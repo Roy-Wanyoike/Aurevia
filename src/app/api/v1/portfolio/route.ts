@@ -4,6 +4,7 @@ import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
 import { requireTenant } from "@/lib/aurevia/auth/tenant";
+import { auditLog } from "@/lib/aurevia/audit/logger";
 
 export const dynamic = "force-dynamic";
 
@@ -105,6 +106,19 @@ export async function POST(req: Request) {
       filledPrice: order.filledPrice,
       filledQty: order.filledQty,
       reason: order.reason,
+    });
+    // Issue #112 — every order placement is a sensitive mutation. Fire an
+    // audit record so a compliance review can reconstruct who placed what
+    // when. `actor: "system"` because the v1 API is currently API-key-only;
+    // once NextAuth sessions are threaded through `requireTenant()`, this
+    // becomes `actor: tenant.userId`.
+    await auditLog({
+      actor: "system",
+      action: "ORDER_PLACED",
+      entity: "order",
+      entityId: order.id,
+      detail: JSON.stringify({ symbol: upperSymbol, side: order.side, quantity: order.quantity }),
+      requestId,
     });
     return NextResponse.json({ order, portfolio: store.getPortfolio() });
   } catch (e: any) {
