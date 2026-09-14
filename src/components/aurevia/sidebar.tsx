@@ -37,6 +37,7 @@ import {
   Blocks,
   Globe,
   Boxes,
+  UserCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
@@ -89,6 +90,7 @@ const NAV: NavItem[] = [
   { key: "copilot", label: "AI Copilot", icon: Bot, group: "intelligence" },
   { key: "system", label: "System Health", icon: HeartPulse, group: "system" },
   { key: "settings", label: "Settings", icon: Settings, group: "system" },
+  { key: "profile", label: "Profile", icon: UserCircle, group: "system" },
 ];
 
 const GROUP_LABELS: Record<string, string> = {

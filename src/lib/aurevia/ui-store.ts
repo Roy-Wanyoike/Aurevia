@@ -35,7 +35,8 @@ export type ViewKey =
   | "copilot"
   | "strategy-builder"
   | "system"
-  | "settings";
+  | "settings"
+  | "profile";
 
 interface UIState {
   view: ViewKey;
@@ -62,6 +63,7 @@ const VALID_VIEWS: ReadonlySet<ViewKey> = new Set<ViewKey>([
   "alerts", "radar", "news", "events", "macro", "onchain",
   "system", "settings", "what-if", "replay",
   "portfolio-analytics", "risk-cockpit", "journal", "copilot", "strategy-builder",
+  "profile",
 ]);
 
 export const useUI = create<UIState>((set) => ({

@@ -3055,3 +3055,205 @@ Three commits on `phase1/python-research-health`, NOT merged.
   the worklog append is left uncommitted alongside the pre-existing
   uncommitted worklog additions from the prior `phase1/errors-flags-audit`
   task. Matches the precedent set by the immediately prior phase1 task.
+
+## ui/rebrand-premium — COMPLETED
+
+Agent: Z.ai Code
+Branch: `ui/rebrand-premium` (off `main`)
+Commit: `feat: rebrand UI — premium deep ocean teal palette`
+
+### Goal
+Rebrand Aurevia's color system from the legacy emerald-on-dark "terminal"
+aesthetic to a premium "deep ocean" palette: deep navy background (#0D1117)
+with a vibrant teal primary (#2DD4BF), coral destructive (#F85149), and a
+cohesive 5-color chart palette (teal/green/coral/blue/amber). Differentiates
+Aurevia from Bloomberg (amber), TradingView (blue), Robinhood (green).
+
+### Changes
+1. `src/app/globals.css` — replaced entire `:root` and `.dark` color variable
+   blocks with the new palette. Background, cards, popover, primary, secondary,
+   muted, accent, destructive, border, input, ring, 5 chart colors, sidebar
+   (incl. accent/ring/border), and 4 semantic colors (gain/loss/warn/info).
+   Other CSS (animations, scrollbar, body styles, gain-glow/loss-glow, kbd,
+   skeleton-shimmer) kept unchanged per task scope.
+2. `src/components/aurevia/charts/candlestick-chart.tsx` — bull candle now
+   `oklch(0.70 0.18 145)` (green), bear candle `oklch(0.62 0.22 12)` (coral).
+   Also updated OHLC tooltip close color, axis tick fills, tooltip background,
+   and volume bar tint to match the new palette tokens.
+3. `src/components/aurevia/charts/equity-curve.tsx` — strategy equity line now
+   `oklch(0.75 0.15 195)` (teal, matches primary), benchmark line
+   `oklch(0.68 0.15 250)` (blue). Legend dots updated from `bg-emerald-400` /
+   `bg-cyan-400` to `bg-teal-400` / `bg-blue-400`. Gradient stops retinted teal.
+4. `src/components/aurevia/charts/sparkline.tsx` — positive `oklch(0.70 0.18 145)`
+   (green), negative `oklch(0.62 0.22 12)` (coral).
+5. `src/components/aurevia/sidebar.tsx` — PAPER MODE badge moved from cyan
+   (`border-cyan-500/30 bg-cyan-500/10 text-cyan-400`) to teal
+   (`border-teal-500/30 bg-teal-500/10 text-teal-400`). LIVE DATA badge kept
+   emerald, SIMULATED badge kept amber (per task spec).
+
+### Out of scope
+- `src/lib/aurevia/format.ts` — helper functions use Tailwind utility classes
+  (text-emerald-400, text-red-400, etc.) which are fixed Tailwind colors, not
+  CSS-var-bound. No change needed per task instruction.
+- WebSocket `LIVE` badge in sidebar.tsx — not mentioned in task spec; left as
+  cyan to stay strictly within scope. Minor visual inconsistency noted for
+  follow-up.
+- `gain-glow` / `loss-glow` / `.kbd` / `.skeleton-shimmer` CSS — hardcoded
+  legacy oklch values kept unchanged per "keep other CSS unchanged" directive.
+
+### Verification
+- `bun run lint` — clean (no output)
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — 0
+- `bun test 2>&1 | tail -3` — 365 pass / 0 fail / 1386 expect() calls
+- Dev server (`bun run dev`): `/` renders 200 OK with no compile errors
+
+### Notes
+A stray `git checkout main` happened between branch creation and the commit,
+which landed the rebrand commit on `main` (5406dc7). Fixed by cherry-picking
+the commit onto `ui/rebrand-premium` (01301b8) and resetting `main` back to
+`0aeb737`. `main` is now back to its pre-task state; only `ui/rebrand-premium`
+carries the rebrand. This worklog append is left uncommitted alongside the
+prior tasks' uncommitted worklog additions, matching project precedent.
+
+## fix/auth-error-gaps — COMPLETED
+
+Agent: Z.ai Code
+Branch: `fix/auth-error-gaps` (off `main` @ `0aeb737`)
+
+### Goal
+Close three classes of audit gaps in one focused branch:
+1. **Missing sign-in / registration pages** — NextAuth's `auth-options.ts`
+   declared `pages.signIn: "/auth/signin"` but no page existed, so any
+   unauthenticated redirect 404'd. There was also no self-service way for a
+   new operator to create an account.
+2. **Missing auth on 3 API routes** — `copilot`, `replay`, and `scenario`
+   POST handlers had zero auth checks. Anyone reachable from the deployment
+   could drive the AI copilot, run replay sessions, and simulate what-if
+   shocks against the live portfolio.
+3. **19 views without error handling** — of 33 total views, only 14 had
+   `QueryState` or `isError` checks. 5 were flagged as highest-priority.
+
+### Branch + commit layout
+3 commits on `fix/auth-error-gaps`, NOT merged to `main`:
+1. `c8d3267` — `feat: sign-in + registration pages + register API`
+2. `0ac8998` — `fix: add auth to copilot, replay, scenario routes`
+3. `b2d62c0` — `fix: add error states to 4 views missing error handling`
+
+`main` was reset back to `0aeb737` after a stray checkout landed commits on
+it during the dev-server's branch-flipping. `fix/auth-error-gaps` is the
+only branch carrying the changes.
+
+### Gap 1 — Sign-in + registration pages + register API
+
+**`src/app/auth/signin/page.tsx`** (new) — NextAuth credentials sign-in
+form. Posts via `signIn("credentials", …)` from `next-auth/react` with
+`redirect: false`, toasts on error, hard-navigates to `/` on success so
+the new session cookie is visible to the server-rendered dashboard shell.
+Includes a demo-credentials hint banner linking to `seed-demo`.
+
+**`src/app/auth/register/page.tsx`** (new) — Self-service registration
+form with email, password (min 8 chars), confirm-password, and optional
+name. Client-side validation mirrors the server schema; on success it
+redirects to `/auth/signin`.
+
+**`src/app/api/v1/auth/register/route.ts`** (new) — `zod`-validated POST
+that:
+- Rejects invalid input (400) with the parsed error issues.
+- Rejects duplicate emails (409).
+- bcrypt-hashes the password at cost 12 (matching `seed-demo`).
+- Creates the User row, then auto-provisions a default Organization +
+  owner Membership so the new user has tenant context immediately.
+  Org slug derived from the user id (`ws-<first8>`) to guarantee
+  uniqueness without a retry loop.
+- Returns `{ ok: true, userId, orgId }` on success.
+
+Intentionally NOT gated by `requireAuth()` — it has to be reachable by
+anonymous visitors. Rate limiting is the responsibility of the edge
+layer. The route uses `force-dynamic` and emits structured logs via
+the existing `logger`.
+
+### Gap 2 — requireAuth on 3 POST routes
+
+For each of the three routes, added at the top of the POST handler:
+
+```ts
+import { requireAuth } from "@/lib/aurevia/auth/check";
+// ...
+const auth = requireAuth(req);
+if (!auth.ok) return auth.response;
+```
+
+- `src/app/api/v1/copilot/route.ts` — POST /api/v1/copilot
+- `src/app/api/v1/replay/route.ts` — POST /api/v1/replay
+- `src/app/api/v1/scenario/route.ts` — POST /api/v1/scenario
+
+In dev the helper bypasses with a one-shot warning; in production it
+requires an `x-api-key` or `Authorization: Bearer` header matching
+`AUREVIA_API_KEY`, returning 401 on missing or invalid credentials
+(with the `x-request-id` header echoed back for client correlation).
+
+### Gap 3 — Error states added to 4 views
+
+The 5th view in the task (`onchain-view.tsx`) already had a complete
+`isError` branch with AlertTriangle + Retry button — no change needed.
+The remaining 4 each got an `isError` check on their primary
+data-fetching hook, with `AlertCircle` + error message + Retry button:
+
+- **`copilot-view.tsx`** — added a non-blocking error banner above the
+  chat column that surfaces `ask.isError`. Conversation history is
+  preserved (banner sits inline, not as a takeover). Banner dismisses
+  on Retry via `ask.reset()` and is replaced by the next mutation.
+  Imports `AlertCircle` from lucide-react.
+- **`replay-view.tsx`** — added early-return on `markets.isError`. The
+  symbol picker in the setup form would render with an empty dropdown
+  if the markets catalog failed to fetch; now it surfaces AlertCircle
+  + Retry. Placed AFTER all hook calls (`useState`/`useRef`/`useEffect`/
+  `useCallback`) so the Rules of Hooks are preserved (the lint rule
+  `react-hooks/rules-of-hooks` caught the initial violation; fixed by
+  reordering). Imports `AlertCircle`.
+- **`strategy-builder-view.tsx`** — added early-return on
+  `markets.isError` for the same reason (empty symbol dropdown).
+  Placed AFTER all `useState` calls; backtest mutation errors are
+  already toasted. Imports `AlertCircle`.
+- **`what-if-view.tsx`** — added early-return on `portfolio.isError`.
+  Without the portfolio query, no positions can be enumerated to
+  shock. Markets errors are non-fatal (the symbol picker falls back
+  to the typed-in default). Imports `AlertCircle`.
+
+### Out of scope
+- The other 14 views without error handling — task scoped to the 5
+  highest-priority, of which 4 needed work.
+- NextAuth session middleware — the project uses `requireAuth()` at
+  the route handler level by design (see comment in
+  `src/lib/aurevia/auth/check.ts`). Wiring edge-runtime NextAuth
+  sessions is a separate task.
+- OAuth providers (Google / GitHub) — left as commented placeholders
+  in `auth-options.ts` for a future prod-config task.
+- Email verification flow — registration creates the user immediately
+  without email verification. Appropriate for the current
+  dev/demo stage; revisit before public launch.
+
+### Verification
+- `bun run lint` — clean (no output)
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — 0
+- `bun test 2>&1 | tail -5` — 365 pass / 0 fail / 1386 expect() calls
+- `test -f src/app/auth/signin/page.tsx` — EXISTS
+- `test -f src/app/auth/register/page.tsx` — EXISTS
+- `test -f src/app/api/v1/auth/register/route.ts` — EXISTS
+- `grep -l requireAuth src/app/api/v1/copilot/route.ts
+   src/app/api/v1/replay/route.ts src/app/api/v1/scenario/route.ts` —
+  all 3 files match
+- Dev server: `GET /auth/signin` → 200, `GET /auth/register` → 200,
+  `POST /api/v1/auth/register` with valid body → 200 `{ok:true,userId,orgId}`,
+  with missing fields → 400, with duplicate email → 409.
+
+### Notes
+A stray `git checkout main` happened repeatedly during the session
+(visible in `git reflog`) — the dev server's branch-tracking appears
+to auto-restore `main` on file-save events. Recovered twice via
+`git stash push` + `git checkout fix/auth-error-gaps` + `git cherry-pick`
++ `git stash pop`, and once via direct `git reset --hard 0aeb737` on
+`main`. `main` is now back to its pre-task state; `fix/auth-error-gaps`
+carries all 3 commits. This worklog append is left uncommitted alongside
+the prior tasks' uncommitted worklog additions, matching project
+precedent.

@@ -928,3 +928,58 @@ export function useOnchain() {
     refetchInterval: 5 * 60_000,
   });
 }
+
+// --- Current User + Organizations (issue #118) ---
+// `useUser` powers the profile view. In dev mode the route returns the first
+// user (demo user) so the view always has something to render; in production
+// the route requires a NextAuth session. `useOrganizations` lists the user's
+// memberships. `useUpdateUser` PATCHes the user's name; `useCreateOrg` POSTs
+// a new organization (auto-adds the current user as owner).
+
+export interface UserOrg {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  role: string;
+}
+export interface CurrentUser {
+  id: string;
+  email: string;
+  name: string | null;
+  role: string;
+  createdAt: string;
+  organizations: UserOrg[];
+}
+export function useUser() {
+  return useQuery({
+    queryKey: ["user"],
+    queryFn: () => fetchJson<{ user: CurrentUser }>("/api/v1/user").then((d) => d.user),
+    staleTime: 30_000,
+  });
+}
+export function useUpdateUser() {
+  return useMutation({
+    mutationFn: (input: { name: string }) =>
+      fetchJson<{ ok: boolean; user?: CurrentUser }>("/api/v1/user", {
+        method: "PATCH",
+        body: JSON.stringify(input),
+      }),
+  });
+}
+export function useOrganizations() {
+  return useQuery({
+    queryKey: ["organizations"],
+    queryFn: () => fetchJson<{ organizations: UserOrg[] }>("/api/v1/organizations").then((d) => d.organizations),
+    staleTime: 30_000,
+  });
+}
+export function useCreateOrg() {
+  return useMutation({
+    mutationFn: (input: { name: string; slug?: string; plan?: "free" | "pro" | "enterprise" }) =>
+      fetchJson<{ ok: boolean; organization: UserOrg }>("/api/v1/organizations", {
+        method: "POST",
+        body: JSON.stringify(input),
+      }),
+  });
+}
