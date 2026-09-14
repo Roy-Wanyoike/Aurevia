@@ -69,21 +69,21 @@ export function CandlestickChart({ candles, overlays = [], height = 320, showVol
         <XAxis
           dataKey="time"
           tickFormatter={(t) => new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-          tick={{ fill: "oklch(0.68 0.012 250)", fontSize: 11 }}
+          tick={{ fill: "oklch(0.65 0.015 255)", fontSize: 11 }}
           stroke="oklch(1 0 0 / 10%)"
           minTickGap={30}
         />
         <YAxis
           orientation="right"
           domain={["auto", "auto"]}
-          tick={{ fill: "oklch(0.68 0.012 250)", fontSize: 11 }}
+          tick={{ fill: "oklch(0.65 0.015 255)", fontSize: 11 }}
           stroke="oklch(1 0 0 / 10%)"
           tickFormatter={(v) => fmtPrice(v, 0)}
           width={56}
         />
         <Tooltip
           contentStyle={{
-            background: "oklch(0.19 0.012 250)",
+            background: "oklch(0.178 0.020 255)",
             border: "1px solid oklch(1 0 0 / 10%)",
             borderRadius: "8px",
             fontSize: "12px",
@@ -95,11 +95,11 @@ export function CandlestickChart({ candles, overlays = [], height = 320, showVol
             if (row && name === "body") {
               return [
                 <div key="ohlc" style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <span>O <span style={{ color: "oklch(0.95 0.005 250)" }}>{fmtPrice(row.open)}</span></span>
-                  <span>H <span style={{ color: "oklch(0.72 0.17 162)" }}>{fmtPrice(row.high)}</span></span>
-                  <span>L <span style={{ color: "oklch(0.65 0.21 25)" }}>{fmtPrice(row.low)}</span></span>
-                  <span>C <span style={{ color: row.up ? "oklch(0.72 0.17 162)" : "oklch(0.65 0.21 25)" }}>{fmtPrice(row.close)}</span></span>
-                  <span style={{ marginTop: 2, color: "oklch(0.68 0.012 250)" }}>Vol {fmtPrice(row.volume, 0)}</span>
+                  <span>O <span style={{ color: "oklch(0.96 0.008 250)" }}>{fmtPrice(row.open)}</span></span>
+                  <span>H <span style={{ color: "oklch(0.96 0.008 250)" }}>{fmtPrice(row.high)}</span></span>
+                  <span>L <span style={{ color: "oklch(0.96 0.008 250)" }}>{fmtPrice(row.low)}</span></span>
+                  <span>C <span style={{ color: row.up ? "oklch(0.70 0.18 145)" : "oklch(0.62 0.22 12)" }}>{fmtPrice(row.close)}</span></span>
+                  <span style={{ marginTop: 2, color: "oklch(0.65 0.015 255)" }}>Vol {fmtPrice(row.volume, 0)}</span>
                 </div>,
                 "OHLC",
               ];
@@ -112,13 +112,13 @@ export function CandlestickChart({ candles, overlays = [], height = 320, showVol
         {/* High-low wick */}
         <Bar dataKey="range" barSize={step > 2 ? 2 : 4} isAnimationActive={false}>
           {data.map((d, i) => (
-            <Cell key={i} fill={d.up ? "oklch(0.72 0.17 162 / 0.5)" : "oklch(0.65 0.21 25 / 0.5)"} />
+            <Cell key={i} fill={d.up ? "oklch(0.70 0.18 145 / 0.5)" : "oklch(0.62 0.22 12 / 0.5)"} />
           ))}
         </Bar>
         {/* Open-close body */}
         <Bar dataKey="body" barSize={step > 2 ? 4 : 8} isAnimationActive={false}>
           {data.map((d, i) => (
-            <Cell key={i} fill={d.up ? "oklch(0.72 0.17 162)" : "oklch(0.65 0.21 25)"} />
+            <Cell key={i} fill={d.up ? "oklch(0.70 0.18 145)" : "oklch(0.62 0.22 12)"} />
           ))}
         </Bar>
         {overlays.map((o) => (
@@ -134,7 +134,7 @@ export function CandlestickChart({ candles, overlays = [], height = 320, showVol
           />
         ))}
         {showVolume && (
-          <Bar dataKey="volume" barSize={step > 2 ? 2 : 4} fill="oklch(0.5 0.01 250 / 0.25)" yAxisId="vol" />
+          <Bar dataKey="volume" barSize={step > 2 ? 2 : 4} fill="oklch(0.5 0.015 255 / 0.25)" yAxisId="vol" />
         )}
         {showVolume && (
           <YAxis

@@ -43,6 +43,12 @@ import { logger } from "../logger";
 // Tunable defaults — kept as module constants so tests can introspect them.
 const DEFAULT_MAX_RETRIES = 3;
 const DEFAULT_TIMEOUT_MS = 30_000;
+const DEFAULT_BACKOFF_BASE_MS = 1_000; // exponential: base * 2^attempt
+
+// Test override — set to 1 to make tests run fast without fake timers.
+// In production this is always 1000ms. Tests set it to 1 via:
+//   import { BACKOFF_BASE_MS } from "./engine"; BACKOFF_BASE_MS.value = 1;
+export const BACKOFF_BASE_MS = { value: DEFAULT_BACKOFF_BASE_MS };
 
 export class WorkflowEngine {
   /**
@@ -134,7 +140,7 @@ export class WorkflowEngine {
       } catch (e: any) {
         const isTimeout = e?.message === "Timeout";
         if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000;
+          const delay = Math.pow(2, attempt) * BACKOFF_BASE_MS.value;
           logger.warn("Step retry", {
             workflowId: workflow.id,
             correlationId: workflow.correlationId,

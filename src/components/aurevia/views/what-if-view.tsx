@@ -38,6 +38,7 @@ import {
   TrendingDown,
   TrendingUp,
   AlertTriangle,
+  AlertCircle,
   ArrowRight,
   RotateCcw,
   Info,
@@ -145,6 +146,32 @@ export function WhatIfView() {
   const positions = portfolio.data?.positions ?? [];
   const equity = portfolio.data?.equity ?? 0;
   const cash = portfolio.data?.cash ?? 0;
+
+  // The portfolio query is the primary data source — without it we can't
+  // enumerate positions to shock. Surface a proper error state with Retry
+  // rather than rendering an empty form. Markets errors are non-fatal (the
+  // symbol picker just falls back to the typed-in default). NB: this early
+  // return runs AFTER every useState call above so the Rules of Hooks are
+  // preserved.
+  if (portfolio.isError) {
+    return (
+      <div className="space-y-6 p-6">
+        <Header />
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <AlertCircle className="h-8 w-8 text-red-400" />
+          <p className="text-sm font-medium">Failed to load portfolio</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            {portfolio.error instanceof Error
+              ? portfolio.error.message
+              : "Unknown error — the portfolio could not be fetched."}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => portfolio.refetch()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   function runPreset(p: PresetScenario) {
     scenario.mutate(

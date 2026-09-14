@@ -25,7 +25,7 @@ export function Sparkline({ data, width = 120, height = 32, className, positive 
     .map((v, i) => `${i * step},${height - ((v - min) / range) * height}`)
     .join(" ");
   const isPos = positive ?? data[data.length - 1] >= data[0];
-  const color = isPos ? "oklch(0.72 0.17 162)" : "oklch(0.65 0.21 25)";
+  const color = isPos ? "oklch(0.70 0.18 145)" : "oklch(0.62 0.22 12)";
   const fillId = `spark-${isPos ? "g" : "r"}-${reactId.replace(/:/g, "")}`;
   const areaPoints = `0,${height} ${points} ${width},${height}`;
   return (
