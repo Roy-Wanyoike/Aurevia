@@ -7,6 +7,10 @@ import { requireTenant } from "@/lib/aurevia/auth/tenant";
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/signals — recent signals (optionally filtered by symbol / strategy).
+//
+// Pagination (Issue #126): `?page=1&limit=20` returns a paginated slice. When
+// neither param is supplied the response is the full list (backward
+// compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
@@ -26,8 +30,27 @@ export async function GET(req: Request) {
     let signals = store.signals;
     if (symbol) signals = signals.filter((s) => s.symbol === symbol.toUpperCase());
     if (strategy) signals = signals.filter((s) => s.strategyKey === strategy);
-    // For each signal, attach a risk evaluation snapshot so the UI can show
-    // APPROVED vs REJECTED reasoning.
+
+    const page = Number(url.searchParams.get("page") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 0);
+    if (page > 0 && limit > 0) {
+      const offset = (page - 1) * limit;
+      const sliced = signals.slice(offset, offset + limit);
+      const paginated = sliced.map((s) => ({ ...s, risk: store.evaluateSignal(s) }));
+      return NextResponse.json({
+        data: paginated,
+        signals: paginated, // mirror key for backward compat
+        pagination: {
+          page,
+          limit,
+          total: signals.length,
+          totalPages: Math.ceil(signals.length / limit),
+        },
+      });
+    }
+
+    // No pagination — return all (backward compatible). Each signal carries
+    // a risk evaluation snapshot so the UI can show APPROVED vs REJECTED.
     const enriched = signals.slice(0, 100).map((s) => ({
       ...s,
       risk: store.evaluateSignal(s),

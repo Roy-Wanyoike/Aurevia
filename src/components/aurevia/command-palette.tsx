@@ -28,6 +28,7 @@ import {
   Brain,
   Plug,
   HeartPulse,
+  ShieldCheck,
   Settings,
   Search,
   RefreshCw,
@@ -87,6 +88,7 @@ const NAV_COMMANDS: NavCommand[] = [
   { key: "news", label: "News", icon: Newspaper },
   { key: "events", label: "Events", icon: Calendar },
   { key: "system", label: "System Health", icon: HeartPulse },
+  { key: "admin", label: "Admin", icon: ShieldCheck },
   { key: "settings", label: "Settings", icon: Settings },
   { key: "profile", label: "Profile", icon: UserCircle },
 ];

@@ -32,6 +32,7 @@ model User {
   memberships   Membership[]
   accounts      Account[]
   sessions      Session[]
+  apiKeys       ApiKey[]
 }
 
 // --- NextAuth required models ---
@@ -267,6 +268,27 @@ model RiskEvent {
   message    String
   context    String?  // JSON
   timestamp  DateTime @default(now())
+}
+
+model ApiKey {
+  id         String    @id @default(cuid())
+  userId     String
+  name       String
+  hashedKey  String    @unique
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  revokedAt  DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String?
+  type      String
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
 }
 
 model AuditLog {

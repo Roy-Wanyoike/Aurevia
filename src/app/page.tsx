@@ -44,6 +44,7 @@ const CopilotView = dynamic(() => import("@/components/aurevia/views/copilot-vie
 const ReplayView = dynamic(() => import("@/components/aurevia/views/replay-view").then((m) => ({ default: m.ReplayView })), { ssr: false });
 const StrategyBuilderView = dynamic(() => import("@/components/aurevia/views/strategy-builder-view").then((m) => ({ default: m.StrategyBuilderView })), { ssr: false });
 const SystemView = dynamic(() => import("@/components/aurevia/views/system-view").then((m) => ({ default: m.SystemView })), { ssr: false });
+const AdminView = dynamic(() => import("@/components/aurevia/views/admin-view").then((m) => ({ default: m.AdminView })), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/aurevia/views/settings-view").then((m) => ({ default: m.SettingsView })), { ssr: false });
 const ProfileView = dynamic(() => import("@/components/aurevia/views/profile-view").then((m) => ({ default: m.ProfileView })), { ssr: false });
 
@@ -146,6 +147,7 @@ function ViewRouter() {
     case "replay": return <ReplayView />;
     case "strategy-builder": return <StrategyBuilderView />;
     case "system": return <SystemView />;
+    case "admin": return <AdminView />;
     case "settings": return <SettingsView />;
     case "profile": return <ProfileView />;
     default: return <DashboardView />;

@@ -43,58 +43,49 @@
   --radius-xl: calc(var(--radius) + 4px);
 }
 
-/* Aurevia — premium "deep ocean" theme.
-   Deep navy background (GitHub-inspired, reduces eye strain vs pure black),
-   vibrant teal primary (distinctive from Bloomberg-amber, TradingView-blue,
-   Robinhood-green), coral destructive, cohesive 5-color chart palette. */
+/* Aurevia — light + dark theme (Issue #127).
+   `:root` carries the light defaults (used when no `.dark` class is applied
+   to <html>). `.dark` overrides them for the deep-ocean dark variant.
+   Switching is driven by next-themes via the `class` attribute on <html>. */
 :root {
+  --background: oklch(0.98 0.003 250);
+  --foreground: oklch(0.15 0.012 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0.012 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0.012 250);
+  --primary: oklch(0.55 0.15 195);
+  --primary-foreground: oklch(0.98 0.003 250);
+  --secondary: oklch(0.96 0.005 250);
+  --secondary-foreground: oklch(0.20 0.012 250);
+  --muted: oklch(0.96 0.005 250);
+  --muted-foreground: oklch(0.50 0.012 250);
+  --accent: oklch(0.95 0.01 195);
+  --accent-foreground: oklch(0.15 0.012 250);
+  --destructive: oklch(0.55 0.22 12);
+  --border: oklch(0.90 0.005 250);
+  --input: oklch(0.92 0.005 250);
+  --ring: oklch(0.55 0.15 195);
+  --chart-1: oklch(0.55 0.15 195);
+  --chart-2: oklch(0.55 0.18 145);
+  --chart-3: oklch(0.55 0.22 12);
+  --chart-4: oklch(0.50 0.15 250);
+  --chart-5: oklch(0.65 0.18 55);
+  --sidebar: oklch(0.97 0.003 250);
+  --sidebar-foreground: oklch(0.15 0.012 250);
+  --sidebar-primary: oklch(0.55 0.15 195);
+  --sidebar-primary-foreground: oklch(0.98 0.003 250);
+  --sidebar-accent: oklch(0.95 0.01 195);
+  --sidebar-accent-foreground: oklch(0.15 0.012 250);
+  --sidebar-border: oklch(0.90 0.005 250);
+  --sidebar-ring: oklch(0.55 0.15 195);
   --radius: 0.5rem;
-  /* Background — deep ocean navy (#0D1117 — GitHub-like dark) */
-  --background: oklch(0.145 0.018 255);
-  --foreground: oklch(0.96 0.008 250);
-  /* Cards — slightly elevated from background (#161B22) */
-  --card: oklch(0.178 0.020 255);
-  --card-foreground: oklch(0.96 0.008 250);
-  --popover: oklch(0.178 0.020 255);
-  --popover-foreground: oklch(0.96 0.008 250);
-  /* Primary — vibrant teal (#2DD4BF — trust + intelligence) */
-  --primary: oklch(0.75 0.15 195);
-  --primary-foreground: oklch(0.145 0.018 255);
-  /* Secondary — muted slate (#21262D) */
-  --secondary: oklch(0.265 0.015 255);
-  --secondary-foreground: oklch(0.92 0.008 250);
-  /* Muted (#1C2128) */
-  --muted: oklch(0.22 0.015 255);
-  --muted-foreground: oklch(0.65 0.015 255);
-  /* Accent — teal glow */
-  --accent: oklch(0.30 0.04 195);
-  --accent-foreground: oklch(0.96 0.008 250);
-  /* Destructive — coral red (#F85149 — softer than pure red) */
-  --destructive: oklch(0.62 0.22 12);
-  /* Borders — subtle */
-  --border: oklch(1 0 0 / 8%);
-  --input: oklch(1 0 0 / 12%);
-  --ring: oklch(0.75 0.15 195);
-  /* Charts — cohesive 5-color palette */
-  --chart-1: oklch(0.75 0.15 195);  /* teal — primary data */
-  --chart-2: oklch(0.70 0.18 145);  /* green — gains */
-  --chart-3: oklch(0.62 0.22 12);   /* coral — losses */
-  --chart-4: oklch(0.68 0.15 250);  /* blue — info */
-  --chart-5: oklch(0.75 0.18 55);   /* amber — warning */
-  /* Sidebar — slightly darker than background for depth */
-  --sidebar: oklch(0.165 0.015 255);
-  --sidebar-foreground: oklch(0.92 0.008 250);
-  --sidebar-primary: oklch(0.75 0.15 195);
-  --sidebar-primary-foreground: oklch(0.145 0.018 255);
-  --sidebar-accent: oklch(0.24 0.02 195);
-  --sidebar-accent-foreground: oklch(0.96 0.008 250);
-  --sidebar-border: oklch(1 0 0 / 6%);
-  --sidebar-ring: oklch(0.75 0.15 195);
-  /* Semantic colors — for text-based coloring */
-  --gain: oklch(0.70 0.18 145);   /* green */
-  --loss: oklch(0.62 0.22 12);    /* coral */
-  --warn: oklch(0.75 0.18 55);    /* amber */
-  --info: oklch(0.68 0.15 250);   /* blue */
+  /* Semantic colors — work in both themes (saturated gains/losses read the
+     same on light and dark backgrounds). */
+  --gain: oklch(0.55 0.18 145);
+  --loss: oklch(0.55 0.22 12);
+  --warn: oklch(0.65 0.18 55);
+  --info: oklch(0.50 0.15 250);
 }
 
 .dark {
@@ -129,6 +120,12 @@
   --sidebar-accent-foreground: oklch(0.96 0.008 250);
   --sidebar-border: oklch(1 0 0 / 6%);
   --sidebar-ring: oklch(0.75 0.15 195);
+  /* Brighter semantic colors against the dark background — pop more than the
+     light-mode variants in :root above. */
+  --gain: oklch(0.70 0.18 145);
+  --loss: oklch(0.62 0.22 12);
+  --warn: oklch(0.75 0.18 55);
+  --info: oklch(0.68 0.15 250);
 }
 
 @layer base {
@@ -149,11 +146,11 @@
   }
 }
 
-/* Subtle scrollbar */
+/* Subtle scrollbar — uses var(--border) so it adapts to light/dark theme. */
 ::-webkit-scrollbar { width: 8px; height: 8px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: oklch(1 0 0 / 12%); border-radius: 4px; }
-::-webkit-scrollbar-thumb:hover { background: oklch(1 0 0 / 20%); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
 
 /* Glow utility for live indicators */
 .gain-glow { box-shadow: 0 0 0 1px oklch(0.72 0.17 162 / 30%), 0 0 12px oklch(0.72 0.17 162 / 20%); }
