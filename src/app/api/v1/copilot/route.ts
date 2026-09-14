@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 import ZAI from "z-ai-web-dev-sdk";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,8 @@ const QuerySchema = z.object({
 // The SDK runs server-side only — never in the browser.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "copilot";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = QuerySchema.safeParse(body);
