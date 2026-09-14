@@ -35,6 +35,7 @@ import {
   SkipForward,
   FastForward,
   AlertTriangle,
+  AlertCircle,
   Wallet,
   ScrollText,
   RotateCcw,
@@ -180,6 +181,29 @@ export function ReplayView() {
     setBars(DEFAULT_BARS);
     setCapital(DEFAULT_CAPITAL);
   }, []);
+
+  // Markets catalog drives the symbol picker. If it fails to load, the setup
+  // form would render with an empty symbol dropdown — surface a proper error
+  // state with Retry instead. Replay mutation errors are already surfaced as
+  // toasts in the mutate callbacks above. NB: this early return runs AFTER
+  // every useState/useRef/useEffect/useCallback call above so the Rules of
+  // Hooks are preserved.
+  if (markets.isError) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+        <AlertCircle className="h-8 w-8 text-red-400" />
+        <p className="text-sm font-medium">Failed to load markets data</p>
+        <p className="max-w-sm text-xs text-muted-foreground">
+          {markets.error instanceof Error
+            ? markets.error.message
+            : "Unknown error — the markets catalog could not be fetched."}
+        </p>
+        <Button variant="outline" size="sm" onClick={() => markets.refetch()}>
+          Retry
+        </Button>
+      </div>
+    );
+  }
 
   if (!state) {
     return (

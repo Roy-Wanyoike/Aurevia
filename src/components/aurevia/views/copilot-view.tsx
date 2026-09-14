@@ -19,6 +19,7 @@ import {
   ChevronUp,
   Loader2,
   Info,
+  AlertCircle,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,17 @@ export function CopilotView() {
       scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
     }
   }, [messages, ask.isPending]);
+
+  // Persistent error banner for failed mutations. Toasts are ephemeral; this
+  // banner stays visible until the user dismisses it or sends another query.
+  // Conversation history is preserved (the banner sits above the chat column,
+  // not as a takeover screen).
+  const lastError =
+    ask.isError && ask.error instanceof Error
+      ? ask.error.message
+      : ask.isError
+        ? "Copilot request failed"
+        : null;
 
   function send(query?: string) {
     const q = (query ?? input).trim();
@@ -122,6 +134,24 @@ export function CopilotView() {
               {messages.length} message{messages.length === 1 ? "" : "s"}
             </Badge>
           </div>
+
+          {lastError && (
+            <div className="mb-3 flex items-center justify-between gap-2 rounded-md border border-red-500/30 bg-red-500/5 px-3 py-2 text-xs">
+              <div className="flex items-center gap-2 text-red-400">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span className="font-medium">Last request failed:</span>
+                <span className="text-muted-foreground">{lastError}</span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-7 gap-1.5"
+                onClick={() => ask.reset()}
+              >
+                Retry
+              </Button>
+            </div>
+          )}
 
           {/* Messages scroll area */}
           <div
