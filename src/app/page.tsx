@@ -57,6 +57,23 @@ export default function Home() {
     return () => window.removeEventListener("popstate", onPop);
   }, [syncFromUrl]);
 
+  // Issue #121 — first-run onboarding gate.
+  // On mount (and whenever the active view changes to "dashboard"), check
+  // localStorage for the `aurevia:onboarded` flag. If it's missing, hard-
+  // navigate to /onboarding so the wizard can collect trading mode,
+  // watchlist, and risk profile before the dashboard renders.
+  //
+  // `view === "dashboard"` guard keeps the redirect from firing when the
+  // user has explicitly navigated to a different view (e.g. via a deep link
+  // like /?view=markets) — those should render as-is.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const onboarded = window.localStorage.getItem("aurevia:onboarded");
+    if (!onboarded && view === "dashboard") {
+      window.location.href = "/onboarding";
+    }
+  }, [view]);
+
   useEffect(() => {
     if (typeof window === "undefined") return;
     const params = new URLSearchParams();

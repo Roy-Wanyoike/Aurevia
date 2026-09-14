@@ -332,6 +332,17 @@ export function Topbar() {
       </div>
       <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Badge variant="outline" className="hidden font-mono sm:inline-flex">v0.1.0</Badge>
+        {/* Interactive OpenAPI docs (issue #119) — opens in a new tab so the
+            operator doesn't lose their dashboard context. */}
+        <a
+          href="/api-docs"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="hidden font-mono text-[11px] text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline sm:inline-flex"
+          title="Interactive OpenAPI documentation"
+        >
+          API docs
+        </a>
       </div>
     </header>
   );
