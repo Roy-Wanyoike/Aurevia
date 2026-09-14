@@ -27,8 +27,11 @@ const nextConfig: NextConfig = {
             value: [
               "default-src 'self'",
               // Next.js 16 + Turbopack need inline scripts for HMR + RSC payloads.
-              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-              "style-src 'self' 'unsafe-inline'",
+              // cdn.jsdelivr.net is whitelisted for the Scalar API reference bundle
+              // loaded by /api-docs (issue #119) — avoids vendoring a 2MB JS bundle
+              // into the app. Tighten once we self-host Scalar as an npm dep.
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.jsdelivr.net",
+              "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
               // blob: covers client-side image blob URLs (charts, exported PNGs).
               // https: covers remote branding / market-data chart thumbnails.
               "img-src 'self' data: blob: https:",
