@@ -285,8 +285,8 @@ export function Topbar() {
         {/* Mobile hamburger — opens the slide-in drawer */}
         <MobileSidebarTrigger />
         <h1 className="text-base font-semibold">{current?.label ?? "Aurevia"}</h1>
-        <Badge variant="outline" className="hidden border-cyan-500/30 bg-cyan-500/10 text-cyan-400 sm:inline-flex">
-          <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-cyan-400" />
+        <Badge variant="outline" className="hidden border-teal-500/30 bg-teal-500/10 text-teal-400 sm:inline-flex">
+          <span className="mr-1 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-teal-400" />
           PAPER MODE
         </Badge>
         {dataIsLive ? (
