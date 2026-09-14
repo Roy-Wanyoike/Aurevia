@@ -1,0 +1,11 @@
+# bunfig.toml — Bun runtime configuration.
+#
+# Issue #120 — Playwright e2e tests live in tests/e2e/*.spec.ts. Bun's native
+# test runner picks up *.spec.ts by default and tries to execute them as
+# bun:test cases, which fails (Playwright's `test()` global throws when
+# invoked outside a Playwright runner). The e2e suite has its own runner via
+# `bun run e2e` (playwright test), so we restrict bun's test discovery to
+# `src/` — where the vitest unit suite lives — and never reach tests/e2e/.
+[test]
+coverage = false
+root = "src"
