@@ -42,6 +42,7 @@ import {
   Save,
   ArrowRight,
   AlertTriangle,
+  AlertCircle,
   CheckCircle2,
   Settings2,
   ShieldCheck,
@@ -211,6 +212,36 @@ export function StrategyBuilderView() {
   });
   const [showPreview, setShowPreview] = useState(false);
   const [savedAt, setSavedAt] = useState<number | null>(null);
+
+  // Markets catalog drives the symbol picker. If it fails to load, the form
+  // would render with an empty symbol dropdown — surface a proper error
+  // state with Retry instead. Backtest mutation errors are already toasted.
+  // NB: this check runs AFTER all hooks (useState above) so we don't violate
+  // the Rules of Hooks by conditionally calling them.
+  if (markets.isError) {
+    return (
+      <div className="space-y-6 p-6">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold tracking-tight">Strategy Builder</h2>
+          <p className="text-sm text-muted-foreground">
+            Assemble a strategy spec from blocks — entry conditions, exit conditions, risk rules, and regime filters. Preview, backtest, or save to localStorage.
+          </p>
+        </div>
+        <div className="flex flex-col items-center justify-center gap-3 py-16 text-center">
+          <AlertCircle className="h-8 w-8 text-red-400" />
+          <p className="text-sm font-medium">Failed to load markets data</p>
+          <p className="max-w-sm text-xs text-muted-foreground">
+            {markets.error instanceof Error
+              ? markets.error.message
+              : "Unknown error — the markets catalog could not be fetched."}
+          </p>
+          <Button variant="outline" size="sm" onClick={() => markets.refetch()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   function patch(partial: Partial<StrategySpec>) {
     setSpec((s) => ({ ...s, ...partial }));
