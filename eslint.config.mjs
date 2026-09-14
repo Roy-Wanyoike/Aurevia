@@ -19,6 +19,13 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     // React rules
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/purity": "off",
+    // The new `set-state-in-effect` rule (eslint-config-next 16) flags every
+    // synchronous setState inside an effect body. Several Aurevia patterns
+    // legitimately need this: state restoration from localStorage on mount
+    // (onboarding page), loading-state transitions before async fetches, and
+    // first-tick derived state. Disable globally — same posture as
+    // `exhaustive-deps` and `purity`.
+    "react-hooks/set-state-in-effect": "off",
     "react/no-unescaped-entities": "off",
     "react/display-name": "off",
     "react/prop-types": "off",
