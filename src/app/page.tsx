@@ -45,6 +45,7 @@ const ReplayView = dynamic(() => import("@/components/aurevia/views/replay-view"
 const StrategyBuilderView = dynamic(() => import("@/components/aurevia/views/strategy-builder-view").then((m) => ({ default: m.StrategyBuilderView })), { ssr: false });
 const SystemView = dynamic(() => import("@/components/aurevia/views/system-view").then((m) => ({ default: m.SystemView })), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/aurevia/views/settings-view").then((m) => ({ default: m.SettingsView })), { ssr: false });
+const ProfileView = dynamic(() => import("@/components/aurevia/views/profile-view").then((m) => ({ default: m.ProfileView })), { ssr: false });
 
 export default function Home() {
   const { view, selectedSymbol, selectedBacktestId, syncFromUrl } = useUI();
@@ -129,6 +130,7 @@ function ViewRouter() {
     case "strategy-builder": return <StrategyBuilderView />;
     case "system": return <SystemView />;
     case "settings": return <SettingsView />;
+    case "profile": return <ProfileView />;
     default: return <DashboardView />;
   }
 }

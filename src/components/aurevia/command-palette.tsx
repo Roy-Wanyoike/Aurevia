@@ -42,6 +42,7 @@ import {
   Gauge,
   Newspaper,
   Calendar,
+  UserCircle,
   type LucideIcon,
 } from "lucide-react";
 
@@ -87,6 +88,7 @@ const NAV_COMMANDS: NavCommand[] = [
   { key: "events", label: "Events", icon: Calendar },
   { key: "system", label: "System Health", icon: HeartPulse },
   { key: "settings", label: "Settings", icon: Settings },
+  { key: "profile", label: "Profile", icon: UserCircle },
 ];
 
 const RECENT_KEY = "aurevia.cmdk.recent";
