@@ -38,7 +38,11 @@ import {
   Globe,
   Boxes,
   UserCircle,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
 import { useUI, type ViewKey } from "@/lib/aurevia/ui-store";
 import { useAureviaStream } from "@/lib/aurevia/hooks/use-aurevia-stream";
@@ -46,6 +50,15 @@ import { useHealth } from "@/lib/aurevia/hooks";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface NavItem {
   key: ViewKey;
@@ -89,6 +102,7 @@ const NAV: NavItem[] = [
   { key: "brokers", label: "Brokers", icon: Plug, group: "trading" },
   { key: "copilot", label: "AI Copilot", icon: Bot, group: "intelligence" },
   { key: "system", label: "System Health", icon: HeartPulse, group: "system" },
+  { key: "admin", label: "Admin", icon: ShieldCheck, group: "system" },
   { key: "settings", label: "Settings", icon: Settings, group: "system" },
   { key: "profile", label: "Profile", icon: UserCircle, group: "system" },
 ];
@@ -181,6 +195,11 @@ export function Sidebar() {
         </div>
         <NavBody collapsed={sidebarCollapsed} />
         <div className="border-t border-sidebar-border p-2">
+          {/* Theme toggle — light/dark switch (issue #127). Sits above the
+              collapse button so it's always visible even when collapsed. */}
+          <div className="mb-1.5 flex items-center gap-1.5">
+            <ThemeToggleButton collapsed={sidebarCollapsed} />
+          </div>
           <div className="flex items-center gap-1.5">
             <Button
               variant="ghost"
@@ -343,7 +362,164 @@ export function Topbar() {
         >
           API docs
         </a>
+        {/* Notifications bell (issue #125) — 15s polling, red unread badge,
+            dropdown panel with the most recent 50 notifications. */}
+        <NotificationsBell />
       </div>
     </header>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Notifications bell (Issue #125).
+//
+// Polls /api/v1/notifications every 15s. The red dot badge is hidden when
+// there are no unread items. The dropdown panel shows the newest first; the
+// "Mark all as read" button POSTs to the same endpoint with `{ read: true }`
+// and invalidates the query so the badge clears immediately.
+// ---------------------------------------------------------------------------
+
+interface NotificationRow {
+  id: string;
+  type: string;
+  title: string;
+  message: string;
+  read: boolean;
+  createdAt: string;
+}
+
+function useNotifications() {
+  return useQuery({
+    queryKey: ["notifications"],
+    queryFn: () =>
+      fetch("/api/v1/notifications")
+        .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`))))
+        .then((d: { notifications: NotificationRow[] }) => d.notifications),
+    refetchInterval: 15_000,
+    staleTime: 5_000,
+  });
+}
+
+function useMarkNotificationsRead() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: () =>
+      fetch("/api/v1/notifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ read: true }),
+      }).then((r) => (r.ok ? r.json() : Promise.reject(new Error(`${r.status}`)))),
+    onSuccess: async () => {
+      await qc.invalidateQueries({ queryKey: ["notifications"] });
+    },
+  });
+}
+
+function NotificationsBell() {
+  const q = useNotifications();
+  const markRead = useMarkNotificationsRead();
+  const [open, setOpen] = useState(false);
+
+  const notifications = q.data ?? [];
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  return (
+    <DropdownMenu open={open} onOpenChange={setOpen}>
+      <DropdownMenuTrigger asChild>
+        <button
+          type="button"
+          className="relative inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-sidebar-accent/50 hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ""}`}
+          aria-haspopup="menu"
+          aria-expanded={open}
+        >
+          <Bell className="h-4 w-4" />
+          {unreadCount > 0 && (
+            <span
+              className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-bold text-white ring-2 ring-background"
+              aria-label={`${unreadCount} unread notification${unreadCount === 1 ? "" : "s"}`}
+            >
+              {unreadCount > 9 ? "9+" : unreadCount}
+            </span>
+          )}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-80 p-0">
+        <DropdownMenuLabel className="flex items-center justify-between px-3 py-2 text-xs">
+          <span>Notifications</span>
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={() => markRead.mutate()}
+              disabled={markRead.isPending}
+              className="text-[10px] text-primary hover:underline disabled:opacity-50"
+            >
+              Mark all read
+            </button>
+          )}
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator className="m-0" />
+        <ScrollArea className="max-h-96">
+          {notifications.length === 0 ? (
+            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
+              No notifications
+            </div>
+          ) : (
+            notifications.map((n) => (
+              <DropdownMenuItem
+                key={n.id}
+                className="flex flex-col items-start gap-0.5 px-3 py-2 text-xs"
+              >
+                <div className="flex w-full items-center gap-1.5">
+                  {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-500" />}
+                  <span className="font-medium">{n.title}</span>
+                  <span className="ml-auto text-[10px] text-muted-foreground">
+                    {timeAgo(n.createdAt)}
+                  </span>
+                </div>
+                <span className="text-muted-foreground">{n.message}</span>
+              </DropdownMenuItem>
+            ))
+          )}
+        </ScrollArea>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
+function timeAgo(iso: string): string {
+  const t = new Date(iso).getTime();
+  if (!Number.isFinite(t)) return "";
+  const diff = Date.now() - t;
+  if (diff < 60_000) return "just now";
+  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
+  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
+  return `${Math.floor(diff / 86_400_000)}d ago`;
+}
+
+// ---------------------------------------------------------------------------
+// Theme toggle button (Issue #127).
+//
+// Reads the resolved theme from next-themes and flips it. Sits in the sidebar
+// footer so it's reachable from every view without taking a topbar slot.
+// `useTheme()` returns `theme` as `"light" | "dark" | "system" | undefined`
+// — we treat `undefined` (pre-hydration) as dark to match the defaultTheme.
+// ---------------------------------------------------------------------------
+
+function ThemeToggleButton({ collapsed }: { collapsed: boolean }) {
+  const { theme, setTheme } = useTheme();
+  const isDark = theme !== "light";
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={() => setTheme(isDark ? "light" : "dark")}
+      className="w-full justify-start gap-2 text-muted-foreground"
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+    >
+      {isDark ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
+      {!collapsed && <span>{isDark ? "Dark" : "Light"}</span>}
+    </Button>
   );
 }

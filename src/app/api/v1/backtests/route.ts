@@ -23,6 +23,10 @@ const RunSchema = z.object({
 });
 
 // GET /api/v1/backtests — list previous backtest results (summary only).
+//
+// Pagination (Issue #126): `?page=1&limit=20` returns a paginated slice. When
+// neither param is supplied the response is the full list (backward
+// compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
@@ -36,21 +40,43 @@ export async function GET(req: Request) {
       userId: tenant.userId,
       organizationId: tenant.organizationId,
     });
+
+    const url = new URL(req.url);
+    const summaries = store.backtests.map((b) => ({
+      id: b.id,
+      strategyKey: b.strategyKey,
+      symbol: b.symbol,
+      timeframe: b.timeframe,
+      startDate: b.startDate,
+      endDate: b.endDate,
+      initialCapital: b.initialCapital,
+      finalEquity: b.finalEquity,
+      metrics: b.metrics,
+      numTrades: b.trades.length,
+      status: b.status,
+      createdAt: b.createdAt,
+    }));
+
+    const page = Number(url.searchParams.get("page") ?? 0);
+    const limit = Number(url.searchParams.get("limit") ?? 0);
+    if (page > 0 && limit > 0) {
+      const offset = (page - 1) * limit;
+      const paginated = summaries.slice(offset, offset + limit);
+      return NextResponse.json({
+        data: paginated,
+        backtests: paginated, // mirror key for backward compat
+        pagination: {
+          page,
+          limit,
+          total: summaries.length,
+          totalPages: Math.ceil(summaries.length / limit),
+        },
+      });
+    }
+
+    // No pagination — return all (backward compatible).
     return NextResponse.json({
-      backtests: store.backtests.map((b) => ({
-        id: b.id,
-        strategyKey: b.strategyKey,
-        symbol: b.symbol,
-        timeframe: b.timeframe,
-        startDate: b.startDate,
-        endDate: b.endDate,
-        initialCapital: b.initialCapital,
-        finalEquity: b.finalEquity,
-        metrics: b.metrics,
-        numTrades: b.trades.length,
-        status: b.status,
-        createdAt: b.createdAt,
-      })),
+      backtests: summaries,
       total: store.backtests.length,
     });
   } catch (e: any) {

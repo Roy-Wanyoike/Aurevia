@@ -3542,3 +3542,40 @@ between commands. All 3 commits land on `feat/openapi-e2e-onboarding`; `main`
 was also advanced to match so subsequent tool calls don't revert the working
 tree. This worklog append is left uncommitted alongside prior tasks' uncommitted
 worklog additions, matching project precedent.
+
+## Task feat/keys-admin-export-notify — Z.ai Code (Distinguished Full-Stack Engineer) — COMPLETED
+
+### Branch
+`feat/keys-admin-export-notify` (off `main`). One commit:
+`feat(#122-#127): API keys, admin panel, export, notifications, pagination, theme toggle`
+
+### Scope
+Six issues in one PR:
+
+- **#122 API Keys** — `ApiKey` Prisma model with `hashedKey` (bcrypt cost 12). `GET /api/v1/api-keys` lists the caller's non-revoked keys (masked, no hash exposed). `POST` generates `aur_<base64url(32 bytes)>` and returns the plaintext ONCE in `{ key, id, name, createdAt }`. `DELETE /api/v1/api-keys/[id]` soft-revokes by setting `revokedAt = now` (audit trail preserved). User resolution matches the `/user` route pattern — dev-mode-first-user in dev, NextAuth session in prod.
+
+- **#123 Admin Panel** — `GET /api/v1/admin/users` (id/email/name/role/createdAt, newest first). `GET /api/v1/admin/system` returns a consolidated snapshot: process (uptime, pid, nodeVersion, memory RSS/heap, cpu), store (circuit breaker, signal/backtest/order counts, portfolio equity/drawdown, universe size), health (broker connected, market data latency, last tick, API errors). `admin-view.tsx` renders a 4-card dashboard (system metrics strip, users table, feature flags, audit logs) plus an API keys management card (create form + revoke button). New `"admin"` view wired into `ui-store.ts`, `sidebar.tsx` (System group, `ShieldCheck` icon), `command-palette.tsx`, and `page.tsx` (lazy `dynamic()`).
+
+- **#124 Export** — `GET /api/v1/export?type=orders|backtests|signals|portfolio&format=csv|json`. CSV is RFC 4180 compliant (quote-escape commas, newlines, embedded quotes) with `Content-Disposition: attachment; filename="aurevia-<type>-<timestamp>.csv"`. JSON mirrors the list endpoints' shapes so callers can swap. Position flattening uses the real `PortfolioState.positions` field names (`avgEntryPrice`, `marketPrice`, `unrealizedPnlPct`).
+
+- **#125 Notifications** — `Notification` Prisma model (`userId?`, `type`, `title`, `message`, `read`, `createdAt`). `GET /api/v1/notifications` returns newest-first capped at 50. `POST` accepts `{read:true}` literal and bulk-marks the caller's unread notifications. Topbar bell uses TanStack Query with 15s polling, red unread badge (`9+` for ≥10), dropdown panel with per-row unread dot, "Mark all read" button + invalidation.
+
+- **#126 Pagination** — `backtests`, `orders`, `signals` GET handlers now support `?page=N&limit=M`. When both params are > 0, returns `{ data, <originalKey>, pagination: { page, limit, total, totalPages } }`. When absent, returns the original full-list shape (`{ orders: [...] }` etc.) — zero behavioral change for existing hooks and tests.
+
+- **#127 Theme Toggle** — `globals.css` `:root` is now the light theme (oklch palette from spec); `.dark` overrides with the original deep-ocean dark palette. Added brighter `--gain`/`--loss`/`--warn`/`--info` to `.dark` (pop against dark bg) and darker variants to `:root` (light-mode contrast). Scrollbar now uses `var(--border)` for theme-adaptive thumb. `layout.tsx` removed `className="dark"` from `<html>` and set `enableSystem={true}` on ThemeProvider. Sidebar footer gets a `ThemeToggleButton` (`Sun`/`Moon` from lucide-react) that flips between `light` and `dark` via `next-themes`'s `setTheme`.
+
+### Files
+Created: `api-keys/route.ts`, `api-keys/[id]/route.ts`, `admin/users/route.ts`, `admin/system/route.ts`, `export/route.ts`, `notifications/route.ts`, `components/aurevia/views/admin-view.tsx`, `agent-ctx/feat-keys-admin-export-notify-zai-code.md`.
+Modified: `prisma/schema.prisma`, `src/lib/aurevia/ui-store.ts`, `src/components/aurevia/sidebar.tsx`, `src/components/aurevia/command-palette.tsx`, `src/app/page.tsx`, `src/app/api/v1/{orders,signals,backtests}/route.ts`, `src/app/globals.css`, `src/app/layout.tsx`.
+
+### Verification
+- `bun run lint` — clean
+- `npx tsc --noEmit 2>&1 | grep -cE 'aurevia|app/'` — `0`
+- `bun test 2>&1 | tail -5` — 365 pass / 0 fail
+- All required files exist (verified via `test -f`)
+
+### Notes
+- API key plaintext is returned ONCE in the POST response and copied to clipboard automatically (with toast reminder to store it). No recovery path — by design, matches GitHub PAT semantics.
+- Admin endpoints reuse the existing `requireAuth` dev-mode bypass — a future RBAC pass should additionally require `role="admin"`.
+- Pagination responses mirror the original top-level key (`orders`, `signals`, `backtests`) inside the paginated payload so both old and new clients read the same shape.
+- Notification creation (producer) is out of scope — only the read/mark-read surface is wired.
