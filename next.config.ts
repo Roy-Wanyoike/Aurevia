@@ -1,7 +1,16 @@
 import type { NextConfig } from "next";
+import path from "path";
 
 const nextConfig: NextConfig = {
   output: "standalone",
+  // Issue #134 / SEC-002 — Next.js 16.3.x tightened Turbopack's workspace-root
+  // inference. In our monorepo-style layout (mini-services/, python/, src/),
+  // Turbopack occasionally infers /home/z/my-project/src/app as the root and
+  // fails with "couldn't find the Next.js package". Setting turbopack.root
+  // explicitly to the project root resolves it.
+  turbopack: {
+    root: path.resolve(__dirname),
+  },
   // FE-P1-007: previously `ignoreBuildErrors: true` + `reactStrictMode: false`,
   // which masked 26 TypeScript errors and disabled React's safety checks. Now
   // that the type errors are fixed, we enforce types and enable strict mode.
