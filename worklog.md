@@ -3630,3 +3630,38 @@ Stage Summary:
 - Demo content auto-seeds on first visit to the blog list view (idempotent — skips if data exists).
 - Comment flow: POST creates the comment, increments commentCount, broadcasts via WS, and the article reader re-renders with the new comment.
 - AI assist flow: POST /ai-assist calls z-ai-web-dev-sdk server-side, parses structured JSON responses, caches result on the article.
+
+---
+Task ID: audit/blog-module-production-readiness
+Agent: Multi-agent audit team (Principal Backend Eng + Staff Frontend Eng + UX + Security Eng + PM/UX research)
+Task: Comprehensive audit of the Aurevia codebase (backend + frontend + UI + security + testing + perf + docs) and ship the fixes via PRs linked to GitHub issues.
+
+Work Log:
+- Dispatched 3 parallel reconnaissance agents (backend / frontend / security). Each produced a structured findings list (BE-001..021, FE-001..025, SEC-001..019).
+- Dispatched 1 parallel product-differentiation research agent — produced 5 unique differentiators, 3 broadening moves, 5 user-pain-point analyses, role-based opinions from 9 different roles.
+- Verified the prior `docs/AUDIT/` audit docs against today's code — 11 of 15 TECHNICAL_DEBT items still open; 4 fixed.
+- Saved consolidated audit report to `docs/AUDIT/BLOG_MODULE_AUDIT.md`.
+- Ran `bun audit` — confirmed 3 critical + 46 high vulnerabilities in direct deps (`next`, `next-auth`, `sharp`).
+- Created 18 GitHub issues (#128 to #145) via REST API — 8 Criticals + 9 Highs + 1 tracking. Labels: audit, priority:critical/high, area:backend/frontend/security/devops, blog-module.
+- Branch feat/audit-security-baseline — fixes for BE-001, BE-002, BE-003, BE-004, BE-011, BE-012, SEC-001, SEC-007, SEC-008, SEC-009, SEC-013, SEC-016, SEC-017, SEC-018, FE-003. New `requireRole()` helper + ownership checks + DRAFT gating + production gate on seed route + rehype-sanitize + fail-closed NEXTAUTH_SECRET + tightened middleware PUBLIC_PATHS + tightened catch blocks + coverImageUrl https-only validation + tag regex validation + dashboard recentComments visibility filter. Pushed. PR #146 opened.
+- Branch feat/audit-ux-polish — fixes for FE-001 (useBlogChat memoized), FE-002 (sonner migration across 3 views), FE-005 (sidebar New Article clears slug via openBlogEditor(null)), FE-007 (Sonner theme=system), FE-008 (viewport export + safe-area-inset). Pushed. PR #147 opened. Browser-verified: New Article flow clears slug; Save draft shows visible toast.
+- Branch chore/audit-dep-upgrades — bumped next 16.1.3→16.3.5, next-auth 4.24.13→4.24.15, added sharp 0.35.4. Added turbopack.root config to next.config.ts (resolves Next 16.3 workspace-root inference failure). Pushed. PR #148 opened.
+- Branch perf/audit-memory-bundle-optimization — removed unused deps (@hookform/resolvers, date-fns, bun-types — confirmed via depcheck) + enabled experimental.optimizePackageImports for lucide-react/recharts/@radix-ui/react-icons. Pushed. PR #149 opened. Measured: dev-server RSS 456MB→350MB (23% reduction); node_modules 1124MB→1064MB (60MB saved).
+- All 4 branches pushed to origin. All 4 PRs created via GitHub API (PR #146, #147, #148, #149).
+
+Stage Summary:
+- 4 PRs opened, linked to 18 GitHub issues (#128-#145) and the tracking issue #145.
+- All Critical findings from the audit are addressed (with the exception of SEC-010 — mini-service socket auth — which is sized L and tracked as #143).
+- All High findings are addressed except BE-005 (schema migration to add organizationId — sized M, tracked as #137) and BE-019 (test coverage — sized L, tracked as #144).
+- Verification gates pass on every branch: tsc 0 errors, lint 0 errors, 365/365 tests pass.
+- Dev server memory reduced 23% (456MB → 350MB RSS).
+- Dependency vulnerabilities: 3 critical + 46 high → 0 critical + 0 high in direct deps (31 high remain in transitive dev deps — non-runtime).
+- Browser-verified end-to-end: blog list renders with 6 articles, article reader renders markdown + posts comments, dashboard shows KPIs + charts, editor generates AI summaries via z-ai-web-dev-sdk.
+- Audit reports saved to `docs/AUDIT/BLOG_MODULE_AUDIT.md`. Issue-creation script saved to `scripts/create_audit_issues.py`. PR-creation script saved to `scripts/create_audit_prs.py`.
+
+Open follow-ups (tracked as GitHub issues):
+- #137 — Blog schema single-tenant (no organizationId) — needs schema migration
+- #143 — Mini-services accept unauthenticated socket connections — sized L
+- #144 — Blog module ships with no tests (zero coverage) — sized L
+- #134 — Remaining transitive dev-dep vulnerabilities (postcss, picomatch, browserslist, nanoid)
+- All 11 prior TECHNICAL_DEBT items that remain open (TD #3, #5, #7, #9, #10, #11, #12, #15)
