@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
+import { useEffect, useRef, useState, useCallback, useMemo } from "react";
 import { io, type Socket } from "socket.io-client";
 
 // ---------------------------------------------------------------------------
@@ -158,18 +158,43 @@ export function useBlogChat() {
   // integrates the new comments into the main list).
   const clearLiveComments = useCallback(() => setLiveComments([]), []);
 
-  return {
-    connected,
-    presence,
-    liveComments,
-    lounge,
-    typingPeers,
-    identify,
-    joinArticle,
-    leaveArticle,
-    broadcastComment,
-    sendTyping,
-    sendLoungeMessage,
-    clearLiveComments,
-  };
+  // Issue #131 / FE-001 — the returned object must be referentially stable.
+  // Without `useMemo`, every render returns a fresh object literal, which
+  // triggers any effect depending on `chat` to re-run. In `BlogArticleView`
+  // the join/leave effect deps `[slug, chat]` re-fired on every render
+  // (every keystroke, every WS message), flooding the socket service with
+  // join/leave broadcasts and making every peer's presence chip flicker.
+  // The callbacks above are all `useCallback`-memoized; only the state
+  // values change — and those are primitives/arrays React can cheaply
+  // compare.
+  return useMemo(
+    () => ({
+      connected,
+      presence,
+      liveComments,
+      lounge,
+      typingPeers,
+      identify,
+      joinArticle,
+      leaveArticle,
+      broadcastComment,
+      sendTyping,
+      sendLoungeMessage,
+      clearLiveComments,
+    }),
+    [
+      connected,
+      presence,
+      liveComments,
+      lounge,
+      typingPeers,
+      identify,
+      joinArticle,
+      leaveArticle,
+      broadcastComment,
+      sendTyping,
+      sendLoungeMessage,
+      clearLiveComments,
+    ],
+  );
 }

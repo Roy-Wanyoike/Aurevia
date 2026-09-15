@@ -43,7 +43,7 @@ import {
   type AiAssistAction,
 } from "@/lib/aurevia/hooks/blog";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -106,7 +106,6 @@ const AI_ACTIONS: Array<{
 
 export function BlogEditorView() {
   const { selectedArticleSlug, setView, openArticle } = useUI();
-  const { toast } = useToast();
   const isEditing = !!selectedArticleSlug;
 
   const articleQ = useArticle(selectedArticleSlug);
@@ -180,7 +179,7 @@ export function BlogEditorView() {
       return;
     }
     if (tags.length >= 20) {
-      toast({ title: "Tag limit reached", description: "Max 20 tags per article." });
+      toast.success("Tag limit reached", { description: "Max 20 tags per article." });
       return;
     }
     setTags([...tags, t]);
@@ -189,11 +188,7 @@ export function BlogEditorView() {
 
   const handleSave = (publish?: boolean) => {
     if (!title.trim()) {
-      toast({
-        title: "Title required",
-        description: "Add a title before saving.",
-        variant: "destructive",
-      });
+      toast.error("Title required", { description: "Add a title before saving." });
       return;
     }
     const nextStatus = publish ? "PUBLISHED" : status;
@@ -212,12 +207,14 @@ export function BlogEditorView() {
         { slug: selectedArticleSlug, ...payload },
         {
           onSuccess: (data) => {
-            toast({
-              title: publish ? "Article published" : "Draft saved",
-              description: publish
-                ? "Your article is now visible in the Research Hub."
-                : "Changes saved.",
-            });
+            toast.success(
+              publish ? "Article published" : "Draft saved",
+              {
+                description: publish
+                  ? "Your article is now visible in the Research Hub."
+                  : "Changes saved.",
+              },
+            );
             if (publish && data.article.slug !== selectedArticleSlug) {
               // Slug changed — update the URL.
               openArticle(data.article.slug);
@@ -226,11 +223,7 @@ export function BlogEditorView() {
             }
           },
           onError: (e: any) => {
-            toast({
-              title: "Save failed",
-              description: e?.message ?? "Could not save the article.",
-              variant: "destructive",
-            });
+            toast.error("Save failed", { description: e?.message ?? "Could not save the article." });
           },
         },
       );
@@ -239,12 +232,14 @@ export function BlogEditorView() {
         { ...payload, status: nextStatus },
         {
           onSuccess: (data) => {
-            toast({
-              title: publish ? "Article published" : "Draft created",
-              description: publish
-                ? "Your article is now visible in the Research Hub."
-                : "Saved as a draft.",
-            });
+            toast.success(
+              publish ? "Article published" : "Draft created",
+              {
+                description: publish
+                  ? "Your article is now visible in the Research Hub."
+                  : "Saved as a draft.",
+              },
+            );
             if (publish) {
               openArticle(data.article.slug);
             } else {
@@ -252,11 +247,7 @@ export function BlogEditorView() {
             }
           },
           onError: (e: any) => {
-            toast({
-              title: "Create failed",
-              description: e?.message ?? "Could not create the article.",
-              variant: "destructive",
-            });
+            toast.error("Create failed", { description: e?.message ?? "Could not create the article." });
           },
         },
       );
@@ -265,19 +256,11 @@ export function BlogEditorView() {
 
   const handleAiAssist = (action: AiAssistAction) => {
     if (action === "generate" && !topic.trim()) {
-      toast({
-        title: "Topic required",
-        description: "Enter a topic to generate a draft from.",
-        variant: "destructive",
-      });
+      toast.error("Topic required", { description: "Enter a topic to generate a draft from." });
       return;
     }
     if (action !== "generate" && !content.trim()) {
-      toast({
-        title: "Content required",
-        description: "Add some content first.",
-        variant: "destructive",
-      });
+      toast.error("Content required", { description: "Add some content first." });
       return;
     }
     aiMut.mutate(
@@ -291,36 +274,30 @@ export function BlogEditorView() {
         onSuccess: (result) => {
           if (action === "summarize" && result.summary) {
             setExcerpt(result.summary);
-            toast({ title: "Summary generated", description: "Excerpt updated." });
+            toast.success("Summary generated", { description: "Excerpt updated." });
           } else if (action === "suggestTags" && result.tags) {
             const merged = [...new Set([...tags, ...result.tags])].slice(0, 20);
             setTags(merged);
-            toast({
-              title: "Tags suggested",
+            toast.success("Tags suggested", {
               description: `Added ${result.tags.length} tag${result.tags.length === 1 ? "" : "s"}.`,
             });
           } else if (action === "sentiment" && result.sentiment) {
-            toast({
-              title: `Sentiment: ${result.sentiment}`,
+            toast.success(`Sentiment: ${result.sentiment}`, {
               description: result.reason ?? `Confidence: ${Math.round((result.confidence ?? 0) * 100)}%`,
             });
           } else if (action === "improve" && result.improved) {
             setContent(result.improved);
-            toast({ title: "Prose polished", description: "Content updated." });
+            toast.success("Prose polished", { description: "Content updated." });
           } else if (action === "generate" && result.content) {
             if (content.trim() && !window.confirm("Replace the current content with the generated draft?")) {
               return;
             }
             setContent(result.content);
-            toast({ title: "Draft generated", description: "Content updated." });
+            toast.success("Draft generated", { description: "Content updated." });
           }
         },
         onError: (e: any) => {
-          toast({
-            title: "AI assist failed",
-            description: e?.message ?? "Could not complete the AI action.",
-            variant: "destructive",
-          });
+          toast.error("AI assist failed", { description: e?.message ?? "Could not complete the AI action." });
         },
       },
     );

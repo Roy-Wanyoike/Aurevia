@@ -37,7 +37,7 @@ import {
   type SerializedCategory,
 } from "@/lib/aurevia/hooks/blog";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -78,7 +78,6 @@ const SORT_OPTIONS: Array<{ value: "newest" | "oldest" | "popular" | "liked" | "
 
 export function BlogView() {
   const { openArticle, openBlogEditor, setView } = useUI();
-  const { toast } = useToast();
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [status, setStatus] = useState<"PUBLISHED" | "DRAFT" | "ARCHIVED" | "ALL">("PUBLISHED");
@@ -119,21 +118,16 @@ export function BlogView() {
     seedMut.mutate(undefined, {
       onSuccess: (data) => {
         if (!data.skipped) {
-          toast({
-            title: "Research Hub seeded",
+          toast.success("Research Hub seeded", {
             description: `${data.categories ?? 0} categories and ${data.articles ?? 0} demo articles added.`,
           });
         }
       },
       onError: (e: any) => {
-        toast({
-          title: "Seed failed",
-          description: e?.message ?? "Could not seed demo content.",
-          variant: "destructive",
-        });
+        toast.error("Seed failed", { description: e?.message ?? "Could not seed demo content." });
       },
     });
-  }, [articlesQ.isLoading, articles.length, status, categorySlug, debouncedSearch, seedMut, toast]);
+  }, [articlesQ.isLoading, articles.length, status, categorySlug, debouncedSearch, seedMut]);
 
   const featured = useMemo(
     () => articles.filter((a) => a.featured).slice(0, 3),

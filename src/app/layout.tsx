@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster as SonnerToaster } from "sonner";
@@ -46,6 +46,22 @@ export const metadata: Metadata = {
   icons: { icon: "/branding/aurevia-icon.png" },
 };
 
+// Issue #140 / FE-008 — Next.js 16 requires a separate `export const viewport`
+// to set the <meta name="viewport"> tag. Without it, Next falls back to
+// defaults without `viewport-fit=cover`, so on iPhone X+ in PWA mode (or any
+// full-screen mobile browser), content renders under the notch and home
+// indicator. Adding `viewportFit: "cover"` enables `env(safe-area-inset-*)`
+// CSS env vars so the Topbar and mobile Sheet can pad themselves.
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: [
+    { media: "(prefers-color-scheme: dark)", color: "#0a0e1a" },
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+  ],
+};
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -59,17 +75,18 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={true}>
           <AuthProvider>
             {children}
+            {/*
+              Issue #139 / FE-007 — Sonner toaster no longer hardcodes dark-mode
+              oklch colors. `theme="system"` makes Sonner inherit the resolved
+              next-themes class on <html>, so toasts render correctly in both
+              dark and light themes. `richColors` keeps the success/error/info
+              color accents.
+            */}
             <SonnerToaster
               position="bottom-right"
+              theme="system"
               richColors
               closeButton
-              toastOptions={{
-                style: {
-                  background: "oklch(0.205 0.014 250)",
-                  border: "1px solid oklch(1 0 0 / 10%)",
-                  color: "oklch(0.95 0.005 250)",
-                },
-              }}
             />
           </AuthProvider>
         </ThemeProvider>

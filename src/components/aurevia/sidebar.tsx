@@ -128,7 +128,12 @@ const GROUPS = ["intelligence", "trading", "content", "system"] as const;
 // Shared nav body — rendered both inside the desktop <aside> and inside the
 // mobile <Sheet>. The collapse affordance only shows on desktop.
 function NavBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: () => void }) {
-  const { view, setView } = useUI();
+  // Issue #138 / FE-005 — pull openBlogEditor so the "New Article" nav item
+  // clears `selectedArticleSlug` instead of reusing whatever was previously
+  // edited. Without this, clicking "New Article" after editing an existing
+  // article would load that article into the editor in edit mode (because
+  // `isEditing = !!selectedArticleSlug` in blog-editor-view.tsx).
+  const { view, setView, openBlogEditor } = useUI();
   return (
     <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-2 py-3">
       {GROUPS.map((g) => (
@@ -146,7 +151,14 @@ function NavBody({ collapsed, onNavigate }: { collapsed: boolean; onNavigate?: (
                 <button
                   key={item.key}
                   onClick={() => {
-                    setView(item.key);
+                    // Issue #138 / FE-005 — special-case "New Article" so it
+                    // always opens a blank draft instead of the most-recently-
+                    // edited article.
+                    if (item.key === "blog-editor") {
+                      openBlogEditor(null);
+                    } else {
+                      setView(item.key);
+                    }
                     onNavigate?.();
                   }}
                   title={collapsed ? item.label : undefined}
@@ -311,7 +323,12 @@ export function Topbar() {
   const dataIsLive = (health.data?.dataIsLive as boolean | undefined) ?? false;
 
   return (
-    <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-border bg-background/80 px-4 backdrop-blur md:px-6">
+    <header
+      // Issue #140 / FE-008 — pt-[env(safe-area-inset-top)] pads the Topbar
+      // away from the iOS notch / Dynamic Island. Requires `viewport-fit:
+      // cover` from the viewport export in layout.tsx.
+      className="sticky top-0 z-20 flex h-14 items-center justify-between gap-2 border-b border-border bg-background/80 px-4 pb-[env(safe-area-inset-bottom)] pt-[env(safe-area-inset-top)] backdrop-blur md:px-6"
+    >
       <div className="flex items-center gap-3">
         {/* Mobile hamburger — opens the slide-in drawer */}
         <MobileSidebarTrigger />

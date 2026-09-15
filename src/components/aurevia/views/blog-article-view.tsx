@@ -38,7 +38,7 @@ import {
 } from "@/lib/aurevia/hooks/blog";
 import { useBlogChat } from "@/lib/aurevia/hooks/use-blog-chat";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -87,7 +87,6 @@ function relativeTime(iso: string) {
 
 export function BlogArticleView() {
   const { selectedArticleSlug, setView, openBlogEditor } = useUI();
-  const { toast } = useToast();
   const slug = selectedArticleSlug;
 
   const articleQ = useArticle(slug);
@@ -215,11 +214,7 @@ export function BlogArticleView() {
           chat.sendTyping(slug, authorName || "Reader", false);
         },
         onError: (e: any) => {
-          toast({
-            title: "Comment failed",
-            description: e?.message ?? "Could not post comment.",
-            variant: "destructive",
-          });
+          toast.error("Comment failed", { description: e?.message ?? "Could not post comment." });
         },
       },
     );
@@ -239,12 +234,14 @@ export function BlogArticleView() {
       { slug, featured: !article.featured },
       {
         onSuccess: () => {
-          toast({
-            title: article.featured ? "Unfeatured" : "Featured",
-            description: article.featured
-              ? "Removed from the featured rail."
-              : "Added to the featured rail.",
-          });
+          toast.success(
+            article.featured ? "Unfeatured" : "Featured",
+            {
+              description: article.featured
+                ? "Removed from the featured rail."
+                : "Added to the featured rail.",
+            },
+          );
         },
       },
     );
@@ -255,10 +252,7 @@ export function BlogArticleView() {
     if (!window.confirm("Delete this article permanently? This cannot be undone.")) return;
     deleteMut.mutate(slug, {
       onSuccess: () => {
-        toast({
-          title: "Article deleted",
-          description: "The article has been permanently removed.",
-        });
+        toast.success("Article deleted", { description: "The article has been permanently removed." });
         setView("blog");
       },
     });
