@@ -3579,3 +3579,54 @@ Modified: `prisma/schema.prisma`, `src/lib/aurevia/ui-store.ts`, `src/components
 - Admin endpoints reuse the existing `requireAuth` dev-mode bypass — a future RBAC pass should additionally require `role="admin"`.
 - Pagination responses mirror the original top-level key (`orders`, `signals`, `backtests`) inside the paginated payload so both old and new clients read the same shape.
 - Notification creation (producer) is out of scope — only the read/mark-read surface is wired.
+
+---
+Task ID: feat-blog-cms-module
+Agent: Z.ai Code (Full-Stack Engineer)
+Task: Add a Blog/CMS module ("Research Hub") to the existing Aurevia trading platform, covering: auth + users, CRUD + DB, dashboard analytics, AI features, realtime chat/comments, and theme/UI polish.
+
+Work Log:
+- Extended `prisma/schema.prisma` with five new models: `Article`, `Category`, `ArticleComment`, `ArticleLike`, `ArticleView`. Added `articles` back-relation on `User`. Pushed schema via `bun run db:push`.
+- Created `src/lib/aurevia/blog/shared.ts` with slugify/ensureUniqueSlug/ensureUniqueCategorySlug/resolveCurrentUserId/parseTags/serializeTags/estimateReadingMinutes/serializeArticle/getReaderFingerprint/dayKey helpers.
+- API routes (all under `/api/v1/blog/`):
+  - `articles/route.ts` — GET (filter by status/category/tag/q/featured/authorId/page/limit/sort), POST (create with auto-slug + reading-time + status footgun guard).
+  - `articles/[slug]/route.ts` — GET, PATCH (status transition, slug rename, category reassign), DELETE (cascade).
+  - `articles/[slug]/view/route.ts` — POST, records view + increments denormalized counter, per-day rollup for the chart.
+  - `articles/[slug]/like/route.ts` — POST, fingerprint-based toggle (IP+UA hash), anonymous + authenticated likes.
+  - `articles/[slug]/comments/route.ts` — GET (flat list with parentId for threading), POST (validates parent belongs to same article, increments commentCount).
+  - `categories/route.ts` — GET (with article counts), POST.
+  - `dashboard/route.ts` — KPIs (totals), 14-day views series, top-6 articles by views, category distribution, recent comments, tag cloud.
+  - `ai-assist/route.ts` — POST with 5 actions: summarize / suggestTags / sentiment / improve / generate. Calls z-ai-web-dev-sdk server-side, caches result on the article (when articleId provided).
+  - `seed/route.ts` — POST, idempotent one-shot demo content seeding (5 categories, 6 articles, 2 demo comments).
+- Mini-service: `mini-services/aurevia-blog-chat/` on port 3004. Per-article live comment broadcast, typing indicators, presence (researchers online + readers on this article), and a global Research Lounge chat room. Installed `socket.io` and started via `bun run dev` in background.
+- Frontend hooks:
+  - `src/lib/aurevia/hooks/blog.ts` — useArticles/useArticle/useCreateArticle/useUpdateArticle/useDeleteArticle/useTrackView/useToggleLike/useComments/useCreateComment/useCategories/useCreateCategory/useBlogDashboard/useAiAssist/useSeedBlog, all with TanStack Query cache invalidation.
+  - `src/lib/aurevia/hooks/use-blog-chat.ts` — singleton socket connection, exposes presence/liveComments/lounge/typingPeers plus identify/joinArticle/leaveArticle/broadcastComment/sendTyping/sendLoungeMessage.
+- Frontend views (all new):
+  - `blog-view.tsx` — list landing: search/filter/sort bar, featured rail, compact list, sidebar (categories + tag cloud), empty state with one-click seed.
+  - `blog-article-view.tsx` — article reader: rendered markdown (react-markdown + remark-gfm), AI summary panel, like toggle, view tracking, realtime comment thread with typing indicators + presence chip.
+  - `blog-editor-view.tsx` — split-pane markdown editor with live preview, tag editor, category/status/cover-image/featured controls, AI assist panel with 5 actions.
+  - `blog-dashboard-view.tsx` — engagement dashboard: 4 KPI tiles, 14-day views bar chart, category distribution pie chart, top articles, recent comments, tag cloud.
+- UI integration:
+  - Extended `ui-store.ts` with `selectedArticleSlug` state + `openArticle`/`openBlogEditor` actions + 4 new ViewKeys (`blog`, `blog-article`, `blog-editor`, `blog-dashboard`) in the VALID_VIEWS whitelist.
+  - Wired into `page.tsx` — lazy-loaded all 4 blog views, added article slug to URL sync, added 4 switch cases to ViewRouter.
+  - Sidebar: new "content" group ("Research Hub") with Research Hub / New Article / Engagement entries.
+  - Command palette: added 3 new entries (Research Hub, New Article, Blog Engagement).
+- Installed `remark-gfm` for GFM markdown (tables, strikethrough, task lists).
+
+Stage Summary:
+- Files created: 1 schema extension, 8 API routes, 1 mini-service (2 files), 2 hooks files, 4 view components, 1 shared helper. ~22 new files.
+- Files modified: schema.prisma, page.tsx, ui-store.ts, sidebar.tsx, command-palette.tsx. 5 modified.
+- `bun run lint` — clean (0 errors, 0 warnings).
+- `npx tsc --noEmit` — clean (0 errors).
+- `bun run db:push` — schema in sync, Prisma client regenerated.
+- Browser verification (agent-browser):
+  - Blog list view: filter bar + featured rail + 6 articles + sidebar (categories + 20-tag cloud) all render correctly.
+  - Article reader: markdown body renders, AI summary panel works, like toggle increments count, comment posting persists and renders live.
+  - Blog dashboard: 4 KPI tiles, 14-day views chart, category pie, top-6 articles, recent comments all render with real data.
+  - Blog editor: title/excerpt/content/inputs all interactive, AI assist "Generate summary" returned a real LLM-generated excerpt in ~10s.
+  - WebSocket service: confirmed listening on port 3004, accepts connections via `io("/?XTransformPort=3004")`.
+- All API endpoints verified via curl: GET /articles (filter+sort+pagination), GET /categories (with counts), POST /seed (5 cats + 6 articles), GET /dashboard (KPIs + series + top + activity + tags), POST /[slug]/view, POST /[slug]/like.
+- Demo content auto-seeds on first visit to the blog list view (idempotent — skips if data exists).
+- Comment flow: POST creates the comment, increments commentCount, broadcasts via WS, and the article reader re-renders with the new comment.
+- AI assist flow: POST /ai-assist calls z-ai-web-dev-sdk server-side, parses structured JSON responses, caches result on the article.

@@ -44,6 +44,8 @@ import {
   Newspaper,
   Calendar,
   UserCircle,
+  PenLine,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 
@@ -87,6 +89,10 @@ const NAV_COMMANDS: NavCommand[] = [
   { key: "brokers", label: "Brokers", icon: Plug },
   { key: "news", label: "News", icon: Newspaper },
   { key: "events", label: "Events", icon: Calendar },
+  // Research Hub — issue #128.
+  { key: "blog", label: "Research Hub", icon: Newspaper },
+  { key: "blog-editor", label: "New Article", icon: PenLine },
+  { key: "blog-dashboard", label: "Blog Engagement", icon: BarChart3 },
   { key: "system", label: "System Health", icon: HeartPulse },
   { key: "admin", label: "Admin", icon: ShieldCheck },
   { key: "settings", label: "Settings", icon: Settings },

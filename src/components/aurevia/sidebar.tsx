@@ -40,6 +40,8 @@ import {
   UserCircle,
   Sun,
   Moon,
+  PenLine,
+  BarChart3,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
@@ -64,7 +66,7 @@ interface NavItem {
   key: ViewKey;
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-  group: "intelligence" | "trading" | "system";
+  group: "intelligence" | "trading" | "system" | "content";
 }
 
 const NAV: NavItem[] = [
@@ -101,6 +103,13 @@ const NAV: NavItem[] = [
   { key: "risk", label: "Risk Engine", icon: ShieldAlert, group: "trading" },
   { key: "brokers", label: "Brokers", icon: Plug, group: "trading" },
   { key: "copilot", label: "AI Copilot", icon: Bot, group: "intelligence" },
+  // Research Hub (Blog/CMS) — issue #128. Sits in its own group so the
+  // publishing surface is visually distinct from the market-intel and
+  // trading surfaces. The dashboard leads so the operator can see
+  // engagement at a glance.
+  { key: "blog", label: "Research Hub", icon: Newspaper, group: "content" },
+  { key: "blog-editor", label: "New Article", icon: PenLine, group: "content" },
+  { key: "blog-dashboard", label: "Engagement", icon: BarChart3, group: "content" },
   { key: "system", label: "System Health", icon: HeartPulse, group: "system" },
   { key: "admin", label: "Admin", icon: ShieldCheck, group: "system" },
   { key: "settings", label: "Settings", icon: Settings, group: "system" },
@@ -110,10 +119,11 @@ const NAV: NavItem[] = [
 const GROUP_LABELS: Record<string, string> = {
   intelligence: "Market Intelligence",
   trading: "Trading & Risk",
+  content: "Research Hub",
   system: "System",
 };
 
-const GROUPS = ["intelligence", "trading", "system"] as const;
+const GROUPS = ["intelligence", "trading", "content", "system"] as const;
 
 // Shared nav body — rendered both inside the desktop <aside> and inside the
 // mobile <Sheet>. The collapse affordance only shows on desktop.

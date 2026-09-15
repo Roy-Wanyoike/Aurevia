@@ -33,6 +33,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   apiKeys       ApiKey[]
+  articles      Article[] @relation("AuthoredArticles")
 }
 
 // --- NextAuth required models ---
@@ -289,6 +290,112 @@ model Notification {
   message   String
   read      Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// RESEARCH HUB — Blog / CMS module (issue #128).
+// Aurevia operators publish market research and trade commentary. Articles
+// are authored markdown documents with categories, tags, cover images,
+// engagement analytics (views / likes / comments), and AI-assisted
+// authoring (auto-summary, tag suggestions, draft polish).
+// ═══════════════════════════════════════════════════════════════════════════
+
+model Article {
+  id            String    @id @default(cuid())
+  slug          String    @unique
+  title         String
+  excerpt       String?
+  // Markdown source. Rendered client-side via a small markdown renderer.
+  // Keeps storage format neutral (HTML can be derived) and avoids XSS risk
+  // from storing pre-rendered HTML.
+  content       String    @default("")
+  coverImageUrl String?
+  status        String    @default("DRAFT") // DRAFT | PUBLISHED | ARCHIVED
+  featured      Boolean   @default(false)
+  readingMinutes Int      @default(1)
+  viewCount     Int       @default(0)
+  likeCount     Int       @default(0)
+  commentCount  Int       @default(0)
+  tags          String    @default("[]") // JSON array of tag strings
+  // AI-generated metadata cached on the article so the dashboard / list
+  // view don't re-call the LLM on every render. Regenerated when the
+  // author saves and asks for AI assist.
+  aiSummary     String?
+  aiTags        String? // JSON array
+  aiSentiment   String?  // bullish | bearish | neutral
+  authorId      String?
+  author        User?    @relation("AuthoredArticles", fields: [authorId], references: [id], onDelete: SetNull)
+  categoryId    String?
+  category      Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  publishedAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  comments      ArticleComment[]
+  likes         ArticleLike[]
+  views         ArticleView[]
+
+  @@index([status, publishedAt])
+  @@index([categoryId])
+  @@index([authorId])
+  @@index([featured])
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  color       String   @default("#10b981") // accent used in chips + charts
+  createdAt   DateTime @default(now())
+  articles    Article[]
+}
+
+model ArticleComment {
+  id          String   @id @default(cuid())
+  articleId   String
+  article     Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  authorName  String
+  authorId    String?
+  content     String
+  // Optional parentId enables one-level threaded replies. Nested deeper
+  // replies flatten to the top-level comment (UX choice — keeps the
+  // conversation scannable).
+  parentId    String?
+  // Soft-delete / moderation states. `pending` is shown to moderators only
+  // (not implemented in this PR — placeholder for the moderation queue).
+  status      String   @default("visible") // visible | hidden | pending
+  createdAt   DateTime @default(now())
+
+  @@index([articleId, createdAt])
+  @@index([parentId])
+}
+
+model ArticleLike {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  userId    String?
+  // Anonymous likes are bucketed by a fingerprint hash (IP+UA). Allows
+  // per-browser deduplication without requiring an account.
+  fingerprint String?
+  createdAt DateTime @default(now())
+
+  @@unique([articleId, fingerprint])
+  @@index([articleId])
+}
+
+model ArticleView {
+  id        String   @id @default(cuid())
+  articleId String
+  article   Article  @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  // Per-day rollup key (YYYY-MM-DD). The dashboard groups by this to render
+  // the views-over-time chart without needing a time-series DB.
+  day       String
+  createdAt DateTime @default(now())
+
+  @@index([articleId, day])
+  @@index([day])
 }
 
 model AuditLog {

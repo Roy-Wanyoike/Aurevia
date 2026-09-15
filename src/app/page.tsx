@@ -47,9 +47,13 @@ const SystemView = dynamic(() => import("@/components/aurevia/views/system-view"
 const AdminView = dynamic(() => import("@/components/aurevia/views/admin-view").then((m) => ({ default: m.AdminView })), { ssr: false });
 const SettingsView = dynamic(() => import("@/components/aurevia/views/settings-view").then((m) => ({ default: m.SettingsView })), { ssr: false });
 const ProfileView = dynamic(() => import("@/components/aurevia/views/profile-view").then((m) => ({ default: m.ProfileView })), { ssr: false });
+const BlogView = dynamic(() => import("@/components/aurevia/views/blog-view").then((m) => ({ default: m.BlogView })), { ssr: false });
+const BlogArticleView = dynamic(() => import("@/components/aurevia/views/blog-article-view").then((m) => ({ default: m.BlogArticleView })), { ssr: false });
+const BlogEditorView = dynamic(() => import("@/components/aurevia/views/blog-editor-view").then((m) => ({ default: m.BlogEditorView })), { ssr: false });
+const BlogDashboardView = dynamic(() => import("@/components/aurevia/views/blog-dashboard-view").then((m) => ({ default: m.BlogDashboardView })), { ssr: false });
 
 export default function Home() {
-  const { view, selectedSymbol, selectedBacktestId, syncFromUrl } = useUI();
+  const { view, selectedSymbol, selectedBacktestId, selectedArticleSlug, syncFromUrl } = useUI();
 
   useEffect(() => {
     syncFromUrl();
@@ -81,6 +85,7 @@ export default function Home() {
     params.set("view", view);
     if (view === "asset" && selectedSymbol) params.set("symbol", selectedSymbol);
     if (view === "backtests" && selectedBacktestId) params.set("id", selectedBacktestId);
+    if ((view === "blog-article" || view === "blog-editor") && selectedArticleSlug) params.set("article", selectedArticleSlug);
     const newUrl = `${window.location.pathname}?${params.toString()}`;
     const currentUrl = `${window.location.pathname}${window.location.search}`;
     if (currentUrl === newUrl) {
@@ -88,7 +93,7 @@ export default function Home() {
     } else {
       window.history.pushState({}, "", newUrl);
     }
-  }, [view, selectedSymbol, selectedBacktestId]);
+  }, [view, selectedSymbol, selectedBacktestId, selectedArticleSlug]);
 
   return (
     <QueryProvider>
@@ -150,6 +155,10 @@ function ViewRouter() {
     case "admin": return <AdminView />;
     case "settings": return <SettingsView />;
     case "profile": return <ProfileView />;
+    case "blog": return <BlogView />;
+    case "blog-article": return <BlogArticleView />;
+    case "blog-editor": return <BlogEditorView />;
+    case "blog-dashboard": return <BlogDashboardView />;
     default: return <DashboardView />;
   }
 }
