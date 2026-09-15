@@ -26,9 +26,24 @@ import { logger } from "@/lib/aurevia/logger";
 
 // Paths that are always reachable without a session. Add new public paths
 // here — keep this list short, the default should be "needs a session".
+//
+// Issue #142 / SEC-016 — previously this included the broad "/api" prefix,
+// which exempted EVERY /api/* route from the page-level session check.
+// That left /api/v1/blog/seed, /api/v1/admin/*, /api/v1/brokers etc.
+// reachable without a session cookie — relying entirely on `requireAuth()`
+// inside the route handler, which (per RISK_REGISTER R-06) is not
+// universally wired up. We now list specific public API paths so the
+// session check is a defense-in-depth layer on top of `requireAuth()`.
 const PUBLIC_PATHS = [
   "/auth",
-  "/api",
+  // Explicitly-public API endpoints. The page-level session check still
+  // doesn't run on /api/* in dev (the shouldBypassAuth() gate is true), but
+  // in production this list is the only API surface that bypasses the
+  // session check — everything else gets the cookie inspection as a second
+  // gate on top of `requireAuth()`.
+  "/api/auth",            // NextAuth callback paths
+  "/api/v1/health",       // uptime probe
+  "/api/v1/health/",      // liveness/readiness probes
   "/_next",
   "/favicon.ico",
   "/branding",

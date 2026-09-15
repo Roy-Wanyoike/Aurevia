@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireAuth, requireRole } from "@/lib/aurevia/auth/check";
 import { logger } from "@/lib/aurevia/logger";
 import {
   slugify,
@@ -72,12 +72,16 @@ export async function GET(req: Request) {
     }
 
     if (tag) {
-      // SQLite doesn't have JSON operators we can rely on across versions,
-      // so we pull the tag-filtered set with a substring match on the JSON
-      // string. Tags are stored as '["a","b","c"]' so searching for "tag"
-      // inside that string is unambiguous enough for the demo.
-      const escaped = tag.replace(/[\\%_]/g, (c) => `\\${c}`);
-      where.tags = { contains: `"${escaped}"` };
+      // Issue #141 / SEC-007 / BE-011 — SQLite doesn't have JSON operators
+      // we can rely on, so we filter by substring match on the JSON-serialized
+      // tags column. Previously the tag was escaped only for `\`, `%`, `_`
+      // (LIKE wildcards) but NOT for `"`, so a crafted `tag='"'` would match
+      // every article. We now validate the tag against a strict kebab-case
+      // regex BEFORE building the WHERE clause — anything else returns empty.
+      if (!/^[a-z0-9-]{1,40}$/.test(tag)) {
+        return NextResponse.json({ articles: [], total: 0, page, limit });
+      }
+      where.tags = { contains: `"${tag}"` };
     }
 
     if (q) {
@@ -143,7 +147,10 @@ export async function GET(req: Request) {
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    // Issue #142 / SEC-018 / BE-012 — don't leak Prisma error internals
+    // (column / constraint names, partial SQL) to the client. Log server-side,
+    // return a generic message to the caller.
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -164,7 +171,14 @@ const CreateArticleSchema = z.object({
   excerpt: z.string().max(500).optional().nullable(),
   categoryId: z.string().optional().nullable(),
   tags: z.array(z.string().max(40)).max(20).optional().default([]),
-  coverImageUrl: z.string().url().optional().nullable(),
+  // Issue #133 / SEC-009 — `z.string().url()` accepts any scheme Zod/WHATWG
+  // considers valid (including `javascript:`, `data:`, `file:`). Restrict to
+  // https:// so cover images can't become an XSS vector in a future
+  // rendering context (og:image, iframe src, etc.).
+  coverImageUrl: z.string().url().refine(
+    (u) => /^https:\/\//.test(u),
+    "coverImageUrl must be an https URL",
+  ).optional().nullable(),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional().default("DRAFT"),
   featured: z.boolean().optional().default(false),
   slug: z.string().optional(),
@@ -174,6 +188,11 @@ export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-articles-create";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+
+  // Issue #130 / BE-003 / SEC-001 — require trader+ to create articles.
+  // In dev mode this is bypassed (requireRole returns "admin").
+  const role = await requireRole(req, "trader");
+  if (!role.ok) return role.response!;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -240,6 +259,6 @@ export async function POST(req: Request) {
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

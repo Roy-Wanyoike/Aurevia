@@ -28,19 +28,30 @@ import { db } from "@/lib/db";
  * Resolve the NextAuth signing secret.
  *
  * In dev: falls back to "dev-secret-change-in-production" so local dev
-*  works without env config.
+ * works without env config.
  *
- * In production: returns the env var if set. If NOT set, returns a
- * temporary placeholder instead of throwing — throwing breaks the Vercel
- * build (which evaluates this module during "Collecting page data" before
- * runtime env vars are available). The app will still fail at runtime if
- * the secret is missing, but the build will succeed.
+ * In production (Issue #135 / SEC-013): THROWS if NEXTAUTH_SECRET is unset.
+ * The prior behavior returned a placeholder string, silently signing JWTs
+ * with a publicly-known secret — that allowed full session forgery and
+ * account takeover. We now fail-closed at request time (NOT at module load,
+ * so Vercel's build-time "Collecting page data" phase still succeeds).
+ *
+ * The throw is caught by NextAuth's request pipeline and surfaces as a 500
+ * with a server-side log entry; the operator sees the misconfiguration
+ * immediately on first request rather than discovering it after a breach.
  */
 function getNextAuthSecret(): string {
   const secret = process.env.NEXTAUTH_SECRET;
   if (secret) return secret;
-  // Don't throw during build — Vercel evaluates this at build time.
-  // Return a placeholder; the app will fail at runtime if not configured.
+  if (process.env.NODE_ENV === "production") {
+    // Fail-closed — never sign JWTs with the dev placeholder in prod.
+    // Logged server-side; the throw bubbles up to NextAuth's error handler.
+    console.error(
+      "[auth] CRITICAL: NEXTAUTH_SECRET not set in production. " +
+        "Refusing to sign JWTs with the dev placeholder. Set NEXTAUTH_SECRET in your environment.",
+    );
+    throw new Error("NEXTAUTH_SECRET is required in production");
+  }
   return "dev-secret-change-in-production";
 }
 

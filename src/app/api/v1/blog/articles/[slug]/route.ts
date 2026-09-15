@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireAuth, requireRole, forbidden } from "@/lib/aurevia/auth/check";
 import { logger } from "@/lib/aurevia/logger";
 import {
   slugify,
@@ -16,9 +16,13 @@ export const dynamic = "force-dynamic";
 
 // ---------------------------------------------------------------------------
 // GET /api/v1/blog/articles/[slug]
-// Returns a single article by slug. In dev mode DRAFT articles are visible
-// to everyone (matches the existing /api/v1/* dev-bypass posture); in
-// production DRAFT visibility should be gated by author/admin role (TODO).
+// Returns a single article by slug.
+//
+// Issue #129 / BE-002 — DRAFT articles are now gated: in production, only the
+// author or an admin can read a DRAFT. PUBLISHED + ARCHIVED are world-readable
+// to authenticated callers. In dev mode (NODE_ENV !== "production") all
+// statuses are visible — matches the existing dev-bypass posture for the
+// rest of the v1 API surface.
 // ---------------------------------------------------------------------------
 
 export async function GET(
@@ -41,13 +45,28 @@ export async function GET(
     if (!article) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+
+    // Issue #129 / BE-002 — DRAFT gating. In production, a non-author
+    // non-admin caller gets a 404 (not 403 — we don't want to leak that a
+    // draft with that slug exists). In dev mode, drafts are visible to all.
+    const isProd = process.env.NODE_ENV === "production";
+    if (isProd && article.status === "DRAFT") {
+      const userId = await resolveCurrentUserId();
+      const role = await requireRole(req, "viewer");
+      const isAuthor = userId != null && article.authorId === userId;
+      const isAdmin = role.ok && role.role === "admin";
+      if (!isAuthor && !isAdmin) {
+        return NextResponse.json({ error: "not_found" }, { status: 404 });
+      }
+    }
+
     return NextResponse.json({ article: serializeArticle(article) });
   } catch (e: any) {
     logger.error("Blog article get failed", {
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -67,7 +86,12 @@ const UpdateArticleSchema = z.object({
   excerpt: z.string().max(500).optional().nullable(),
   categoryId: z.string().optional().nullable(),
   tags: z.array(z.string().max(40)).max(20).optional(),
-  coverImageUrl: z.string().url().optional().nullable(),
+  // Issue #133 / SEC-009 — restrict cover images to https:// to prevent
+  // `javascript:` / `data:` URL XSS vectors in future rendering contexts.
+  coverImageUrl: z.string().url().refine(
+    (u) => /^https:\/\//.test(u),
+    "coverImageUrl must be an https URL",
+  ).optional().nullable(),
   status: z.enum(["DRAFT", "PUBLISHED", "ARCHIVED"]).optional(),
   featured: z.boolean().optional(),
   slug: z.string().optional(),
@@ -84,11 +108,27 @@ export async function PATCH(
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #130 / BE-003 / SEC-001 — require trader+ to update articles.
+  const role = await requireRole(req, "trader");
+  if (!role.ok) return role.response!;
+
   try {
     const { slug } = await params;
     const existing = await db.article.findUnique({ where: { slug } });
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Issue #130 / BE-003 — ownership check. The author OR an admin can
+    // mutate; anyone else gets 403. In dev mode requireRole returns
+    // "admin", so this always passes.
+    const isProd = process.env.NODE_ENV === "production";
+    if (isProd) {
+      const isAuthor = role.userId != null && existing.authorId === role.userId;
+      const isAdmin = role.role === "admin";
+      if (!isAuthor && !isAdmin) {
+        return forbidden(req, "only the author or an admin can edit this article");
+      }
     }
 
     const body = await req.json().catch(() => ({}));
@@ -186,7 +226,7 @@ export async function PATCH(
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -205,12 +245,31 @@ export async function DELETE(
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #130 / BE-003 / SEC-001 — require trader+ to delete articles.
+  const role = await requireRole(req, "trader");
+  if (!role.ok) return role.response!;
+
   try {
     const { slug } = await params;
-    const existing = await db.article.findUnique({ where: { slug }, select: { id: true } });
+    const existing = await db.article.findUnique({
+      where: { slug },
+      select: { id: true, authorId: true },
+    });
     if (!existing) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
+
+    // Issue #130 / BE-003 — ownership check. Only the author or an admin
+    // can delete. (In dev mode requireRole returns "admin".)
+    const isProd = process.env.NODE_ENV === "production";
+    if (isProd) {
+      const isAuthor = role.userId != null && existing.authorId === role.userId;
+      const isAdmin = role.role === "admin";
+      if (!isAuthor && !isAdmin) {
+        return forbidden(req, "only the author or an admin can delete this article");
+      }
+    }
+
     await db.article.delete({ where: { id: existing.id } });
     logger.info("Blog article deleted", { requestId, slug });
     return NextResponse.json({ ok: true });
@@ -219,6 +278,6 @@ export async function DELETE(
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

@@ -150,3 +150,116 @@ export function requireAuth(req: Request):
   }
   return { ok: false, response: unauthorized(req, result.reason ?? "unauthorized") };
 }
+
+// ---------------------------------------------------------------------------
+// Role-based authorization (issue #130 / BE-003 / SEC-001).
+//
+// `requireAuth()` only verifies that the caller holds the shared API key
+// (or is in dev mode). It does NOT inspect the caller's role, so a
+// `viewer`-role principal can mutate any resource that requires `trader+`
+// or `admin`. The `requireRole()` helper layers role enforcement on top:
+//
+//   const auth = requireAuth(req);
+//   if (!auth.ok) return auth.response;
+//   const role = await requireRole(req, "trader");    // "trader" | "admin" | "viewer"
+//   if (!role.ok) return role.response;                // 403
+//
+// In dev mode, role enforcement is bypassed (returns "admin" so all dev
+// flows work). In production, the role is read from the NextAuth session
+// (the JWT token carries `role` per `auth-options.ts:45-50`).
+//
+// Until the per-user session model replaces the shared API key, this
+// helper is the primary gate against unauthorized mutations.
+// ---------------------------------------------------------------------------
+
+export type UserRole = "viewer" | "trader" | "admin";
+
+const ROLE_RANK: Record<UserRole, number> = {
+  viewer: 0,
+  trader: 1,
+  admin: 2,
+};
+
+export interface RoleResult {
+  ok: boolean;
+  role?: UserRole;
+  userId?: string | null;
+  response?: NextResponse;
+}
+
+/**
+ * Resolve the caller's role. Call AFTER `requireAuth(req)`.
+ *
+ * Returns `{ ok: true, role, userId }` on success, or
+ * `{ ok: false, response }` with a 403 on insufficient role.
+ *
+ * In dev mode, returns `role: "admin"` (bypasses role check) so all dev
+ * flows work. In production, resolves from the NextAuth session.
+ */
+export async function requireRole(
+  req: Request,
+  minimum: UserRole,
+): Promise<RoleResult> {
+  const isDev = process.env.NODE_ENV !== "production";
+  if (isDev) {
+    // Dev bypass — admins can do everything in dev.
+    return { ok: true, role: "admin", userId: null };
+  }
+
+  // Production: resolve role from the NextAuth session.
+  try {
+    const { getServerSession } = await import("next-auth");
+    const { authOptions } = await import("./auth-options");
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          { error: "unauthorized", requestId: req.headers.get("x-request-id") ?? "unknown" },
+          { status: 401 },
+        ),
+      };
+    }
+    const role = ((session.user as any).role as UserRole) ?? "viewer";
+    const userId = (session.user as any).id as string | undefined;
+    if (ROLE_RANK[role] < ROLE_RANK[minimum]) {
+      return {
+        ok: false,
+        response: NextResponse.json(
+          {
+            error: "forbidden",
+            reason: `role '${role}' insufficient (requires '${minimum}')`,
+            requestId: req.headers.get("x-request-id") ?? "unknown",
+          },
+          { status: 403 },
+        ),
+      };
+    }
+    return { ok: true, role, userId: userId ?? null };
+  } catch (e: any) {
+    logger.error("requireRole session resolution failed", {
+      requestId: req.headers.get("x-request-id") ?? "unknown",
+      error: e?.message ?? "unknown",
+    });
+    return {
+      ok: false,
+      response: NextResponse.json(
+        { error: "internal_error" },
+        { status: 500 },
+      ),
+    };
+  }
+}
+
+/**
+ * Returns a 403 NextResponse for forbidden operations.
+ */
+export function forbidden(req: Request, reason: string): NextResponse {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const res = NextResponse.json(
+    { error: "forbidden", reason, requestId },
+    { status: 403 },
+  );
+  res.headers.set("x-request-id", requestId);
+  return res;
+}

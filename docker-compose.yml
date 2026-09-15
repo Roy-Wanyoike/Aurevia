@@ -27,7 +27,12 @@ services:
       # SQLite dev database. Persisted to the aurevia-db volume.
       # In production, replace with: postgresql://user:pass@host:5432/aurevia
       - DATABASE_URL=file:./db/aurevia.db
-      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:-dev-secret-change-in-production}
+      # Issue #135 / SEC-013 — no fallback. If NEXTAUTH_SECRET is unset,
+      # compose will fail to start (the `${NEXTAUTH_SECRET:?...}` form
+      # fails with a helpful error rather than silently using the dev
+      # secret in production). The auth-options helper also throws at
+      # request time as a defense-in-depth measure.
+      - NEXTAUTH_SECRET=${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required. Set it in your .env file.}
       - NEXTAUTH_URL=http://localhost:3000
       - TRADING_MODE=PAPER
       # API key for /api/v1/* requireAuth() gate in production. Must be ≥16 chars

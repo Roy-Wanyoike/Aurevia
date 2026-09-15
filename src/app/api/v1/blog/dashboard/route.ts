@@ -109,8 +109,11 @@ export async function GET(req: Request) {
       count: c._count.articles,
     }));
 
-    // Recent comments — most recent 8 across all articles.
+    // Recent comments — most recent 8 visible comments across all articles.
+    // Issue #143 / SEC-017 — filter by status=visible so moderated/hidden
+    // comments don't appear in the dashboard feed.
     const recentComments = await db.articleComment.findMany({
+      where: { status: "visible" },
       orderBy: { createdAt: "desc" },
       take: 8,
       include: {
@@ -165,6 +168,6 @@ export async function GET(req: Request) {
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

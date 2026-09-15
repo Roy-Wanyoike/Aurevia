@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -410,8 +411,33 @@ export function BlogArticleView() {
             )}
 
             {/* Article body */}
-            <div className="prose prose-sm dark:prose-invert mt-6 max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-p:leading-relaxed prose-li:leading-relaxed prose-a:text-primary prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none prose-table:overflow-hidden prose-th:border prose-th:border-border prose-th:bg-muted/50 prose-th:px-3 prose-th:py-2 prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
+            {/* Issue #133 / FE-003 / SEC-008 — sanitize the rendered HTML via
+                rehype-sanitize. The default schema strips `javascript:`,
+                `data:`, `vbscript:` URL schemes from anchor `href` attributes
+                and disallows raw `<script>` / inline event handlers. We also
+                override the `a` element via the `components` prop to inject
+                `target="_blank" rel="noopener noreferrer"` so external links
+                open in a new tab without leaking referrer / window.opener. */}
+            <div className="prose prose-sm dark:prose-invert mt-6 max-w-none prose-headings:font-semibold prose-headings:tracking-tight prose-p:leading-relaxed prose-li:leading-relaxed prose-a:text-primary prose-code:rounded prose-code:bg-muted prose-code:px-1 prose-code:py-0.5 prose-code:before:content-none prose-code:after:content-none prose-table:overflow-hidden prose-th:border prose-th:border-border prose-th:bg-muted/50 prose-th:px-3 prose-th:py-2 prose-td:border prose-td:border-border prose-td:px-3 prose-td:py-2 prose-img:rounded-xl prose-a:break-words">
+              <ReactMarkdown
+                remarkPlugins={[remarkGfm]}
+                rehypePlugins={[[rehypeSanitize, {
+                  ...defaultSchema,
+                  attributes: {
+                    ...defaultSchema.attributes,
+                    a: [...(defaultSchema.attributes?.a ?? []), "target", "rel"],
+                  },
+                }]]}
+                components={{
+                  a: ({ node, ...props }) => (
+                    <a
+                      {...props}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    />
+                  ),
+                }}
+              >
                 {article.content}
               </ReactMarkdown>
             </div>

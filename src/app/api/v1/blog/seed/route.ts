@@ -290,6 +290,19 @@ The realized-price ratio (market cap / realized cap) measures the gap between sp
 
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-seed";
+
+  // Issue #128 / BE-001 / SEC-015 — the seed route is a dev-only bootstrap
+  // that injects demo categories + articles (with synthetic viewCount /
+  // likeCount) into the database. Mirroring the /api/v1/auth/seed-demo
+  // pattern, we hard-return 404 in production so an authenticated operator
+  // (or any holder of the shared API key) cannot pollute the production
+  // database with demo content. If a prod-side "restore default content"
+  // admin action is genuinely desired, gate it behind an explicit admin
+  // role check (BE-003) in a separate route handler.
+  if (process.env.NODE_ENV === "production") {
+    return NextResponse.json({ error: "not_found" }, { status: 404 });
+  }
+
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 

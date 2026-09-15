@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireAuth, requireRole } from "@/lib/aurevia/auth/check";
 import { logger } from "@/lib/aurevia/logger";
 import {
   slugify,
@@ -52,7 +52,7 @@ export async function GET(req: Request) {
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -78,6 +78,10 @@ export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-category-create";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+
+  // Issue #130 / BE-003 / SEC-001 — require trader+ to create categories.
+  const role = await requireRole(req, "trader");
+  if (!role.ok) return role.response!;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -121,6 +125,6 @@ export async function POST(req: Request) {
       requestId,
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
-import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireAuth, requireRole, forbidden } from "@/lib/aurevia/auth/check";
 import { logger } from "@/lib/aurevia/logger";
 import {
   serializeTags,
@@ -49,6 +49,11 @@ export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-ai-assist";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+
+  // Issue #136 / BE-004 / SEC-001 — require trader+ to invoke AI assist
+  // (costs ZAI tokens; mutates article AI metadata).
+  const role = await requireRole(req, "trader");
+  if (!role.ok) return role.response!;
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -180,11 +185,28 @@ export async function POST(req: Request) {
 
     // Persist the result on the article when an articleId is provided.
     if (parsed.data.articleId) {
+      // Issue #136 / BE-004 — validate articleId format (cuid) to prevent
+      // random-string scans, and assert the caller owns the article.
+      if (!/^c[a-z0-9]{20,}$/i.test(parsed.data.articleId)) {
+        return NextResponse.json(
+          { error: "validation_failed", details: "articleId must be a valid cuid" },
+          { status: 400 },
+        );
+      }
       const article = await db.article.findUnique({
         where: { id: parsed.data.articleId },
-        select: { id: true, tags: true, content: true },
+        select: { id: true, tags: true, content: true, authorId: true },
       });
       if (article) {
+        // Issue #136 / BE-004 — ownership check. Author OR admin can mutate.
+        const isProd = process.env.NODE_ENV === "production";
+        if (isProd) {
+          const isAuthor = role.userId != null && article.authorId === role.userId;
+          const isAdmin = role.ok && role.role === "admin";
+          if (!isAuthor && !isAdmin) {
+            return forbidden(req, "only the author or an admin can mutate this article's AI metadata");
+          }
+        }
         if (action === "summarize") {
           await db.article.update({
             where: { id: article.id },
@@ -223,7 +245,7 @@ export async function POST(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }
