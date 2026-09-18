@@ -173,7 +173,7 @@ Co-locating API routes with the frontend simplifies deployment and development. 
 
 - **[Issues](https://github.com/Roy-Wanyoike/Aurevia/issues)** — bugs, feature requests
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — system design
-- **[worklog.md](worklog.md)** — implementation log + audit findings
+- **[docs/AUDIT/](docs/AUDIT/)** — engineering audit reports (architecture, security, database, testing, risk register)
 
 ## License
 
