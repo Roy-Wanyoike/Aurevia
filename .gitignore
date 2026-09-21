@@ -64,15 +64,22 @@ server.log
 /db/*.db-wal
 /db/*.db-shm
 
-# Agent context (local working files)
+# Agent context (local working files — never commit)
 /agent-ctx/
 
-# Upload / scratch directories
+# Upload / scratch directories (chat pastes, tool output — never commit)
 /upload/
 /tool-results/
+
+# Worklog (internal implementation log — tracked via GitHub issues + PRs instead)
+/worklog.md
+
+# Runtime artifacts (PID files, service logs in .zscripts/)
+/.zscripts/*.pid
+/.zscripts/*.log
 
 # Downloaded screenshots / generated artifacts (kept locally only)
 /download/*.png
 /download/*.pdf
 /download/*.csv
-/download/*.json
+/download/*.jsonstart-detached.sh
