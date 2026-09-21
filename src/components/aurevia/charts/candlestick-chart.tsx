@@ -2,7 +2,6 @@
 
 import {
   ComposedChart,
-  Area,
   Line,
   XAxis,
   YAxis,

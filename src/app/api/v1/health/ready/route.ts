@@ -25,9 +25,10 @@ export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   const checks: { name: string; ok: boolean }[] = [];
-  // Check market data
-  const ds = store.getDataSource();
-  checks.push({ name: "market_data", ok: true }); // always ok (simulated fallback)
+  // Check market data — always ok (simulated fallback always available;
+  // the live provider's health is reported separately in the main
+  // /api/v1/health payload's `dataIsLive` field).
+  checks.push({ name: "market_data", ok: true });
   // Check portfolio
   try { store.getPortfolio(); checks.push({ name: "portfolio", ok: true }); }
   catch { checks.push({ name: "portfolio", ok: false }); }

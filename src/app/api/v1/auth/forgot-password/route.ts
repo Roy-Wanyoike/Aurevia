@@ -66,7 +66,7 @@ export async function POST(req: Request) {
         expires: expires.toISOString(),
         status: "OK",
       });
-      console.log(`[aurevia] Password reset token for ${email}: ${token}`);
+      logger.info("Password reset token (dev only)", { email, token });
     } else {
       logger.info("Password reset requested for unknown email", {
         requestId,

@@ -4,12 +4,10 @@ import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   AlertDialog,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,
@@ -38,12 +36,10 @@ import {
   fmtPct,
   fmtUsd,
   fmtTime,
-  fmtDateTime,
 } from "@/lib/aurevia/format";
 import { toast } from "sonner";
 import {
   ShieldCheck,
-  ShieldAlert,
   ShieldX,
   Power,
   AlertOctagon,
@@ -546,8 +542,6 @@ function MetricTile({ icon: Icon, label, value, limit, score, hint }: MetricTile
       : score >= 60
         ? "text-amber-400 border-amber-500/30 bg-amber-500/5"
         : "text-emerald-400 border-emerald-500/30 bg-emerald-500/5";
-  const barColor =
-    score >= 80 ? "bg-red-500" : score >= 60 ? "bg-amber-500" : "bg-emerald-500";
   return (
     <div className={`rounded-md border p-3 ${color}`}>
       <div className="flex items-center justify-between">

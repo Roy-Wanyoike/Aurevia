@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth, requireRole, forbidden } from "@/lib/aurevia/auth/check";
-import { requireTenant, withTenantFilter } from "@/lib/aurevia/auth/tenant";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import {
   slugify,

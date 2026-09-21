@@ -17,6 +17,11 @@
     "noUncheckedIndexedAccess": false,
     "noEmit": true,
     "noImplicitAny": false,
+    // FINAL-009 (#163): surface unused locals/parameters at the type-checker
+    // level too. `tsc --noEmit` becomes a true hygiene gate alongside
+    // `eslint .`. Existing violations are fixed in this same PR.
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "esModuleInterop": true,
     "module": "esnext",
     "moduleResolution": "bundler",

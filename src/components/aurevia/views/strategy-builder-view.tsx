@@ -17,24 +17,12 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import {
-  AlertDialog,
-  AlertDialogTrigger,
-  AlertDialogContent,
-  AlertDialogHeader,
-  AlertDialogFooter,
-  AlertDialogTitle,
-  AlertDialogDescription,
-  AlertDialogAction,
-  AlertDialogCancel,
-} from "@/components/ui/alert-dialog";
-import {
   useMarkets,
   useRunBacktest,
   type RunBacktestInput,
 } from "@/lib/aurevia/hooks";
 import { toast } from "sonner";
 import {
-  Blocks,
   Plus,
   Trash2,
   Eye,
