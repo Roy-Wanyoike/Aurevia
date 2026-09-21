@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -13,9 +14,11 @@ export const dynamic = "force-dynamic";
 // serialize cleanly (JSON.stringify drops `undefined`); new backtests have
 // them populated by the POST handler via captureExperimentMetadata().
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const { id } = await params;
     const bt = store.backtests.find((b) => b.id === id);

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,8 @@ export const dynamic = "force-dynamic";
 // neither param is supplied the response is the full list (backward
 // compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
     const status = url.searchParams.get("status");

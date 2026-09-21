@@ -4,6 +4,7 @@ import { computeIndicators } from "@/lib/aurevia/quant/indicators";
 import { detectTrend } from "@/lib/aurevia/quant/trend";
 import { detectRegime } from "@/lib/aurevia/quant/regime";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -71,6 +72,8 @@ export async function GET(
   { params }: { params: Promise<{ symbol: string }> },
 ) {
   const requestId = (req.headers.get("x-request-id") ?? "similarity") as string;
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const { symbol } = await params;
     const sym = symbol.toUpperCase();

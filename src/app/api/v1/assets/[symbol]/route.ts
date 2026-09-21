@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/assets/[symbol]?bars=300
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ symbol: string }> }
 ) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const { symbol } = await params;
     const ctx = store.buildContext(symbol.toUpperCase(), 300);

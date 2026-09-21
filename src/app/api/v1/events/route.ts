@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -47,6 +48,8 @@ function hashOffset(seed: string, max: number): number {
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "events";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
     const symbol = url.searchParams.get("symbol");

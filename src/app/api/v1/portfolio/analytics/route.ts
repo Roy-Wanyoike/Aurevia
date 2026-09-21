@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,9 @@ export const dynamic = "force-dynamic";
 //
 // Read-only — never mutates portfolio / risk / order state. Returns 422 when
 // there are no open positions to compute returns from. (Issue #52.)
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const requestId = "portfolio-analytics";
   try {
     const portfolio = store.getPortfolio();

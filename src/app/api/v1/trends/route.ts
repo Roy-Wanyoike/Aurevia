@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/trends — trend distribution + per-asset trend snapshot.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const rows = store.assetCatalog.map((a) => {
       const ctx = store.buildContext(a.symbol, 300);

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -55,7 +56,9 @@ function clamp01(x: number): number {
   return Math.max(0, Math.min(1, x));
 }
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const requestId = "radar";
   try {
     const breakouts: Opportunity[] = [];

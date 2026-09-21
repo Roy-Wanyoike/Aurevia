@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { indicatorSeries } from "@/lib/aurevia/quant/indicators";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +10,8 @@ export async function GET(
   req: Request,
   { params }: { params: Promise<{ symbol: string }> }
 ) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const { symbol } = await params;
     const url = new URL(req.url);

@@ -1,10 +1,13 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/market-data — returns the current data source status
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const ds = store.getDataSource();
     return NextResponse.json({
@@ -21,7 +24,9 @@ export async function GET() {
 }
 
 // POST /api/v1/market-data — refresh live data (fetch latest candles from provider)
-export async function POST() {
+export async function POST(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     await store.initLiveData();  // ensures first-time init
     await store.refreshLiveData();  // refresh cache

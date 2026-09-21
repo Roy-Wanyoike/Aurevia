@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // Aurevia Market Pulse (#43) — returns MarketPulseData shape matching the
 // useMarketPulse() hook interface in hooks.ts.
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const assets = store.assetCatalog;
     let advancers = 0, decliners = 0, unchanged = 0;

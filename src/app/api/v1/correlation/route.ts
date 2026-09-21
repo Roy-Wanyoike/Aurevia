@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,9 @@ export const dynamic = "force-dynamic";
 //   - matrix: flat array of { a, b, corr } — one entry per cell
 // ---------------------------------------------------------------------------
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const requestId = "correlation";
   try {
     const symbols = store.assetCatalog.map((a) => a.symbol);

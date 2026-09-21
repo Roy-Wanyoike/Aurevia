@@ -3,6 +3,7 @@ import { z } from "zod";
 import { store, getWatchlists, addWatchlist, addToWatchlist, removeFromWatchlist, renameWatchlist, deleteWatchlist } from "@/lib/aurevia/store";
 import { getAsset } from "@/lib/aurevia/market-data/assets";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -84,7 +85,9 @@ function buildRows(symbols: string[]): WatchlistQuoteRow[] {
 }
 
 // GET /api/v1/watchlists — all watchlists, each with live quotes per symbol.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const payload: WatchlistResponse[] = getWatchlists().map((wl) => ({
       id: wl.id,
@@ -102,6 +105,8 @@ export async function GET() {
 // POST /api/v1/watchlists — action-based mutations on the watchlist set.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = ActionSchema.safeParse(body);

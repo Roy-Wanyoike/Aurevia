@@ -2,11 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { ML_MODELS } from "@/lib/aurevia/ml/models";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/ml — list ML models + recent predictions
 export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
     const symbol = url.searchParams.get("symbol");
@@ -36,6 +39,8 @@ const PredictSchema = z.object({
 
 // POST /api/v1/ml — run a specific model on a specific symbol
 export async function POST(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = PredictSchema.safeParse(body);

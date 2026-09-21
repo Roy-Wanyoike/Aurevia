@@ -28,10 +28,13 @@
 
 import { metrics } from "@/lib/aurevia/monitoring/metrics";
 import { store } from "@/lib/aurevia/store";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   // Increment a self-referential counter so the endpoint is never empty —
   // useful for smoke tests + proves the Prometheus exposition format renders.
   metrics.increment("metrics_requests_total");

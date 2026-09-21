@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -102,6 +103,8 @@ function buildRow(symbol: string): ScreenerRow | null {
 // POST /api/v1/screener — multi-factor asset filter.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = ScreenerFilterSchema.safeParse(body);
@@ -156,7 +159,9 @@ export async function POST(req: Request) {
 // GET /api/v1/screener — return the universe as filter options so the UI
 // can populate its dropdowns (assetType, sector, regime) without hardcoding
 // (issue #29 — no hardcoded lists).
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const assetTypes = new Set<string>();
     const sectors = new Set<string>();

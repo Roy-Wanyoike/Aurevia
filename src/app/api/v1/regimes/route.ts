@@ -1,11 +1,14 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { detectRegime } from "@/lib/aurevia/quant/regime";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/regimes — regime distribution across the tradeable universe.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const dist: Record<string, { symbol: string; regime: string; price: number; changePct: number }[]> = {};
     for (const asset of store.assetCatalog) {

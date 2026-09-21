@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -11,7 +12,9 @@ export const dynamic = "force-dynamic";
 // volatility) so the journal is a behavioral record — not just an order log.
 // Returns overall analytics (trades by regime, by strategy, total count) so
 // the view can render the same summaries server-side. (Issue #54.)
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const requestId = "journal";
   try {
     const orders = store.orders.filter((o) => o.status === "FILLED");

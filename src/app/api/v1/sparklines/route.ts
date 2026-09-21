@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -7,6 +8,8 @@ export const dynamic = "force-dynamic";
 // Single request returns sparkline data for every asset, so the dashboard
 // can render real price trends without 18 separate fetches.
 export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
     const bars = Math.min(30, Math.max(5, Number(url.searchParams.get("bars") ?? 30)));
