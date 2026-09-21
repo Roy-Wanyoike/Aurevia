@@ -113,6 +113,30 @@ export function getAuthOptions(): NextAuthOptions {
         if (session.user) {
           (session.user as any).id = token.id;
           (session.user as any).role = token.role;
+
+          // Issue #161 — populate organizationId from the user's primary
+          // Membership so requireTenant() can enforce tenant isolation in
+          // production. Without this, every prod session reported
+          // organizationId: null, making withTenantFilter(...) a no-op and
+          // cross-tenant isolation decorative.
+          //
+          // We look this up on every session read (not just at sign-in) so
+          // the value stays fresh if the user is added to / removed from an
+          // org. Single indexed query on Membership(userId) — cheap relative
+          // to the rest of the request.
+          const userId = token.id as string | undefined;
+          if (userId) {
+            const membership = await db.membership.findFirst({
+              where: { userId },
+              include: {
+                organization: { select: { id: true, name: true, slug: true } },
+              },
+            });
+            (session.user as any).organizationId =
+              membership?.organizationId ?? null;
+          } else {
+            (session.user as any).organizationId = null;
+          }
         }
         return session;
       },

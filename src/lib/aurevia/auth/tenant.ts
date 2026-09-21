@@ -55,11 +55,15 @@ export async function requireTenant(): Promise<{ userId: string; organizationId:
     throw new Response("Invalid session", { status: 401 });
   }
 
-  // organizationId would come from the user's membership
-  // For now, return null — full multi-tenant enforcement requires
-  // the session to carry organizationId, which depends on the
-  // membership table being populated at login time.
-  return { userId, organizationId: null };
+  // Issue #161 — organizationId is now populated by the NextAuth session
+  // callback (see auth-options.ts), which looks up the user's primary
+  // Membership on every session read. This makes withTenantFilter(...)
+  // actually filter by org in production — cross-tenant isolation is no
+  // longer decorative. Falls back to null when the user has no membership,
+  // in which case withTenantFilter(...) skips the filter (preserves the
+  // dev-mode behavior for demo content stamped organizationId: null).
+  const organizationId = (session.user as any).organizationId ?? null;
+  return { userId, organizationId };
 }
 
 // Filter helper for Prisma queries — adds organizationId to where clause
