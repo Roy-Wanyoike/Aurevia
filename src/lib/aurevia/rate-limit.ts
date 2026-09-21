@@ -64,4 +64,92 @@ export function rateLimit(ip: string): RateLimitResult {
 // Test/diagnostics hook — clears the in-memory map. Not exposed via HTTP.
 export function _resetRateLimiterForTests(): void {
   hits.clear();
+  perKeyBuckets.clear();
+}
+
+// ---------------------------------------------------------------------------
+// Per-key rate limiter (Issue #141 / SEC-005).
+//
+// The global `rateLimit(ip)` is for the middleware's broad 60/min-per-IP
+// gate. Some routes need stricter per-route limits — e.g. blog engagement
+// endpoints (view, like, comment) are public-facing and need tighter caps
+// to prevent abuse (view-count inflation, like-flooding, comment spam).
+//
+// `rateLimitKey(key, max, windowMs)` tracks hits under a separate namespace
+// so it doesn't interfere with the global limiter. The key is typically
+// `${routeName}:${ip}:${articleSlug}` — this lets us cap "10 likes per
+// article per IP per minute" without affecting the global 60/min budget.
+//
+// Same in-memory + sliding-window + probabilistic GC pattern as the
+// global limiter. Single-instance only — swap for Redis token bucket
+// when scaling horizontally (R-14).
+// ---------------------------------------------------------------------------
+
+interface KeyBucket {
+  hits: number[];
+}
+const perKeyBuckets = new Map<string, KeyBucket>();
+
+export interface PerKeyRateLimitResult {
+  ok: boolean;
+  remaining: number;
+  retryAfterMs: number;
+  limit: number;
+}
+
+export function rateLimitKey(
+  key: string,
+  max: number,
+  windowMs: number = 60_000,
+): PerKeyRateLimitResult {
+  const now = Date.now();
+  const bucket = perKeyBuckets.get(key);
+  const history = bucket?.hits ?? [];
+  const recent = history.filter((t) => now - t < windowMs);
+
+  if (recent.length >= max) {
+    const oldest = recent[0];
+    return {
+      ok: false,
+      remaining: 0,
+      retryAfterMs: Math.max(1, windowMs - (now - oldest)),
+      limit: max,
+    };
+  }
+  recent.push(now);
+  perKeyBuckets.set(key, { hits: recent });
+
+  // Probabilistic GC — same 1% sweep as the global limiter.
+  if (Math.random() < 0.01) {
+    for (const [k, b] of perKeyBuckets.entries()) {
+      const fresh = b.hits.filter((t) => now - t < windowMs);
+      if (fresh.length === 0) perKeyBuckets.delete(k);
+      else if (fresh.length !== b.hits.length) perKeyBuckets.set(k, { hits: fresh });
+    }
+  }
+
+  return {
+    ok: true,
+    remaining: Math.max(0, max - recent.length),
+    retryAfterMs: 0,
+    limit: max,
+  };
+}
+
+/**
+ * Extract a stable client IP from a request. Prefers the first hop of
+ * `x-forwarded-for` (set by Caddy / load balancer), then `x-real-ip`,
+ * then NextRequest's `ip` property, then "unknown" as a fallback.
+ *
+ * Issue #141 / SEC-005 — for per-route rate limits we need a stable key.
+ * The middleware already trusts `x-forwarded-for` for the global limiter,
+ * so we use the same extraction here for consistency.
+ */
+export function extractClientIp(req: Request): string {
+  const xff = req.headers.get("x-forwarded-for");
+  if (xff) {
+    const first = xff.split(",")[0]?.trim();
+    if (first) return first;
+  }
+  return req.headers.get("x-real-ip") ?? "unknown";
 }
