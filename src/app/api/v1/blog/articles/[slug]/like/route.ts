@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import { getReaderFingerprint } from "@/lib/aurevia/blog/shared";
 
@@ -24,13 +25,21 @@ export async function POST(
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
+
   try {
     const { slug } = await params;
     const article = await db.article.findUnique({
       where: { slug },
-      select: { id: true },
+      select: { id: true, organizationId: true },
     });
     if (!article) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Cross-tenant likes are silently rejected (404).
+    if (tenant.organizationId && article.organizationId && article.organizationId !== tenant.organizationId) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -72,7 +81,13 @@ export async function POST(
 
     await db.$transaction([
       db.articleLike.create({
-        data: { articleId: article.id, fingerprint, userId },
+        data: {
+          articleId: article.id,
+          fingerprint,
+          userId,
+          // Issue #137 — stamp the article's org on the like row.
+          organizationId: article.organizationId,
+        },
       }),
       db.article.update({
         where: { id: article.id },

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireTenant, withTenantFilter } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import { dayKey, parseTags } from "@/lib/aurevia/blog/shared";
 
@@ -28,10 +29,15 @@ export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #137 — tenant scoping. The dashboard only shows articles / comments
+  // / views belonging to the caller's org (or system-owned when null).
+  const tenant = await requireTenant();
+  const baseArticleWhere = withTenantFilter<{ status: string }>({ status: "PUBLISHED" }, tenant);
+
   try {
     // KPI tiles — denormalized counters on the article rows.
     const articles = await db.article.findMany({
-      where: { status: "PUBLISHED" },
+      where: baseArticleWhere,
       select: {
         id: true,
         slug: true,
@@ -63,7 +69,7 @@ export async function GET(req: Request) {
     const daySet = new Set(days);
     const viewsByDayRows = await db.articleView.groupBy({
       by: ["day"],
-      where: { day: { in: days } },
+      where: withTenantFilter({ day: { in: days } }, tenant),
       _count: { _all: true },
     });
     const viewsByDayMap = new Map<string, number>();
@@ -109,11 +115,13 @@ export async function GET(req: Request) {
       count: c._count.articles,
     }));
 
-    // Recent comments — most recent 8 visible comments across all articles.
+    // Recent comments — most recent 8 visible comments across all articles
+    // in the caller's org.
     // Issue #143 / SEC-017 — filter by status=visible so moderated/hidden
     // comments don't appear in the dashboard feed.
+    // Issue #137 — tenant-scoped.
     const recentComments = await db.articleComment.findMany({
-      where: { status: "visible" },
+      where: withTenantFilter({ status: "visible" }, tenant),
       orderBy: { createdAt: "desc" },
       take: 8,
       include: {

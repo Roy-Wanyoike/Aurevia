@@ -359,6 +359,10 @@ export async function POST(req: Request) {
           categoryId: categoryId ?? null,
           authorId,
           publishedAt: new Date(),
+          // Issue #137 — seed content is system-owned (organizationId=null)
+          // so it's visible to all orgs in dev mode. In production the seed
+          // route is hard-blocked (404) above.
+          organizationId: null,
           // Seed with some initial engagement so the dashboard isn't flat.
           viewCount: 40 + Math.floor(Math.random() * 300),
           likeCount: 3 + Math.floor(Math.random() * 25),

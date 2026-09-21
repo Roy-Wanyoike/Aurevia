@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth, requireRole } from "@/lib/aurevia/auth/check";
+import { requireTenant, withTenantFilter } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import {
   slugify,
@@ -38,6 +39,10 @@ export async function GET(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #137 — resolve tenant context for multi-tenant scoping. In dev
+  // mode returns organizationId=null (no filter applied, backwards-compatible).
+  const tenant = await requireTenant();
+
   try {
     const url = new URL(req.url);
     const params = url.searchParams;
@@ -60,6 +65,9 @@ export async function GET(req: Request) {
     if (featured) where.featured = true;
     if (authorId) where.authorId = authorId;
 
+    // Issue #137 — apply tenant filter so org A can't read org B's articles.
+    const tenantWhere = withTenantFilter(where, tenant);
+
     if (categorySlug) {
       const category = await db.category.findUnique({
         where: { slug: categorySlug },
@@ -68,7 +76,7 @@ export async function GET(req: Request) {
       if (!category) {
         return NextResponse.json({ articles: [], total: 0, page, limit });
       }
-      where.categoryId = category.id;
+      tenantWhere.categoryId = category.id;
     }
 
     if (tag) {
@@ -81,12 +89,12 @@ export async function GET(req: Request) {
       if (!/^[a-z0-9-]{1,40}$/.test(tag)) {
         return NextResponse.json({ articles: [], total: 0, page, limit });
       }
-      where.tags = { contains: `"${tag}"` };
+      tenantWhere.tags = { contains: `"${tag}"` };
     }
 
     if (q) {
       // ILIKE isn't supported on SQLite; use case-insensitive `contains`.
-      where.OR = [
+      tenantWhere.OR = [
         { title: { contains: q } },
         { excerpt: { contains: q } },
         { content: { contains: q } },
@@ -115,9 +123,9 @@ export async function GET(req: Request) {
         break;
     }
 
-    const total = await db.article.count({ where });
+    const total = await db.article.count({ where: tenantWhere });
     const rows = await db.article.findMany({
-      where,
+      where: tenantWhere,
       orderBy,
       skip: (page - 1) * limit,
       take: limit,
@@ -194,6 +202,10 @@ export async function POST(req: Request) {
   const role = await requireRole(req, "trader");
   if (!role.ok) return role.response!;
 
+  // Issue #137 — resolve tenant context so the new article is stamped with
+  // the caller's organizationId. In dev mode returns null — backwards-compat.
+  const tenant = await requireTenant();
+
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = CreateArticleSchema.safeParse(body);
@@ -238,6 +250,8 @@ export async function POST(req: Request) {
         tags: serializeTags(data.tags),
         categoryId,
         authorId,
+        // Issue #137 — stamp the caller's organizationId on the new article.
+        organizationId: tenant.organizationId,
         publishedAt: effectiveStatus === "PUBLISHED" ? new Date() : null,
       },
       include: {
