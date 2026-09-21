@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { db } from "@/lib/db";
 
 // ---------------------------------------------------------------------------
@@ -129,7 +130,22 @@ export interface SerializedArticle {
   updatedAt: string;
 }
 
-export function serializeArticle(a: any): SerializedArticle {
+// Issue #172 / FINAL-020 — replace the prior `a: any` parameter (which
+// defeated type safety across every blog route) with the Prisma-derived
+// shape every caller actually passes. The routes all `include` author +
+// category with the same `select` projection (see blog/articles/route.ts,
+// blog/articles/[slug]/route.ts, blog/seed/route.ts), so we model that
+// shape directly via `Prisma.ArticleGetPayload`. If a future route needs
+// a different projection it should narrow via a local type alias rather
+// than widening this signature back to `any`.
+type ArticleWithRelations = Prisma.ArticleGetPayload<{
+  include: {
+    author: { select: { id: true; name: true } };
+    category: { select: { id: true; name: true; slug: true; color: true } };
+  };
+}>;
+
+export function serializeArticle(a: ArticleWithRelations): SerializedArticle {
   return {
     id: a.id,
     slug: a.slug,
