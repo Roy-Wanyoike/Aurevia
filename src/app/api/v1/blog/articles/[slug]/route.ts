@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth, requireRole, forbidden } from "@/lib/aurevia/auth/check";
+import { requireTenant, withTenantFilter } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import {
   slugify,
@@ -33,6 +34,9 @@ export async function GET(
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
+
   try {
     const { slug } = await params;
     const article = await db.article.findUnique({
@@ -43,6 +47,13 @@ export async function GET(
       },
     });
     if (!article) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Issue #137 — tenant isolation. In production, an article belonging
+    // to org B is invisible to org A (404, not 403 — we don't leak that it
+    // exists). In dev mode (organizationId=null) the check is a no-op.
+    if (tenant.organizationId && article.organizationId && article.organizationId !== tenant.organizationId) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -112,10 +123,18 @@ export async function PATCH(
   const role = await requireRole(req, "trader");
   if (!role.ok) return role.response!;
 
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
+
   try {
     const { slug } = await params;
     const existing = await db.article.findUnique({ where: { slug } });
     if (!existing) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Issue #137 — cross-tenant articles are invisible (404, not 403).
+    if (tenant.organizationId && existing.organizationId && existing.organizationId !== tenant.organizationId) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -249,13 +268,21 @@ export async function DELETE(
   const role = await requireRole(req, "trader");
   if (!role.ok) return role.response!;
 
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
+
   try {
     const { slug } = await params;
     const existing = await db.article.findUnique({
       where: { slug },
-      select: { id: true, authorId: true },
+      select: { id: true, authorId: true, organizationId: true },
     });
     if (!existing) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Issue #137 — cross-tenant articles are invisible (404, not 403).
+    if (tenant.organizationId && existing.organizationId && existing.organizationId !== tenant.organizationId) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 

@@ -327,6 +327,10 @@ model Article {
   author        User?    @relation("AuthoredArticles", fields: [authorId], references: [id], onDelete: SetNull)
   categoryId    String?
   category      Category?  @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  // Issue #137 — multi-tenant scoping. NULL = system-owned (legacy / demo).
+  // Every query MUST go through `withTenantFilter()` so org A can't read
+  // org B's articles. Same pattern as Signal / Backtest / Order (issue #71).
+  organizationId String?
   publishedAt   DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -339,6 +343,7 @@ model Article {
   @@index([categoryId])
   @@index([authorId])
   @@index([featured])
+  @@index([organizationId])
 }
 
 model Category {
@@ -347,6 +352,10 @@ model Category {
   slug        String   @unique
   description String?
   color       String   @default("#10b981") // accent used in chips + charts
+  // Issue #137 — categories are GLOBAL (shared across orgs) for now. The
+  // blog module ships 5 default categories seeded once; multi-tenant
+  // customers inherit them. If per-org categories become a product
+  // requirement, add `organizationId String?` here and filter accordingly.
   createdAt   DateTime @default(now())
   articles    Article[]
 }
@@ -365,10 +374,14 @@ model ArticleComment {
   // Soft-delete / moderation states. `pending` is shown to moderators only
   // (not implemented in this PR — placeholder for the moderation queue).
   status      String   @default("visible") // visible | hidden | pending
+  // Issue #137 — comments inherit the article's organizationId for query
+  // efficiency. Writes set this from the tenant context at POST time.
+  organizationId String?
   createdAt   DateTime @default(now())
 
   @@index([articleId, createdAt])
   @@index([parentId])
+  @@index([organizationId])
 }
 
 model ArticleLike {
@@ -379,10 +392,13 @@ model ArticleLike {
   // Anonymous likes are bucketed by a fingerprint hash (IP+UA). Allows
   // per-browser deduplication without requiring an account.
   fingerprint String?
+  // Issue #137 — likes inherit the article's organizationId.
+  organizationId String?
   createdAt DateTime @default(now())
 
   @@unique([articleId, fingerprint])
   @@index([articleId])
+  @@index([organizationId])
 }
 
 model ArticleView {
@@ -392,10 +408,13 @@ model ArticleView {
   // Per-day rollup key (YYYY-MM-DD). The dashboard groups by this to render
   // the views-over-time chart without needing a time-series DB.
   day       String
+  // Issue #137 — views inherit the article's organizationId.
+  organizationId String?
   createdAt DateTime @default(now())
 
   @@index([articleId, day])
   @@index([day])
+  @@index([organizationId])
 }
 
 model AuditLog {

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth, requireRole, forbidden } from "@/lib/aurevia/auth/check";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import {
   serializeTags,
@@ -54,6 +55,9 @@ export async function POST(req: Request) {
   // (costs ZAI tokens; mutates article AI metadata).
   const role = await requireRole(req, "trader");
   if (!role.ok) return role.response!;
+
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
 
   try {
     const body = await req.json().catch(() => ({}));
@@ -195,9 +199,13 @@ export async function POST(req: Request) {
       }
       const article = await db.article.findUnique({
         where: { id: parsed.data.articleId },
-        select: { id: true, tags: true, content: true, authorId: true },
+        select: { id: true, tags: true, content: true, authorId: true, organizationId: true },
       });
       if (article) {
+        // Issue #137 — cross-tenant articles are invisible (404).
+        if (tenant.organizationId && article.organizationId && article.organizationId !== tenant.organizationId) {
+          return NextResponse.json({ error: "not_found" }, { status: 404 });
+        }
         // Issue #136 / BE-004 — ownership check. Author OR admin can mutate.
         const isProd = process.env.NODE_ENV === "production";
         if (isProd) {
