@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireTenant } from "@/lib/aurevia/auth/tenant";
 import { logger } from "@/lib/aurevia/logger";
 import { resolveCurrentUserId } from "@/lib/aurevia/blog/shared";
 
@@ -23,13 +24,21 @@ export async function GET(
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
+
   try {
     const { slug } = await params;
     const article = await db.article.findUnique({
       where: { slug },
-      select: { id: true },
+      select: { id: true, organizationId: true },
     });
     if (!article) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Cross-tenant comments are invisible.
+    if (tenant.organizationId && article.organizationId && article.organizationId !== tenant.organizationId) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -85,13 +94,21 @@ export async function POST(
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
 
+  // Issue #137 — tenant scoping.
+  const tenant = await requireTenant();
+
   try {
     const { slug } = await params;
     const article = await db.article.findUnique({
       where: { slug },
-      select: { id: true },
+      select: { id: true, organizationId: true },
     });
     if (!article) {
+      return NextResponse.json({ error: "not_found" }, { status: 404 });
+    }
+
+    // Cross-tenant comments are rejected.
+    if (tenant.organizationId && article.organizationId && article.organizationId !== tenant.organizationId) {
       return NextResponse.json({ error: "not_found" }, { status: 404 });
     }
 
@@ -130,6 +147,8 @@ export async function POST(
         authorId,
         content: data.content.trim(),
         parentId: data.parentId ?? null,
+        // Issue #137 — stamp the article's org on the comment row.
+        organizationId: article.organizationId,
       },
     });
 
