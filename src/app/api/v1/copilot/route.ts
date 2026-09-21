@@ -3,6 +3,7 @@ import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
+import { rateLimitKey, extractClientIp } from "@/lib/aurevia/rate-limit";
 import ZAI from "z-ai-web-dev-sdk";
 
 export const dynamic = "force-dynamic";
@@ -25,6 +26,30 @@ export async function POST(req: Request) {
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
+    // Issue #159 / FINAL-004 — per-route per-IP rate limit: 5 LLM calls per
+    // minute. Prevents cost abuse of the ZAI completions API. Per-user would
+    // require a session lookup which is tracked in #161. Keyed on the IP so
+    // the limit is enforced even before session resolution completes.
+    const ip = extractClientIp(req);
+    const limit = rateLimitKey(`ai:copilot:${ip}`, 5, 60_000);
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: "rate_limit_exceeded",
+          retryAfterMs: limit.retryAfterMs,
+          limit: limit.limit,
+        },
+        {
+          status: 429,
+          headers: {
+            "retry-after": String(Math.ceil(limit.retryAfterMs / 1000)),
+            "x-ratelimit-limit": String(limit.limit),
+            "x-ratelimit-remaining": "0",
+          },
+        },
+      );
+    }
+
     const body = await req.json().catch(() => ({}));
     const parsed = QuerySchema.safeParse(body);
     if (!parsed.success) {
