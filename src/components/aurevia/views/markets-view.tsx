@@ -26,7 +26,7 @@ export function MarketsView() {
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  const assets = data ?? [];
+  const assets = useMemo(() => data ?? [], [data]);
 
   const summary = useMemo(() => {
     const advancers = assets.filter((a) => a.quote.changePct > 0).length;

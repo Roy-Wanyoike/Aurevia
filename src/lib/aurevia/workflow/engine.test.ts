@@ -64,11 +64,11 @@ function succeedingStep(name: string, onExecute?: () => void): WorkflowStep {
 }
 
 // Silence console output during tests
-let logSpy: any, warnSpy: any, errorSpy: any;
+let logSpy: any, warnSpy: any;
 beforeEach(() => {
   logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
   warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-  errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  vi.spyOn(console, "error").mockImplementation(() => {});
 });
 afterEach(() => {
   vi.restoreAllMocks();

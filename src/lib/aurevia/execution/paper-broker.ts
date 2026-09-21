@@ -3,7 +3,6 @@ import type {
   Position,
   PortfolioState,
   Quote,
-  Candle,
 } from "../types";
 
 // ---------------------------------------------------------------------------
@@ -122,8 +121,6 @@ export class PortfolioManager {
       return;
     }
     // Adding to / reducing / flipping an existing position.
-    const newSigned =
-      (existing.side === "LONG" ? existing.quantity : -existing.quantity) + signedQty;
     if ((existing.side === "LONG" && signedQty > 0) || (existing.side === "SHORT" && signedQty < 0)) {
       // Adding to position — update average entry.
       const totalCost = existing.avgEntryPrice * existing.quantity + fill.filledPrice * fill.filledQty;

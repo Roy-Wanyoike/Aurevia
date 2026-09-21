@@ -1,4 +1,4 @@
-import type { Candle, Indicators, MarketContext, Signal } from "../types";
+import type { MarketContext, Signal } from "../types";
 import { ACTION, clamp01, toSignal } from "../strategies/base";
 
 // ---------------------------------------------------------------------------
@@ -57,8 +57,6 @@ export interface MLModel {
 // The coefficients are hand-tuned for the simulated feed. In production,
 // these would be learned via walk-forward training on real historical data.
 // ---------------------------------------------------------------------------
-
-const ALM_FEATURES = ["momentum", "rsi", "macdHist", "trendStrength", "volAdj"] as const;
 
 export const logisticMomentumModel: MLModel = {
   key: "alm-v1",

@@ -14,13 +14,6 @@ import {
   TableHead,
   TableCell,
 } from "@/components/ui/table";
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -95,7 +88,7 @@ export function WatchlistsView() {
     qc.invalidateQueries({ queryKey: ["watchlists"] });
   }
 
-  const universe = markets.data ?? [];
+  const universe = useMemo(() => markets.data ?? [], [markets.data]);
   const availableSymbols = useMemo(() => {
     if (!active) return [];
     const inList = new Set(active.symbols.map((s) => s.toUpperCase()));

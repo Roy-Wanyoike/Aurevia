@@ -11,7 +11,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useSignals, useScanSignals, useStrategies } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtTime, actionColor, decisionColor, gainColor } from "@/lib/aurevia/format";
+import { fmtPrice, fmtTime, actionColor, decisionColor } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
 import { Radio, RefreshCw, Filter, X, AlertCircle } from "lucide-react";

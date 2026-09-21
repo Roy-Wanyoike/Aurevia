@@ -253,7 +253,7 @@ describe("stochastic", () => {
 
   it("%K = 100 when close equals high of the lookback window", () => {
     const candles = mkCandles(
-      Array.from({ length: 20 }, (_, i) => [100, 110, 90, 110, 1000])
+      Array.from({ length: 20 }, () => [100, 110, 90, 110, 1000])
     );
     const { k } = stochastic(candles, 14, 3);
     const last = k[k.length - 1];

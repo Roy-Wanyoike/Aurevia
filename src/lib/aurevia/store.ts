@@ -4,13 +4,14 @@ import { MarketDataGateway } from "./market-data/gateway";
 import { computeIndicators } from "./quant/indicators";
 import { detectTrend } from "./quant/trend";
 import { detectRegime } from "./quant/regime";
-import { STRATEGIES, evaluateAll, toSignal } from "./strategies";
+import { evaluateAll, toSignal } from "./strategies";
 import { runBacktest } from "./backtest/engine";
-import { DEFAULT_RISK_PROFILE, evaluateRisk, nextBreakerState } from "./risk/engine";
+import { DEFAULT_RISK_PROFILE, evaluateRisk } from "./risk/engine";
 import { PaperBroker, PortfolioManager } from "./execution/paper-broker";
 import { BrokerRouter } from "./brokers/router";
 import { ML_MODELS, ML_MODEL_MAP, mlPredictionToSignal, type MLPrediction } from "./ml/models";
 import { HealthMonitor } from "./monitoring/health-monitor";
+import { logger } from "./logger";
 import type {
   AssetInfo,
   BacktestResult,
@@ -217,7 +218,7 @@ export class AureviaStore {
     }
 
     this.liveDataInitialized = true;
-    console.log(`[aurevia] Live market data initialized via ${activeProvider.id}`);
+    logger.info("Live market data initialized", { provider: activeProvider.id });
   }
 
   // Check if live data is available

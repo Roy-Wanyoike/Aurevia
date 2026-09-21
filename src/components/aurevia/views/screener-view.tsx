@@ -44,7 +44,6 @@ import {
   gainColor,
   gainBg,
   regimeColor,
-  trendColor,
 } from "@/lib/aurevia/format";
 import { useUI } from "@/lib/aurevia/ui-store";
 import { toast } from "sonner";
