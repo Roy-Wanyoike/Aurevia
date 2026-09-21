@@ -1,13 +1,17 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // Aurevia Market Pulse (#43) — returns MarketPulseData shape matching the
 // useMarketPulse() hook interface in hooks.ts.
 
-export async function GET() {
+export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const assets = store.assetCatalog;
     let advancers = 0, decliners = 0, unchanged = 0;
@@ -94,6 +98,7 @@ export async function GET() {
       computedAt: Date.now(),
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Market pulse failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

@@ -20,10 +20,13 @@
 // ---------------------------------------------------------------------------
 
 import { NextResponse } from "next/server";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const spec = {
     openapi: "3.0.3",
     info: {

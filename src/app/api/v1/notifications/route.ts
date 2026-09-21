@@ -72,7 +72,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ notifications, total: notifications.length });
   } catch (e: any) {
     logger.error("Notifications GET failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -111,6 +111,6 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, updated: result.count });
   } catch (e: any) {
     logger.error("Notifications POST failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

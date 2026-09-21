@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { db } from "@/lib/db";
 import { authOptions } from "@/lib/aurevia/auth/auth-options";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +43,8 @@ async function resolveCurrentUserId(): Promise<string | null> {
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const userId = await resolveCurrentUserId();
     if (!userId) {
@@ -71,7 +74,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }
@@ -94,6 +97,8 @@ function slugify(name: string): string {
 
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = PostSchema.safeParse(body);
@@ -162,7 +167,7 @@ export async function POST(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

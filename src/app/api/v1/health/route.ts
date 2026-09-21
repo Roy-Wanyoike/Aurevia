@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 // GET /api/v1/health — observability snapshot.
 // Also triggers live data initialization on first request.
 export async function GET() {
+  const requestId = "health";
   try {
     // Initialize live market data on first health check (idempotent)
     await store.initLiveData();
@@ -37,9 +38,9 @@ export async function GET() {
       version: "0.1.0",
     });
   } catch (e: any) {
-    logger.error("Health check failed", { error: e?.message ?? "unknown" });
+    logger.error("Health check failed", { requestId, error: e?.message ?? "unknown" });
     return NextResponse.json(
-      { status: "error", error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

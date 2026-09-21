@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { store } from "@/lib/aurevia/store";
 import { ML_MODELS } from "@/lib/aurevia/ml/models";
+import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/ml — list ML models + recent predictions
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
     const symbol = url.searchParams.get("symbol");
@@ -25,7 +30,8 @@ export async function GET(req: Request) {
       total: predictions.length,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("ML GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -36,6 +42,9 @@ const PredictSchema = z.object({
 
 // POST /api/v1/ml — run a specific model on a specific symbol
 export async function POST(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = PredictSchema.safeParse(body);
@@ -51,6 +60,7 @@ export async function POST(req: Request) {
     }
     return NextResponse.json({ prediction: pred });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("ML POST failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

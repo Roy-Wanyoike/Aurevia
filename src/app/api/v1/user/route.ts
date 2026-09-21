@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { db } from "@/lib/db";
 import { authOptions } from "@/lib/aurevia/auth/auth-options";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +87,8 @@ function toResponse(user: NonNullable<Awaited<ReturnType<typeof resolveCurrentUs
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const user = await resolveCurrentUser();
     if (!user) {
@@ -102,7 +105,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }
@@ -114,6 +117,8 @@ const PatchSchema = z.object({
 
 export async function PATCH(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
     const parsed = PatchSchema.safeParse(body);
@@ -160,7 +165,7 @@ export async function PATCH(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

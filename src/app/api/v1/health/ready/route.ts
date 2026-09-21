@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -20,7 +21,9 @@ export const dynamic = "force-dynamic";
 //   - memory      : heapUsed < 500 MiB. Node's default heap limit is ~4 GiB
 //                   on 64-bit boxes; 500 MiB is a conservative ceiling that
 //                   catches runaway growth before the V8 OOM killer fires.
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const checks: { name: string; ok: boolean }[] = [];
   // Check market data
   const ds = store.getDataSource();

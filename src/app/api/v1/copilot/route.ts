@@ -94,7 +94,7 @@ System: mode ${health.brokerConnected ? "connected" : "disconnected"}, ${store.r
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

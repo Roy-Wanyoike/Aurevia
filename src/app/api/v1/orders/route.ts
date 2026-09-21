@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
+import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -9,6 +11,9 @@ export const dynamic = "force-dynamic";
 // neither param is supplied the response is the full list (backward
 // compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
     const status = url.searchParams.get("status");
@@ -37,6 +42,7 @@ export async function GET(req: Request) {
     // No pagination — return all (backward compatible).
     return NextResponse.json({ orders, total: orders.length });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Orders GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

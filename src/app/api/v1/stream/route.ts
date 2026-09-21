@@ -24,6 +24,7 @@
 
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 // Inline the maximum-duration hint for Vercel so the platform does not cap the
@@ -35,7 +36,9 @@ const TICK_INTERVAL_MS = 2_000;
 const HEARTBEAT_INTERVAL_MS = 15_000;
 const TICK_ASSET_COUNT = 6;
 
-export async function GET() {
+export async function GET(req: Request) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const encoder = new TextEncoder();
 
   // Hold the teardown function in a closure so both `start()` and `cancel()`

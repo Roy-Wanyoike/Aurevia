@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { logger } from "@/lib/aurevia/logger";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -23,9 +24,11 @@ export const dynamic = "force-dynamic";
 //
 // Read-only — never mutates the backtest or any other state. (Issue #57.)
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   const { id } = await params;
   const requestId = `monte-carlo:${id}`;
   try {
@@ -160,7 +163,7 @@ export async function POST(
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

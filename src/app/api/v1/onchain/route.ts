@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { logger } from "@/lib/aurevia/logger";
 import { fetchOnchainSnapshot, type OnchainSnapshot } from "@/lib/aurevia/intelligence/onchain";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -21,6 +22,8 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "onchain";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     const snapshot: OnchainSnapshot = await fetchOnchainSnapshot();
     return NextResponse.json(snapshot);
@@ -30,15 +33,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      {
-        chains: [],
-        totalTvlUsd: 0,
-        history: [],
-        protocols: [],
-        source: "defillama",
-        updatedAt: Date.now(),
-        error: e?.message ?? "unknown",
-      },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

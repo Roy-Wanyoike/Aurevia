@@ -5,6 +5,7 @@ import {
   isEconomicDataEnabled,
   type EconomicIndicator,
 } from "@/lib/aurevia/intelligence/economic";
+import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
@@ -29,6 +30,8 @@ export interface EconomicResponse {
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "economic";
+  const auth = requireAuth(req);
+  if (!auth.ok) return auth.response;
   try {
     if (!isEconomicDataEnabled()) {
       logger.info("Economic data disabled (FRED_API_KEY not set)", { requestId });
@@ -54,7 +57,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown", indicators: [], total: 0, source: "disabled", updatedAt: Date.now() },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }
