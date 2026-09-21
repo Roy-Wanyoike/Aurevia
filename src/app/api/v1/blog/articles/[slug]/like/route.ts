@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/aurevia/auth/check";
 import { requireTenant } from "@/lib/aurevia/auth/tenant";
+import { rateLimitKey, extractClientIp } from "@/lib/aurevia/rate-limit";
 import { logger } from "@/lib/aurevia/logger";
 import { getReaderFingerprint } from "@/lib/aurevia/blog/shared";
 
@@ -14,8 +15,13 @@ export const dynamic = "force-dynamic";
 // IP+UA so anonymous readers can't multi-like. Authenticated users get
 // their `userId` stamped on the row too.
 //
+// Issue #141 / SEC-005 — per-route rate limit: max 10 likes per article per
+// IP per minute. Prevents like-flooding from bots.
+//
 // Returns: { liked: boolean, likeCount: number }
 // ---------------------------------------------------------------------------
+
+const LIKE_LIMIT_PER_ARTICLE_PER_MIN = 10;
 
 export async function POST(
   req: Request,
@@ -30,6 +36,30 @@ export async function POST(
 
   try {
     const { slug } = await params;
+
+    // Issue #141 / SEC-005 — per-article-per-IP rate limit. Likes are
+    // single-tap actions; 10/min is generous for a human but blocks bots.
+    const ip = extractClientIp(req);
+    const limitKey = `blog:like:${slug}:${ip}`;
+    const limit = rateLimitKey(limitKey, LIKE_LIMIT_PER_ARTICLE_PER_MIN);
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: "rate_limit_exceeded",
+          retryAfterMs: limit.retryAfterMs,
+          limit: limit.limit,
+        },
+        {
+          status: 429,
+          headers: {
+            "retry-after": String(Math.ceil(limit.retryAfterMs / 1000)),
+            "x-ratelimit-limit": String(limit.limit),
+            "x-ratelimit-remaining": "0",
+          },
+        },
+      );
+    }
+
     const article = await db.article.findUnique({
       where: { slug },
       select: { id: true, organizationId: true },

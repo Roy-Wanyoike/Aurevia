@@ -3,6 +3,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { requireAuth } from "@/lib/aurevia/auth/check";
 import { requireTenant } from "@/lib/aurevia/auth/tenant";
+import { rateLimitKey, extractClientIp } from "@/lib/aurevia/rate-limit";
 import { logger } from "@/lib/aurevia/logger";
 import { resolveCurrentUserId } from "@/lib/aurevia/blog/shared";
 
@@ -78,7 +79,13 @@ export async function GET(
 // emits a `blog:comment` event on the websocket service (the WS service
 // runs out-of-process; the client polls / SSEs the comment list as a
 // fallback if the WS connection isn't established).
+//
+// Issue #141 / SEC-005 — per-route rate limit: max 5 comments per article
+// per IP per minute. Tighter than likes because comments are higher-cost
+// (DB write + potential spam moderation queue).
 // ---------------------------------------------------------------------------
+
+const COMMENT_LIMIT_PER_ARTICLE_PER_MIN = 5;
 
 const CreateCommentSchema = z.object({
   authorName: z.string().min(1).max(80).optional(),
@@ -99,6 +106,30 @@ export async function POST(
 
   try {
     const { slug } = await params;
+
+    // Issue #141 / SEC-005 — per-article-per-IP rate limit. 5/min is tight
+    // enough to block spam but loose enough for a threaded conversation.
+    const ip = extractClientIp(req);
+    const limitKey = `blog:comment:${slug}:${ip}`;
+    const limit = rateLimitKey(limitKey, COMMENT_LIMIT_PER_ARTICLE_PER_MIN);
+    if (!limit.ok) {
+      return NextResponse.json(
+        {
+          error: "rate_limit_exceeded",
+          retryAfterMs: limit.retryAfterMs,
+          limit: limit.limit,
+        },
+        {
+          status: 429,
+          headers: {
+            "retry-after": String(Math.ceil(limit.retryAfterMs / 1000)),
+            "x-ratelimit-limit": String(limit.limit),
+            "x-ratelimit-remaining": "0",
+          },
+        },
+      );
+    }
+
     const article = await db.article.findUnique({
       where: { slug },
       select: { id: true, organizationId: true },
