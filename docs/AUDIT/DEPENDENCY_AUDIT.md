@@ -35,7 +35,6 @@
 |---|---|---|
 | `zod` | `^4.0.2` | Schema validation (11 routes) |
 | `react-hook-form` | `^7.60.0` | Form state |
-| `@hookform/resolvers` | `^5.1.1` | zod resolver |
 
 ### UI primitives (Radix + shadcn)
 
@@ -80,7 +79,6 @@
 | `react-resizable-panels` | `^3.0.3` |
 | `sonner` | `^2.0.6` |
 | `next-themes` | `^0.4.6` |
-| `framer-motion` | `^12.23.2` |
 
 ### Styling
 
@@ -98,7 +96,6 @@
 
 | Package | Version | Purpose |
 |---|---|---|
-| `date-fns` | `^4.1.0` | Date formatting |
 | `sharp` | `^0.34.3` | Image optimization (Next.js built-in) |
 | `socket.io-client` | `^4.8.3` | Live tick stream from `mini-services/aurevia-stream` |
 | `react-markdown` | `^10.1.0` | Copilot output rendering |
@@ -124,7 +121,6 @@
 | `@types/bcryptjs` | `^3.0.0` | Type defs |
 | `@types/react` | `^19` | Type defs |
 | `@types/react-dom` | `^19` | Type defs |
-| `bun-types` | `^1.3.4` | Bun runtime types |
 
 ## Removed / unused (verified by audit)
 

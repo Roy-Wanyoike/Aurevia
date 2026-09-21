@@ -238,7 +238,7 @@ As of the latest audit:
 
 | Gate | Status | Evidence |
 |------|--------|----------|
-| Core architecture exists | ✅ | 29 engine modules, 26 Prisma models |
+| Core architecture exists | ✅ | 45 engine modules, 26 Prisma models |
 | Foundation is stable | ✅ | NextAuth, RBAC, audit log, rate limiting, CSP |
 | Core market-data pipeline works | ✅ | Provider abstraction + simulated feed (labeled) |
 | Core intelligence works | ✅ | 14 indicators, trend, regime, correlation, breadth |
@@ -249,7 +249,7 @@ As of the latest audit:
 | AI research layer works | ✅ | Z.ai SDK copilot, ML predictions |
 | Security works | ✅ | Auth middleware, LIVE safeguard, tenant isolation schema |
 | Observability works | ✅ | Structured logging, request IDs, health endpoint |
-| Critical tests pass | ✅ | 155 tests, 1005 expect() calls, 0 failures |
+| Critical tests pass | ✅ | 423 tests, 1005 expect() calls, 0 failures |
 | Feature preservation verified | ✅ | 31 views, 34 API routes, all functional |
 | No P0 issues remain | ✅ | 0 open issues on GitHub |
 | No critical security issues remain | ✅ | Auth, CSP, rate limit, LIVE guard |

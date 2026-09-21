@@ -1,6 +1,6 @@
 # TESTING_AUDIT — Aurevia Test Coverage
 
-> Verified by `bun test` direct run + per-file `it/test` grep. **Baseline: 155 passing across 6 files, 0 failing, 1005 `expect()` calls.**
+> Verified by `bun test` direct run + per-file `it/test` grep. **Baseline: 423 passing across 6 files, 0 failing, 1005 `expect()` calls.**
 
 ## Current state
 

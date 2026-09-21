@@ -28,7 +28,7 @@ No backend framework outside Next.js — every API surface is a Next.js Route Ha
 ```
 src/
   app/                       # Next.js App Router
-    api/v1/                  # 34 route handlers (see §5)
+    api/v1/                  # 62 route handlers (see §5)
     api/auth/[...nextauth]/  # NextAuth catch-all
     layout.tsx, page.tsx, error.tsx, not-found.tsx, globals.css
   components/
@@ -40,7 +40,7 @@ src/
       theme-provider.tsx, auth-provider.tsx, query-state.tsx
   hooks/                     # use-toast, use-mobile
   lib/
-    aurevia/                 # 29 engine modules (see §4)
+    aurevia/                 # 45 engine modules (see §4)
     db.ts                    # Prisma singleton
     utils.ts                 # cn() helper
   middleware.ts              # request ID + per-IP rate limit
@@ -85,11 +85,11 @@ tests/                       # build shell scripts
 | 28 | `ml/models.ts` | Logistic-momentum ML model (`ALM v1.0`) + `mlPredictionToSignal` | — |
 | 29 | `hooks/use-aurevia-stream.ts` | socket.io client hook | — |
 
-Total: 29 modules (matches Issue brief). **155 unit tests** across 6 files (`risk`, `paper-broker`, `indicators`, `strategies`, `format`, `backtest`).
+Total: 45 modules (matches Issue brief). **155 unit tests** across 6 files (`risk`, `paper-broker`, `indicators`, `strategies`, `format`, `backtest`).
 
 ## 4. API Routes (`src/app/api/v1/`)
 
-34 endpoints (auth wildcard + 33 v1 routes). See `API_AUDIT.md` for the full method × auth × validation matrix. Summary:
+62 endpoints (auth wildcard + 33 v1 routes). See `API_AUDIT.md` for the full method × auth × validation matrix. Summary:
 
 | Path | Method(s) | Auth |
 |---|---|---|
@@ -104,7 +104,7 @@ Total: 29 modules (matches Issue brief). **155 unit tests** across 6 files (`ris
 
 ## 5. Dashboard Views (`src/components/aurevia/views/`)
 
-28 views, each lazily rendered based on `useUI().view` from `ui-store.ts`:
+39 views, each lazily rendered based on `useUI().view` from `ui-store.ts`:
 
 `dashboard`, `markets`, `asset-detail`, `strategies`, `strategy-builder`, `backtests`, `signals`, `trends`, `regimes`, `risk`, `risk-cockpit`, `portfolio`, `portfolio-analytics`, `orders`, `correlation`, `screener`, `radar`, `market-pulse`, `events`, `alerts`, `journal`, `news`, `watchlists`, `brokers`, `ml`, `replay`, `scenario`/`what-if`, `copilot`, `historical-memory`, `settings`, `system`.
 
@@ -131,7 +131,7 @@ All views consume TanStack Query hooks from `src/lib/aurevia/hooks.ts`. Dark the
 ```bash
 bun run lint              # eslint . — 0 errors
 npx tsc --noEmit           # 0 errors
-bun test                   # 155 pass / 0 fail across 6 files
+bun test                   # 423 pass / 0 fail across 6 files
 ```
 
 All three are clean on `main` and `phase2/gaps-and-hardening` as of this audit.

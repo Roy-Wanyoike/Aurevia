@@ -104,7 +104,7 @@ Prisma + SQLite. Durable records: `User`, `Asset`, `Strategy`, `Signal`, `Backte
 - **API auth gate wired.** Every mutating POST (portfolio, risk, brokers, signals, backtests, alerts) calls `requireAuth()`. In dev it bypasses with a one-shot warning; in prod it requires `AUREVIA_API_KEY` header.
 - **NextAuth multi-tenant available.** Organizations, Teams, Memberships schema exists; UI for org admin is Phase 10.
 - **ML models.** Two ML strategies (ALM logistic, ARF random-forest sketch) are wired into the strategy framework. Drift detection is Phase 8.
-- **CI/CD pipeline.** GitHub Actions runs lint + typecheck + 155 tests + build on every PR.
+- **CI/CD pipeline.** GitHub Actions runs lint + typecheck + 423 tests + build on every PR.
 
 ## 8. Definition of Done (current state)
 

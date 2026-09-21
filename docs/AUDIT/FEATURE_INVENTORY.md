@@ -102,7 +102,7 @@
 
 ## Dashboard Views
 
-28 views, all **IMPLEMENTED** (not unit-tested — exercised manually via UI):
+39 views, all **IMPLEMENTED** (not unit-tested — exercised manually via UI):
 dashboard, markets, asset-detail, strategies, strategy-builder, backtests, signals, trends, regimes, risk, risk-cockpit, portfolio, portfolio-analytics, orders, correlation, screener, radar, market-pulse, events, alerts, journal, news, watchlists, brokers, ml, replay, what-if/scenario, copilot, historical-memory, settings, system.
 
 ## Hardening gates still open

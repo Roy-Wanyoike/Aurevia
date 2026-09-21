@@ -23,7 +23,7 @@
 
 **Context.** Prisma 6.x rejects `provider = env("DATABASE_PROVIDER")` with P1012. The previous attempt (the "#85 fix") silently broke `prisma db push` for every subsequent PR including #71's schema changes.
 
-**Decision.** Hard-code `provider = "sqlite"` in `schema.prisma` for dev. Production Postgres deployments maintain a separate `prisma/schema.postgres.prisma` and run `prisma db push --schema=prisma/schema.postgres.prisma` in their CD pipeline. (Equivalent to how Next.js uses `next.config.prod.ts` overrides.)
+**Decision.** Hard-code `provider = "sqlite"` in `schema.prisma` for dev. Production Postgres deployments maintain a separate `prisma/schema.prisma (SQLite dev; Postgres via separate schema file if needed)` and run `prisma db push --schema=prisma/schema.prisma (SQLite dev; Postgres via separate schema file if needed)` in their CD pipeline. (Equivalent to how Next.js uses `next.config.prod.ts` overrides.)
 
 **Consequences.**
 - ✅ `prisma db push` always works in dev.

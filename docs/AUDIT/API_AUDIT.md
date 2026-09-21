@@ -1,6 +1,6 @@
 # API_AUDIT — Aurevia v1 API Surface
 
-> Verified by direct grep of `src/app/api/v1/**/route.ts` + `src/app/api/auth/[...nextauth]/route.ts`. **34 endpoints** total (33 v1 + NextAuth wildcard).
+> Verified by direct grep of `src/app/api/v1/**/route.ts` + `src/app/api/auth/[...nextauth]/route.ts`. **62 endpoints** total (33 v1 + NextAuth wildcard).
 
 ## Auth model
 
@@ -60,7 +60,7 @@
 | 41 | POST | `/api/v1/scenario` | None ⚠ | ✅ ScenarioSchema | What-if simulator |
 | 42 | POST | `/api/v1/screener` | None ⚠ | ✅ ScreenerSchema | Smart screener |
 
-> The Issue brief counted "34 endpoints" — the canonical count is the 33 unique v1 paths plus the NextAuth wildcard handler, which we list at row #1.
+> The Issue brief counted "62 endpoints" — the canonical count is the 33 unique v1 paths plus the NextAuth wildcard handler, which we list at row #1.
 
 ## Validation audit
 

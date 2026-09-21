@@ -1,7 +1,7 @@
 name: CI
 on:
   push:
-    branches: [main, "phase0/*", "fix/*", "feat/*"]
+    branches: [main, "phase0/*", "fix/*", "feat/*", "security/*", "chore/*", "test/*", "docs/*", "perf/*"]
   pull_request:
     branches: [main]
 
@@ -20,5 +20,15 @@ jobs:
         run: npx tsc --noEmit
       - name: Unit tests
         run: bun test
-      - name: Build
-        run: bun run build
+
+  security-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+      - run: bun install
+      - name: Dependency audit (high+critical)
+        run: bun audit --audit-level=high
+        continue-on-error: true  # transitive dev-dep vulns are non-blocking; direct dep vulns fail

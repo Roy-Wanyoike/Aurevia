@@ -151,7 +151,7 @@ Open http://localhost:3000 — the dashboard renders with 18 assets, 7 strategie
 
 **Differentiation:** Aurevia is not "another trading bot." It's market intelligence infrastructure where autonomous trading is one capability sitting on top of the intelligence + research + risk platform. The risk engine is the product — it's what makes the platform trustworthy.
 
-**Traction:** Engineering infrastructure complete. 155 tests passing. Production-ready foundation. Next milestone: real broker integration (Alpaca sandbox → live).
+**Traction:** Engineering infrastructure complete. 423 tests passing. Production-ready foundation. Next milestone: real broker integration (Alpaca sandbox → live).
 
 ---
 
@@ -160,7 +160,7 @@ Open http://localhost:3000 — the dashboard renders with 18 assets, 7 strategie
 - **[ARCHITECTURE.md](ARCHITECTURE.md)** — full system design, engine boundaries, safety properties
 - **[BRANDING.md](BRANDING.md)** — logo system, color palette, design principles
 - **[CONTRIBUTING.md](CONTRIBUTING.md)** — dev setup, branch naming, PR process
-- **[ISSUES.md](ISSUES.md)** — full audit findings + feature roadmap (80+ items)
+- **[GitHub Issues](https://github.com/Roy-Wanyoike/Aurevia/issues)** — full audit findings + feature roadmap (80+ items)
 
 ```bash
 # Run tests
