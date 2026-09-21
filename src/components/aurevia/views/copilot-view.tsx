@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
 import { useAskCopilot } from "@/lib/aurevia/hooks";
 import { toast } from "sonner";
 import {
@@ -327,7 +329,18 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           <p className="whitespace-pre-wrap">{message.content}</p>
         ) : (
           <div className="prose prose-sm prose-invert max-w-none">
+            {/* Issue #158 / FINAL-003 — sanitize the rendered LLM output via
+                rehype-sanitize. The default schema strips `javascript:`,
+                `data:`, `vbscript:` URL schemes from anchor `href` attributes
+                and disallows raw `<script>` / inline event handlers. The LLM
+                response is untrusted input — never render it raw. We also
+                override the `a` element via the `components` prop to inject
+                `target="_blank" rel="noopener noreferrer"` so any external
+                links the LLM emits open in a new tab without leaking
+                referrer / window.opener (same hardening as the blog views). */}
             <ReactMarkdown
+              remarkPlugins={[remarkGfm]}
+              rehypePlugins={[[rehypeSanitize, defaultSchema]]}
               components={{
                 p: ({ children }) => <p className="leading-relaxed">{children}</p>,
                 ul: ({ children }) => <ul className="ml-4 list-disc space-y-1">{children}</ul>,
@@ -336,6 +349,13 @@ function ChatBubble({ message }: { message: ChatMessage }) {
                   <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{children}</code>
                 ),
                 strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
+                a: ({ node, ...props }) => (
+                  <a
+                    {...props}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  />
+                ),
               }}
             >
               {message.content}
