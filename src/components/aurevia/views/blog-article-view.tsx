@@ -224,6 +224,10 @@ export function BlogArticleView() {
     if (!slug) return;
     setLiked((v) => !v);
     likeMut.mutate(slug, {
+      // FINAL-012 — the server is the source of truth for the liked state
+      // (e.g. a duplicate like from another tab is a no-op). Reconcile the
+      // optimistic local toggle against the server response on success.
+      onSuccess: (data) => setLiked(data.liked),
       onError: () => setLiked((v) => !v),
     });
   };

@@ -171,22 +171,26 @@ export async function POST(
     const fallbackName = authorId ? "Aurevia Trader" : "Anonymous";
     const authorName = (data.authorName ?? "").trim() || fallbackName;
 
-    const comment = await db.articleComment.create({
-      data: {
-        articleId: article.id,
-        authorName,
-        authorId,
-        content: data.content.trim(),
-        parentId: data.parentId ?? null,
-        // Issue #137 — stamp the article's org on the comment row.
-        organizationId: article.organizationId,
-      },
-    });
-
-    await db.article.update({
-      where: { id: article.id },
-      data: { commentCount: { increment: 1 } },
-    });
+    // FINAL-007 — wrap create + counter increment in a single transaction so
+    // we never publish a comment row without bumping the article's counter
+    // (and vice versa). Pattern mirrors the like route.
+    const [comment] = await db.$transaction([
+      db.articleComment.create({
+        data: {
+          articleId: article.id,
+          authorName,
+          authorId,
+          content: data.content.trim(),
+          parentId: data.parentId ?? null,
+          // Issue #137 — stamp the article's org on the comment row.
+          organizationId: article.organizationId,
+        },
+      }),
+      db.article.update({
+        where: { id: article.id },
+        data: { commentCount: { increment: 1 } },
+      }),
+    ]);
 
     logger.info("Blog comment created", {
       requestId,

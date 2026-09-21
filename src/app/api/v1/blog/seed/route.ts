@@ -383,24 +383,29 @@ export async function POST(req: Request) {
         select: { id: true },
       });
       if (firstArticle) {
-        await db.articleComment.createMany({
-          data: [
-            {
-              articleId: firstArticle.id,
-              authorName: "Alex Chen",
-              content: "The barbell on duration is interesting — what's your read on the 5y specifically? I've been avoiding the belly.",
-            },
-            {
-              articleId: firstArticle.id,
-              authorName: "Maya Rodriguez",
-              content: "Agreed on the quality factor. The low-leverage basket has been working since Q4 last year. Any thoughts on the carry trade unwind risk?",
-            },
-          ],
-        });
-        await db.article.update({
-          where: { id: firstArticle.id },
-          data: { commentCount: { increment: 2 } },
-        });
+        // FINAL-007 — wrap createMany + counter update in a single
+        // transaction so the seed never leaves the article with a stale
+        // comment count if one of the writes fails.
+        await db.$transaction([
+          db.articleComment.createMany({
+            data: [
+              {
+                articleId: firstArticle.id,
+                authorName: "Alex Chen",
+                content: "The barbell on duration is interesting — what's your read on the 5y specifically? I've been avoiding the belly.",
+              },
+              {
+                articleId: firstArticle.id,
+                authorName: "Maya Rodriguez",
+                content: "Agreed on the quality factor. The low-leverage basket has been working since Q4 last year. Any thoughts on the carry trade unwind risk?",
+              },
+            ],
+          }),
+          db.article.update({
+            where: { id: firstArticle.id },
+            data: { commentCount: { increment: 2 } },
+          }),
+        ]);
       }
     }
 

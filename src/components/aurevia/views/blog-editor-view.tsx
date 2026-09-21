@@ -240,9 +240,9 @@ export function BlogEditorView() {
                   : "Saved as a draft.",
               },
             );
+            // FINAL-011 — only navigate to the reader on publish. Save-draft
+            // keeps the author in the editor so they can keep iterating.
             if (publish) {
-              openArticle(data.article.slug);
-            } else {
               openArticle(data.article.slug);
             }
           },
