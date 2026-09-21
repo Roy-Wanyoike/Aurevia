@@ -97,7 +97,7 @@ export async function GET(req: Request) {
     return NextResponse.json({ keys: masked, total: masked.length });
   } catch (e: any) {
     logger.error("API keys GET failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -159,6 +159,6 @@ export async function POST(req: Request) {
     }, { status: 201 });
   } catch (e: any) {
     logger.error("API key POST failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

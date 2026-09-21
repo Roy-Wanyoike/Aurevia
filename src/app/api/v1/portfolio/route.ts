@@ -33,6 +33,7 @@ const OrderSchema = z
 
 // GET /api/v1/portfolio — current paper-trading portfolio state.
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   // Issue #97 — resolve tenant context at the API boundary. The store is
@@ -43,13 +44,14 @@ export async function GET(req: Request) {
   const tenant = await requireTenant();
   try {
     logger.debug("Portfolio state requested", {
-      requestId: req.headers.get("x-request-id") ?? "unknown",
+      requestId,
       userId: tenant.userId,
       organizationId: tenant.organizationId,
     });
     return NextResponse.json({ portfolio: store.getPortfolio() });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Portfolio GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -128,6 +130,6 @@ export async function POST(req: Request) {
       status: "ERROR",
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

@@ -12,6 +12,7 @@ export const dynamic = "force-dynamic";
 // neither param is supplied the response is the full list (backward
 // compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   // Issue #97 — resolve tenant context at the API boundary. The store is
@@ -20,7 +21,7 @@ export async function GET(req: Request) {
   const tenant = await requireTenant();
   try {
     logger.debug("Signals list requested", {
-      requestId: req.headers.get("x-request-id") ?? "unknown",
+      requestId,
       userId: tenant.userId,
       organizationId: tenant.organizationId,
     });
@@ -57,8 +58,8 @@ export async function GET(req: Request) {
     }));
     return NextResponse.json({ signals: enriched, total: signals.length });
   } catch (e: any) {
-    logger.error("Signals GET failed", { error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Signals GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -93,6 +94,6 @@ export async function POST(req: Request) {
       status: "ERROR",
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

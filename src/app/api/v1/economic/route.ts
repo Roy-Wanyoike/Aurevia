@@ -57,7 +57,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown", indicators: [], total: 0, source: "disabled", updatedAt: Date.now() },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

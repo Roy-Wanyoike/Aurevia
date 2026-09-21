@@ -256,6 +256,6 @@ export async function POST(req: Request) {
       error: e?.message ?? "unknown",
     });
     store.health.apiErrors++;
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

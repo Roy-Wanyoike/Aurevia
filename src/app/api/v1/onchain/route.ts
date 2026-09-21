@@ -33,15 +33,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      {
-        chains: [],
-        totalTvlUsd: 0,
-        history: [],
-        protocols: [],
-        source: "defillama",
-        updatedAt: Date.now(),
-        error: e?.message ?? "unknown",
-      },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

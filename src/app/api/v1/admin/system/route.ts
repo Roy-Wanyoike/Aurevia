@@ -92,6 +92,6 @@ export async function GET(req: Request) {
     return NextResponse.json(stats);
   } catch (e: any) {
     logger.error("Admin system GET failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

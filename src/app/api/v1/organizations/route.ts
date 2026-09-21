@@ -74,7 +74,7 @@ export async function GET(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }
@@ -167,7 +167,7 @@ export async function POST(req: Request) {
       error: e?.message ?? "unknown",
     });
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

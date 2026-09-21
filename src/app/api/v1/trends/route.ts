@@ -7,6 +7,7 @@ export const dynamic = "force-dynamic";
 
 // GET /api/v1/trends — trend distribution + per-asset trend snapshot.
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
@@ -37,7 +38,7 @@ export async function GET(req: Request) {
     }, {});
     return NextResponse.json({ rows, distribution });
   } catch (e: any) {
-    logger.error("Trends GET failed", { error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Trends GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

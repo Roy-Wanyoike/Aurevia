@@ -1,12 +1,14 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
 import { detectRegime } from "@/lib/aurevia/quant/regime";
+import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
 
 export const dynamic = "force-dynamic";
 
 // GET /api/v1/regimes — regime distribution across the tradeable universe.
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
@@ -30,6 +32,7 @@ export async function GET(req: Request) {
     }));
     return NextResponse.json({ distribution: dist, summary });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Regimes GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

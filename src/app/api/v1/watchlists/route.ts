@@ -86,6 +86,7 @@ function buildRows(symbols: string[]): WatchlistQuoteRow[] {
 
 // GET /api/v1/watchlists — all watchlists, each with live quotes per symbol.
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
@@ -97,8 +98,9 @@ export async function GET(req: Request) {
     }));
     return NextResponse.json({ watchlists: payload, total: payload.length });
   } catch (e: any) {
+    logger.error("Watchlists GET failed", { requestId, error: e?.message ?? "unknown" });
     store.health.apiErrors++;
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -200,6 +202,6 @@ export async function POST(req: Request) {
       error: e?.message ?? "unknown",
     });
     store.health.apiErrors++;
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

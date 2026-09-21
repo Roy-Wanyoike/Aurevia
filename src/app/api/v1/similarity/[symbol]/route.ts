@@ -184,7 +184,7 @@ export async function GET(
     });
     store.health.apiErrors++;
     return NextResponse.json(
-      { error: e?.message ?? "unknown" },
+      { error: "internal_error", requestId },
       { status: 500 },
     );
   }

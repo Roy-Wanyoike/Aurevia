@@ -230,6 +230,6 @@ export async function GET(req: Request) {
     });
   } catch (e: any) {
     logger.error("Export GET failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

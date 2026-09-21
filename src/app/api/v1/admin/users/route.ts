@@ -49,6 +49,6 @@ export async function GET(req: Request) {
     return NextResponse.json({ users: items, total: items.length });
   } catch (e: any) {
     logger.error("Admin users GET failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

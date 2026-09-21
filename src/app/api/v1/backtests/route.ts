@@ -28,6 +28,7 @@ const RunSchema = z.object({
 // neither param is supplied the response is the full list (backward
 // compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   // Issue #97 — resolve tenant context at the API boundary. The store is
@@ -36,7 +37,7 @@ export async function GET(req: Request) {
   const tenant = await requireTenant();
   try {
     logger.debug("Backtest history requested", {
-      requestId: req.headers.get("x-request-id") ?? "unknown",
+      requestId,
       userId: tenant.userId,
       organizationId: tenant.organizationId,
     });
@@ -80,13 +81,14 @@ export async function GET(req: Request) {
       total: store.backtests.length,
     });
   } catch (e: any) {
-    logger.error("Backtests GET failed", { error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Backtests GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
 // POST /api/v1/backtests — run a new backtest.
 export async function POST(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
@@ -107,6 +109,7 @@ export async function POST(req: Request) {
     result.environment = meta.environment;
     return NextResponse.json({ result });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Backtest run failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

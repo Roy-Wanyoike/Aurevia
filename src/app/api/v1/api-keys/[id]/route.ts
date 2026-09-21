@@ -77,6 +77,6 @@ export async function DELETE(
     return NextResponse.json({ ok: true, id: existing.id, revokedAt: new Date().toISOString() });
   } catch (e: any) {
     logger.error("API key DELETE failed", { requestId, error: e?.message ?? "unknown" });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

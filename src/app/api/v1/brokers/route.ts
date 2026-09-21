@@ -8,13 +8,15 @@ export const dynamic = "force-dynamic";
 
 // GET /api/v1/brokers — list registered brokers + routing info
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const brokers = store.listBrokers();
     return NextResponse.json({ brokers, total: brokers.length });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Brokers GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -88,6 +90,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ error: "unknown action" }, { status: 400 });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Brokers POST failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

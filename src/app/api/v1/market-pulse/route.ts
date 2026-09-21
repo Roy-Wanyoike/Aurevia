@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 // useMarketPulse() hook interface in hooks.ts.
 
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
@@ -97,6 +98,7 @@ export async function GET(req: Request) {
       computedAt: Date.now(),
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Market pulse failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }

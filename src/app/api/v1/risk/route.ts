@@ -25,6 +25,7 @@ const RiskSchema = z
 
 // GET /api/v1/risk — risk profile + recent risk events + portfolio risk snapshot.
 export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
@@ -37,7 +38,8 @@ export async function GET(req: Request) {
       weekStartEquity: store.weekStartEquity,
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    logger.error("Risk GET failed", { requestId, error: e?.message ?? "unknown" });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
 
@@ -201,6 +203,6 @@ export async function POST(req: Request) {
       status: "ERROR",
       error: e?.message ?? "unknown",
     });
-    return NextResponse.json({ error: e?.message ?? "unknown" }, { status: 500 });
+    return NextResponse.json({ error: "internal_error", requestId }, { status: 500 });
   }
 }
