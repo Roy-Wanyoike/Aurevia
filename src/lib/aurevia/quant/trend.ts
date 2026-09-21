@@ -1,5 +1,5 @@
 import type { Candle, TrendState, TrendDirection } from "../types";
-import { sma, ema, atr } from "./indicators";
+import { sma, atr } from "./indicators";
 
 // ---------------------------------------------------------------------------
 // Trend detection. Deterministic. Uses SMA slope, EMA stacking, ADX-like
@@ -25,16 +25,12 @@ export function detectTrend(candles: Candle[]): TrendState {
   }
   const sma20 = sma(closes, 20);
   const sma50 = sma(closes, 50);
-  const ema12 = ema(closes, 12);
-  const ema26 = ema(closes, 26);
   const atrArr = atr(candles, 14);
   const last = closes.length - 1;
 
   const price = closes[last];
   const s20 = sma20[last] || price;
   const s50 = sma50[last] || price;
-  const e12 = ema12[last] || price;
-  const e26 = ema26[last] || price;
 
   // Direction via stacking + slope of SMA50 over ~10 bars.
   const slope = (s50 - (sma50[last - 10] || s50)) / (s50 || 1);

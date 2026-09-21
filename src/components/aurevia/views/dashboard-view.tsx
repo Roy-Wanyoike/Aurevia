@@ -8,12 +8,11 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useMarkets, usePortfolio, useHealth, useSignals, useTrends, useSparklines, useScanSignals } from "@/lib/aurevia/hooks";
-import { fmtPrice, fmtPct, fmtUsd, fmtCompact, gainColor, accentColor, regimeColor, actionColor, decisionColor, fmtTime } from "@/lib/aurevia/format";
+import { fmtPrice, fmtPct, fmtUsd, gainColor, accentColor, regimeColor, actionColor, decisionColor, fmtTime } from "@/lib/aurevia/format";
 import { StatTile } from "@/components/aurevia/charts/stat-tile";
 import { Sparkline } from "@/components/aurevia/charts/sparkline";
-import { QueryState } from "@/components/aurevia/query-state";
 import { useUI } from "@/lib/aurevia/ui-store";
-import { Activity, ArrowUpRight, ArrowDownRight, ShieldAlert, Radio, Zap, RefreshCw, TrendingUp } from "lucide-react";
+import { Activity, ArrowUpRight, ArrowDownRight, ShieldAlert, Radio, Zap, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 // "Updated Xs ago" — re-renders every second so the age visibly ticks

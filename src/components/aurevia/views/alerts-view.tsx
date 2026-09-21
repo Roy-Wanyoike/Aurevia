@@ -88,8 +88,8 @@ export function AlertsView() {
   // pop a notification on every refetch.
   const toastedRef = useRef<Set<string>>(new Set());
 
-  const all = data?.alerts ?? [];
-  const triggeredNow = data?.triggered ?? [];
+  const all = useMemo(() => data?.alerts ?? [], [data]);
+  const triggeredNow = useMemo(() => data?.triggered ?? [], [data]);
   const active = useMemo(() => all.filter((a) => a.active), [all]);
   const fired = useMemo(() => all.filter((a) => !a.active).sort((a, b) => (b.triggeredAt ?? 0) - (a.triggeredAt ?? 0)), [all]);
 
@@ -119,7 +119,7 @@ export function AlertsView() {
     action.mutate(
       { action: "create", type, symbol, condition, threshold: thr },
       {
-        onSuccess: (res) => {
+        onSuccess: () => {
           toast.success(`Alert created for ${symbol}`);
           setThreshold("");
           qc.invalidateQueries({ queryKey: ["alerts"] });

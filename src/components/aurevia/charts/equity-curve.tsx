@@ -1,6 +1,6 @@
 "use client";
 
-import { Area, AreaChart, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Line, ReferenceLine, Legend } from "recharts";
+import { Area, AreaChart, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, ReferenceLine } from "recharts";
 import { fmtPrice, fmtDateTime } from "@/lib/aurevia/format";
 
 interface Point {

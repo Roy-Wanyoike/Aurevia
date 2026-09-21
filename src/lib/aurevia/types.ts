@@ -159,6 +159,11 @@ export interface BacktestResult {
   equityCurve: { t: number; equity: number; benchmark: number }[];
   trades: BacktestTrade[];
   status: "COMPLETED" | "FAILED";
+  // FINAL-009 (#163): surfaced from mkFailed() so callers (UI, dashboard,
+  // tests) can show *why* a backtest failed instead of just "FAILED". Optional
+  // because COMPLETED runs don't have a failure reason and the in-memory store
+  // may contain backtests created before this field existed.
+  failureReason?: string;
   createdAt: number;
   // ─── Research reproducibility metadata (issue #113) ──────────────────────
   // All four are optional because the in-memory store may contain backtests

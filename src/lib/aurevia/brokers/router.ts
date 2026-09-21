@@ -1,5 +1,4 @@
 import type { BrokerAdapter, BrokerConfig } from "./adapter";
-import type { Position } from "../types";
 import { AlpacaAdapter } from "./alpaca";
 import { IBKRAdapter } from "./ibkr";
 import { PaperBroker } from "../execution/paper-broker";
@@ -40,7 +39,6 @@ export interface BrokerRegistryEntry {
 
 export class BrokerRouter {
   private registry: Map<BrokerKind, BrokerRegistryEntry> = new Map();
-  private defaultBroker: BrokerKind = "paper";
 
   // Register a broker adapter. Paper broker is always registered by default.
   registerPaper(broker: PaperBroker): void {
@@ -104,7 +102,7 @@ export class BrokerRouter {
   // Route an order to the best broker. Returns the routing decision.
   // Currently: paper broker is always preferred (it's the only connected one
   // in dev). In production, this would compare fees/latency/liquidity.
-  route(symbol: string, side: "BUY" | "SELL", quantity: number): BrokerRoute {
+  route(_symbol: string, _side: "BUY" | "SELL", quantity: number): BrokerRoute {
     // If paper broker is available, use it (dev mode).
     const paper = this.registry.get("paper");
     if (paper?.healthy) {

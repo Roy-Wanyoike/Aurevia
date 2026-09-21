@@ -9,7 +9,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "@
 import { Progress } from "@/components/ui/progress";
 import { Brain, Sparkles, TrendingUp, TrendingDown, Activity, Shield } from "lucide-react";
 import { toast } from "sonner";
-import { fmtPct, fmtPrice } from "@/lib/aurevia/format";
+import { fmtPct } from "@/lib/aurevia/format";
 import { useMarkets } from "@/lib/aurevia/hooks";
 
 async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {

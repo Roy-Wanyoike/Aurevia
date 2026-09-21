@@ -23,7 +23,7 @@ import {
   AlertDialogCancel,
 } from "@/components/ui/alert-dialog";
 import { useRisk, useUpdateRisk, useSetBreaker } from "@/lib/aurevia/hooks";
-import { breakerColor, fmtTime, fmtPct } from "@/lib/aurevia/format";
+import { breakerColor, fmtTime } from "@/lib/aurevia/format";
 import { toast } from "sonner";
 import { ShieldAlert, Save, AlertTriangle } from "lucide-react";
 

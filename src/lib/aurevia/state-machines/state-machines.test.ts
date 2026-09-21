@@ -10,7 +10,6 @@ import {
   canTransition as canStrategy,
   assertTransition as assertStrategy,
   isTerminal as isStrategyTerminal,
-  legalNextStates as legalStrategyNext,
   type StrategyState,
 } from "./strategy-state-machine";
 import {
@@ -18,7 +17,6 @@ import {
   assertTransition as assertTradingMode,
   isTerminal as isTradingModeTerminal,
   legalNextStates as legalTradingModeNext,
-  type TradingModeState,
 } from "./trading-mode-machine";
 import {
   canTransition as canRisk,

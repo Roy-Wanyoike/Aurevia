@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -151,7 +150,6 @@ function saveState(s: OnboardingState) {
 }
 
 export default function OnboardingPage() {
-  const router = useRouter();
   const [step, setStep] = useState(0);
   const [markets, setMarkets] = useState<MarketAsset[]>([]);
   const [marketsLoading, setMarketsLoading] = useState(false);
@@ -172,7 +170,9 @@ export default function OnboardingPage() {
       if (saved.riskProfile && saved.watchlist.length > 0) {
         setStep(4);
       } else if (saved.tradingMode && saved.watchlist.length >= 0) {
-        setStep(Math.max(step, saved.watchlist.length > 0 ? 3 : 1));
+        // Functional update so we don't need `step` in the dep array —
+        // the effect intentionally runs once on mount only.
+        setStep((s) => Math.max(s, saved.watchlist.length > 0 ? 3 : 1));
       }
     }
   }, []);

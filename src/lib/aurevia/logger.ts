@@ -28,6 +28,7 @@ export function log(level: LogLevel, message: string, meta?: Record<string, any>
   // In production, this would go to a structured log sink (Datadog, CloudWatch, etc.)
   if (level === "error") console.error(JSON.stringify(entry));
   else if (level === "warn") console.warn(JSON.stringify(entry));
+  // eslint-disable-next-line no-console -- this IS the logger sink
   else console.log(JSON.stringify(entry));
 }
 

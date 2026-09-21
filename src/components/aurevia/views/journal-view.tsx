@@ -99,7 +99,6 @@ export function JournalView() {
   const buyCount = entries.filter((e) => e.side === "BUY").length;
   const sellCount = entries.filter((e) => e.side === "SELL").length;
   const buyPct = totalTrades > 0 ? (buyCount / totalTrades) * 100 : 0;
-  const sellPct = totalTrades > 0 ? (sellCount / totalTrades) * 100 : 0;
   const buyBias = buyPct > 65 ? "strongly long-biased" : buyPct > 55 ? "long-biased" : buyPct < 35 ? "strongly short-biased" : buyPct < 45 ? "short-biased" : "balanced";
 
   return (

@@ -1,4 +1,4 @@
-import type { OrderRecord, Quote, Position, PortfolioState } from "../types";
+import type { OrderRecord, Quote, Position } from "../types";
 
 // ---------------------------------------------------------------------------
 // Aurevia Broker Adapter Contract.

@@ -25,7 +25,6 @@ export class AlpacaAdapter implements BrokerAdapter {
   private status: BrokerStatus = "DISCONNECTED";
   private quoteHandlers: Map<string, (q: Quote) => void> = new Map();
   private orderHandlers: ((e: OrderEvent) => void)[] = [];
-  private connectedAt = 0;
 
   constructor(config: BrokerConfig) {
     this.config = config;
@@ -36,7 +35,6 @@ export class AlpacaAdapter implements BrokerAdapter {
     // In production: validate credentials via GET /v2/account
     await this.simulateLatency();
     this.status = "CONNECTED";
-    this.connectedAt = Date.now();
   }
 
   async disconnect(): Promise<void> {
@@ -87,7 +85,7 @@ export class AlpacaAdapter implements BrokerAdapter {
     return [];
   }
 
-  async getQuote(symbol: string): Promise<Quote | null> {
+  async getQuote(_symbol: string): Promise<Quote | null> {
     this.requireConnected();
     // In production: GET /v2/stocks/{symbol}/quotes/latest
     return null; // let the market-data feed handle this
@@ -120,14 +118,14 @@ export class AlpacaAdapter implements BrokerAdapter {
     };
   }
 
-  async cancelOrder(brokerOrderId: string): Promise<boolean> {
+  async cancelOrder(_brokerOrderId: string): Promise<boolean> {
     this.requireConnected();
     // In production: DELETE /v2/orders/{id}
     await this.simulateLatency();
     return true;
   }
 
-  async getOrder(brokerOrderId: string): Promise<OrderRecord | null> {
+  async getOrder(_brokerOrderId: string): Promise<OrderRecord | null> {
     this.requireConnected();
     // In production: GET /v2/orders/{id}
     return null;

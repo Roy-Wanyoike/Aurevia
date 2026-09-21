@@ -4,7 +4,6 @@ import type {
   BacktestResult,
   BacktestTrade,
   BacktestMetrics,
-  Signal,
 } from "../types";
 import { generateCandles } from "../market-data/feed";
 import { computeIndicators } from "../quant/indicators";
@@ -75,8 +74,6 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
   // the open/close helper functions. A bare `let position: OpenPosition | null`
   // gets narrowed to `never` inside hoisted function declarations.
   const state: { position: OpenPosition | null } = { position: null };
-  let realizedPnl = 0;
-  let feesPaid = 0;
   let peakEquity = cfg.initialCapital;
   let maxDrawdown = 0;
   const trades: BacktestTrade[] = [];
@@ -104,7 +101,6 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
     if (qty <= 0) return;
     const commission = (price * qty * commBps) / 10000;
     cash -= commission;
-    feesPaid += commission;
     if (side === "LONG") {
       cash -= price * qty;
     } else {
@@ -129,7 +125,6 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
     reason: string
   ) => {
     const commission = (exitPrice * pos.quantity * commissionBps) / 10000;
-    feesPaid += commission;
     cash -= commission;
     if (pos.side === "LONG") {
       cash += exitPrice * pos.quantity;
@@ -140,7 +135,6 @@ export function runBacktest(cfg: BacktestConfig): BacktestResult {
       pos.side === "LONG"
         ? (exitPrice - pos.entryPrice) * pos.quantity - commission
         : (pos.entryPrice - exitPrice) * pos.quantity - commission;
-    realizedPnl += pnl;
     const pnlPct = pos.entryPrice > 0 ? (pos.side === "LONG" ? (exitPrice - pos.entryPrice) / pos.entryPrice : (pos.entryPrice - exitPrice) / pos.entryPrice) * 100 : 0;
     trades.push({
       entryTime: pos.entryTime,
@@ -436,6 +430,7 @@ function mkFailed(cfg: BacktestConfig, createdAt: number, reason: string): Backt
     equityCurve: [],
     trades: [],
     status: "FAILED",
+    failureReason: reason,
     createdAt,
   };
 }

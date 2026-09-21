@@ -3,7 +3,6 @@ import {
   computeDataQuality,
   FRESHNESS_WINDOW_MS_100,
   FRESHNESS_WINDOW_MS_0,
-  OUTLIER_CHANGE_PCT,
 } from "./quality";
 import type { Candle } from "../types";
 

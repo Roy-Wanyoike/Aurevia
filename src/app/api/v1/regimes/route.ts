@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { store } from "@/lib/aurevia/store";
-import { detectRegime } from "@/lib/aurevia/quant/regime";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";
 

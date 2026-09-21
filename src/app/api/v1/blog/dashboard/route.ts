@@ -66,7 +66,6 @@ export async function GET(req: Request) {
       d.setUTCDate(d.getUTCDate() - i);
       days.push(dayKey(d));
     }
-    const daySet = new Set(days);
     const viewsByDayRows = await db.articleView.groupBy({
       by: ["day"],
       where: withTenantFilter({ day: { in: days } }, tenant),

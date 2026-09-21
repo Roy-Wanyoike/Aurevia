@@ -83,7 +83,7 @@ export class IBKRAdapter implements BrokerAdapter {
     return [];
   }
 
-  async getQuote(symbol: string): Promise<Quote | null> {
+  async getQuote(_symbol: string): Promise<Quote | null> {
     this.requireConnected();
     // In production: GET /v1/api/md/stocks/{symbol}/quotes
     return null;
@@ -116,14 +116,14 @@ export class IBKRAdapter implements BrokerAdapter {
     };
   }
 
-  async cancelOrder(brokerOrderId: string): Promise<boolean> {
+  async cancelOrder(_brokerOrderId: string): Promise<boolean> {
     this.requireConnected();
     // In production: DELETE /v1/api/iserver/account/{accountId}/order/{id}
     await this.simulateLatency();
     return true;
   }
 
-  async getOrder(brokerOrderId: string): Promise<OrderRecord | null> {
+  async getOrder(_brokerOrderId: string): Promise<OrderRecord | null> {
     this.requireConnected();
     // In production: GET /v1/api/iserver/account/{accountId}/orders
     return null;

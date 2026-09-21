@@ -6,7 +6,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Select,
   SelectContent,
@@ -17,7 +16,6 @@ import {
 import {
   Newspaper,
   Search,
-  TrendingUp,
   Eye,
   Heart,
   MessageCircle,
@@ -27,7 +25,6 @@ import {
   BarChart3,
   Inbox,
   ChevronRight,
-  ArrowRight,
 } from "lucide-react";
 import {
   useArticles,
@@ -100,7 +97,10 @@ export function BlogView() {
   const categoriesQ = useCategories();
   const seedMut = useSeedBlog();
 
-  const articles = articlesQ.data?.articles ?? [];
+  const articles = useMemo(
+    () => articlesQ.data?.articles ?? [],
+    [articlesQ.data],
+  );
   const categories = categoriesQ.data ?? [];
 
   // Auto-seed if the list is empty on first load and the user hasn't filtered.

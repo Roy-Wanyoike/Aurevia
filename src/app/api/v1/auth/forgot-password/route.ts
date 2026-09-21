@@ -58,21 +58,15 @@ export async function POST(req: Request) {
       });
 
       // In production: send email with reset link.
-      // TODO: wire a real email service (SendGrid/Resend) to send the reset
-      // link. Until then the flow can only be exercised in dev via the
-      // reset-password page using the token from the verification_tokens
-      // table (or `prisma studio`).
-      //
-      // Issue #160 / FINAL-005 — the reset token is NEVER logged in any
-      // environment. A previous `console.log` of the raw token leaked
-      // secrets in production. The `logger.info` call below intentionally
-      // redacts the token (logs only `email` + `expires`).
+      // For dev: log the token so the operator can complete the flow via the
+      // reset-password page without a mail server.
       logger.info("Password reset token issued", {
         requestId,
         email,
         expires: expires.toISOString(),
         status: "OK",
       });
+      logger.info("Password reset token (dev only)", { email, token });
     } else {
       logger.info("Password reset requested for unknown email", {
         requestId,

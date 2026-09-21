@@ -27,7 +27,7 @@ export function TrendsView() {
   const [sortKey, setSortKey] = useState<SortKey>("changePct");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
 
-  const rows = data?.rows ?? [];
+  const rows = useMemo(() => data?.rows ?? [], [data]);
   const dist = data?.distribution ?? {};
 
   const summary = useMemo(() => {

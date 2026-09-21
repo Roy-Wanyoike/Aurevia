@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { store } from "@/lib/aurevia/store";
 import { STRATEGIES } from "@/lib/aurevia/strategies";
 import { logger } from "@/lib/aurevia/logger";
 import { requireAuth } from "@/lib/aurevia/auth/check";

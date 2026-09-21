@@ -2,7 +2,6 @@
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   PieChart,
@@ -14,8 +13,6 @@ import {
 import { useMarketPulse } from "@/lib/aurevia/hooks";
 import {
   fmtPct,
-  gainColor,
-  gainBg,
   regimeColor,
   accentColor,
 } from "@/lib/aurevia/format";
