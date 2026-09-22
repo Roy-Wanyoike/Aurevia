@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useHealth } from "@/lib/aurevia/hooks";
+import { useHealth, useSystemStats } from "@/lib/aurevia/hooks";
 import { Sparkline } from "@/components/aurevia/charts/sparkline";
 import { QueryState } from "@/components/aurevia/query-state";
 import { fmtDuration } from "@/lib/aurevia/format";
@@ -20,23 +20,61 @@ const SUBSYSTEMS = [
   { name: "Observability", icon: Activity, healthyKey: null },
 ];
 
+// Combined shape consumed by the render-prop below. The public `/api/v1/health`
+// probe returns only the basic fields (status, uptime, tradingMode, breaker,
+// dataSource, dataIsLive, version) — issue #183 / R-13. The operational
+// stats (broker, latency, apiErrors, signals/backtests/orders counters,
+// universe size) come from the authenticated `/api/v1/admin/system`
+// snapshot. We merge them into one shape so the existing layout stays
+// intact while the public endpoint stays leak-free.
+interface SystemViewData {
+  uptimeHours: number;
+  tradingMode: string;
+  circuitBreakerState: string;
+  version: string;
+  brokerConnected: boolean;
+  marketDataLatencyMs: number;
+  apiErrors: number;
+  signalsTracked: number;
+  backtestsRun: number;
+  ordersPlaced: number;
+  universeSize: number;
+}
+
 export function SystemView() {
   const health = useHealth();
-  // Real latency tracking — sample the health endpoint every 10s (the hook
-  // already refetches every 10s). We store the measured latencies in a
+  const system = useSystemStats();
+  // Real latency tracking — sample the admin/system endpoint every 10s (the
+  // hook already refetches every 10s). We store the measured latencies in a
   // rolling buffer so the sparkline shows actual history, not fabricated data.
   const latencyBuffer = useRef<number[]>([]);
   const [latencySeries, setLatencySeries] = useState<number[]>([]);
 
   useEffect(() => {
-    const latency = health.data?.marketDataLatencyMs;
+    const latency = system.data?.health.marketDataLatencyMs;
     if (typeof latency === "number") {
       latencyBuffer.current = [...latencyBuffer.current, latency].slice(-30);
       setLatencySeries([...latencyBuffer.current]);
     }
-  }, [health.data?.marketDataLatencyMs]);
+  }, [system.data?.health.marketDataLatencyMs]);
 
-  const data = health.data;
+  const data: SystemViewData | undefined =
+    health.data && system.data
+      ? {
+          uptimeHours: health.data.uptimeHours,
+          tradingMode: health.data.tradingMode,
+          circuitBreakerState: health.data.circuitBreakerState,
+          version: health.data.version,
+          brokerConnected: system.data.health.brokerConnected,
+          marketDataLatencyMs: system.data.health.marketDataLatencyMs,
+          apiErrors: system.data.health.apiErrors,
+          signalsTracked: system.data.store.signalsTracked,
+          backtestsRun: system.data.store.backtestsRun,
+          ordersPlaced: system.data.store.ordersPlaced,
+          universeSize: system.data.store.universeSize,
+        }
+      : undefined;
+
   const brokerConnected = !!data?.brokerConnected;
   const breaker = data?.circuitBreakerState ?? "NORMAL";
   const operational = brokerConnected && breaker === "NORMAL";
@@ -54,10 +92,10 @@ export function SystemView() {
       </div>
 
       <QueryState
-        isLoading={health.isLoading}
-        isError={health.isError}
-        error={health.error}
-        onRetry={() => health.refetch()}
+        isLoading={health.isLoading || system.isLoading}
+        isError={system.isError || health.isError}
+        error={system.error ?? health.error}
+        onRetry={() => { system.refetch(); health.refetch(); }}
         data={data}
       >
         {(d) => (

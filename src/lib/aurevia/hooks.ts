@@ -358,11 +358,86 @@ export function useCorrelation() {
 }
 
 // --- Health ---
+// Public probe — minimal fields only (issue #183 / R-13).
+// Returns: status, uptimeHours, tradingMode, circuitBreakerState,
+// dataSource, dataIsLive, version. The full operational snapshot
+// (portfolioEquity, signalsTracked, backtestsRun, ordersPlaced, broker
+// connectivity, latency, apiErrors, universeSize) lives behind auth at
+// `/api/v1/admin/system` — use `useSystemStats()` for those fields.
+export interface HealthSnapshot {
+  status: "ok";
+  uptimeHours: number;
+  tradingMode: string;
+  circuitBreakerState: string;
+  dataSource: string;
+  dataIsLive: boolean;
+  version: string;
+}
 export function useHealth() {
   return useQuery({
     queryKey: ["health"],
-    queryFn: () => fetchJson<any>("/api/v1/health"),
+    queryFn: () => fetchJson<HealthSnapshot>("/api/v1/health"),
     refetchInterval: 10_000,
+  });
+}
+
+// --- Admin: system stats (full operational snapshot) ---
+// Authenticated — returns everything `/api/v1/health` strips out plus
+// process-level metrics (memory, CPU, uptime). Used by the dashboard's
+// System Status card and the System view (which need signals/backtests/
+// orders counts + broker connectivity + latency). Issue #183.
+export interface SystemStatsMemory {
+  bytes: number;
+  human: string;
+}
+export interface SystemStats {
+  timestamp: string;
+  process: {
+    uptimeSec: number;
+    pid: number;
+    nodeVersion: string;
+    platform: string;
+    arch: string;
+    memory: {
+      rss: SystemStatsMemory;
+      heapUsed: SystemStatsMemory;
+      heapTotal: SystemStatsMemory;
+      external: SystemStatsMemory;
+      arrayBuffers: SystemStatsMemory;
+    };
+    cpu: { userMicros: number; systemMicros: number };
+  };
+  store: {
+    circuitBreakerState: string;
+    tradingMode: string;
+    signalsTracked: number;
+    backtestsRun: number;
+    ordersPlaced: number;
+    riskEvents: number;
+    universeSize: number;
+    portfolioEquity: number;
+    portfolioCash: number;
+    portfolioMarketValue: number;
+    portfolioUnrealizedPnl: number;
+    portfolioRealizedPnl: number;
+    portfolioDrawdown: number;
+    portfolioExposure: number;
+    startedAt: string;
+    uptimeMs: number;
+  };
+  health: {
+    brokerConnected: boolean;
+    marketDataLatencyMs: number;
+    lastTickAt: string | null;
+    apiErrors: number;
+  };
+}
+export function useSystemStats() {
+  return useQuery({
+    queryKey: ["admin", "system"],
+    queryFn: () => fetchJson<SystemStats>("/api/v1/admin/system"),
+    refetchInterval: 10_000,
+    staleTime: 5_000,
   });
 }
 

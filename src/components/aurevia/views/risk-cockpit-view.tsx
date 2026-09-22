@@ -27,7 +27,7 @@ import {
 import {
   useRisk,
   usePortfolio,
-  useHealth,
+  useSystemStats,
   usePortfolioAnalytics,
   useSetBreaker,
 } from "@/lib/aurevia/hooks";
@@ -86,7 +86,10 @@ interface RiskProfile {
 export function RiskCockpitView() {
   const risk = useRisk();
   const portfolio = usePortfolio();
-  const health = useHealth();
+  // Issue #183 / R-13 — `brokerConnected` was stripped from the public
+  // /api/v1/health probe; pull it from the authenticated admin/system
+  // snapshot. (The risk cockpit is only rendered for logged-in users.)
+  const system = useSystemStats();
   const analytics = usePortfolioAnalytics();
   const setBreaker = useSetBreaker();
   const qc = useQueryClient();
@@ -153,7 +156,7 @@ export function RiskCockpitView() {
     (maxConcentration / Math.max(0.01, maxPositionPct)) * 100,
   );
 
-  const brokerConnected = health.data?.brokerConnected ?? false;
+  const brokerConnected = system.data?.health.brokerConnected ?? false;
   const brokerHealthScore = brokerConnected ? 0 : 100;
 
   function confirmEmergency() {

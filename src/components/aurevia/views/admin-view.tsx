@@ -12,6 +12,7 @@ import { Switch } from "@/components/ui/switch";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { QueryState, TableSkeleton } from "@/components/aurevia/query-state";
+import { useSystemStats } from "@/lib/aurevia/hooks";
 import { toast } from "sonner";
 import {
   ShieldCheck,
@@ -55,48 +56,10 @@ async function fetchJson<T>(url: string, init?: RequestInit): Promise<T> {
 }
 
 // --- System metrics types -----------------------------------------------
-interface SystemStats {
-  timestamp: string;
-  process: {
-    uptimeSec: number;
-    pid: number;
-    nodeVersion: string;
-    platform: string;
-    arch: string;
-    memory: {
-      rss: { bytes: number; human: string };
-      heapUsed: { bytes: number; human: string };
-      heapTotal: { bytes: number; human: string };
-      external: { bytes: number; human: string };
-      arrayBuffers: { bytes: number; human: string };
-    };
-    cpu: { userMicros: number; systemMicros: number };
-  };
-  store: {
-    circuitBreakerState: string;
-    tradingMode: string;
-    signalsTracked: number;
-    backtestsRun: number;
-    ordersPlaced: number;
-    riskEvents: number;
-    universeSize: number;
-    portfolioEquity: number;
-    portfolioCash: number;
-    portfolioMarketValue: number;
-    portfolioUnrealizedPnl: number;
-    portfolioRealizedPnl: number;
-    portfolioDrawdown: number;
-    portfolioExposure: number;
-    startedAt: string;
-    uptimeMs: number;
-  };
-  health: {
-    brokerConnected: boolean;
-    marketDataLatencyMs: number;
-    lastTickAt: string | null;
-    apiErrors: number;
-  };
-}
+// Shared with `useSystemStats()` from `hooks.ts` (issue #183 / R-13 — the
+// public /api/v1/health probe no longer returns these fields; the admin
+// view must source them from the authenticated /api/v1/admin/system
+// snapshot).
 
 interface AdminUser {
   id: string;
@@ -121,14 +84,9 @@ interface AuditLogRow {
   timestamp: string;
 }
 
-function useSystemStats() {
-  return useQuery({
-    queryKey: ["admin", "system"],
-    queryFn: () => fetchJson<SystemStats>("/api/v1/admin/system"),
-    refetchInterval: 30_000,
-    staleTime: 10_000,
-  });
-}
+// System metrics are fetched via the shared `useSystemStats()` hook from
+// `hooks.ts` — same queryKey + refetch interval as the dashboard's System
+// Status card and the System view, so they share a single cache entry.
 
 function useAdminUsers() {
   return useQuery({

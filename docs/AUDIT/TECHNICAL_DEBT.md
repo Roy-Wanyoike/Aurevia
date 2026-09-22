@@ -22,25 +22,27 @@
 
 **Where:** every `db.*` query path; `src/app/api/v1/*` does not filter by `organizationId`.
 
-**Impact:** Multi-tenant schema exists but the runtime is effectively single-tenant. A user from Org A can read Org B's backtests / orders / signals.
+**Status:** ✅ FIXED — PR #179 (closes #161). `requireTenant()` resolves the caller's `organizationId` from the NextAuth session and threads it into every v1 API route; `withTenantFilter()` is applied to every `db.*.findMany` call path. The blog module's `Article`, `ArticleComment`, `ArticleLike`, `ArticleView` rows carry `organizationId`; tenant-isolation integration tests assert cross-tenant reads return empty.
 
-**Remediation:** Resolve `organizationId` from the session in middleware (or in `requireAuth`), thread it into every `db.signal.findMany`, `db.order.findMany`, `db.backtest.findMany` call. Add a unit test that asserts cross-tenant reads return empty.
+**Historical impact:** Multi-tenant schema existed but the runtime was effectively single-tenant. A user from Org A could read Org B's backtests / orders / signals.
 
 ## 4. `requireAuth()` coverage is partial
 
 **Where:** only 6 of 33 v1 routes call `requireAuth()`.
 
-**Impact:** 27 routes are open in production if `AUREVIA_API_KEY` is set but no per-route auth helper is called.
+**Status:** ✅ FIXED — PR #175 (closes #156 / FINAL-001), verified in PR #178. `requireAuth()` is the first line of 60 of 62 v1 route handlers. The two intentional exemptions are `/api/v1/health` (liveness probe) and `/api/v1/auth/seed-demo` (dev-only seeding). `/api/v1/auth/register` is also exempt — public self-service registration, gated only by edge rate-limiting.
 
-**Remediation:** Add `requireAuth()` as the first line of every route handler except `/health` and `/auth/seed-demo`. Add an ESLint rule (or a unit test) that asserts every `route.ts` file under `src/app/api/v1/` imports `requireAuth` or has an exemption comment.
+**Historical impact:** 27 routes were open in production if `AUREVIA_API_KEY` was set but no per-route auth helper was called.
 
 ## 5. No row-level role enforcement
 
 **Where:** `requireAuth()` returns only `ok: boolean`.
 
-**Impact:** `viewer` role can POST `/portfolio` (place orders), POST `/risk` (mutate profile), POST `/brokers` (connect LIVE broker).
+**Status:** ✅ FIXED — PR #146 (closes #130 / BE-003 / SEC-001). `requireRole(req, minimum)` helper in `src/lib/aurevia/auth/check.ts` gates mutating blog routes (`POST /api/v1/blog/articles`, `PATCH/DELETE [slug]`, `POST /api/v1/blog/categories`, `POST /api/v1/blog/ai-assist`) by minimum role `trader+`; PATCH/DELETE also enforce author-or-admin ownership. In dev mode role enforcement is bypassed (returns `admin`); in production the role is read from the NextAuth session JWT.
 
-**Remediation:** Add `requireRole(req, "admin" | "trader")` helper; gate every mutating route by minimum role.
+**Follow-up:** extend `requireRole()` to v1 trading routes (`/portfolio` POST, `/risk` POST, `/brokers` POST); LIVE arming requires `admin`.
+
+**Historical impact:** `viewer` role could POST `/portfolio` (place orders), POST `/risk` (mutate profile), POST `/brokers` (connect LIVE broker).
 
 ## 6. CSP `unsafe-inline` / `unsafe-eval` in script-src
 
@@ -62,9 +64,9 @@
 
 **Where:** `prisma/schema.prisma` — `AuditLog` model.
 
-**Impact:** Confusion — two audit models (`AuditLog` and `EventLog`) exist. `EventLog` is the active one (used by #93's `emitEvent`); `AuditLog` has no writer.
+**Status:** ✅ FIXED — PR #112 (closes #110/#111/#112, merge commit `1c4aa53`). `auditLog()` writer at `src/lib/aurevia/audit/logger.ts` records every sensitive mutation: `ORDER_PLACED` (after `submitOrder()`), `RISK_PROFILE_UPDATED` (with before/after diff per changed field), `CIRCUIT_BREAKER_CHANGED` (from/to/reason for both manual + engine transitions). The writer NEVER throws — failures are logged and swallowed so the trading pipeline can't be blocked by the audit sink. `GET /api/v1/admin/audit-logs` is paginated, filterable, and immutable. 6 unit tests cover shape + failure isolation.
 
-**Remediation:** Remove `AuditLog` in the next schema migration; document the migration in `docs/AUDIT/DATABASE_AUDIT.md`.
+**Historical impact:** Confusion — two audit models (`AuditLog` and `EventLog`) existed. `EventLog` was the active one (used by #93's `emitEvent`); `AuditLog` had no writer.
 
 ## 9. No client order idempotency
 
@@ -78,17 +80,17 @@
 
 **Where:** `src/app/api/v1/health/route.ts` is public and returns `portfolioEquity`, `portfolioDrawdown`, `signalsTracked`, `backtestsRun`, `ordersPlaced`.
 
-**Impact:** An attacker can probe system activity (and indirectly infer account size) without authentication.
+**Status:** ✅ FIXED — Issue #183 / R-13. The public `/api/v1/health` payload is now restricted to `status`, `uptimeHours`, `tradingMode`, `circuitBreakerState`, `dataSource`, `dataIsLive`, `version`. The full operational snapshot (portfolio equity/drawdown, signal/backtest/order counters, broker connectivity, latency, API errors, universe size) is gated behind `requireAuth()` at `/api/v1/admin/system` (which already existed and returns the same data plus process-level metrics). The dashboard's System Status card and the System view fetch the admin/system snapshot via the shared `useSystemStats()` hook so logged-in users keep seeing those fields.
 
-**Remediation:** Strip portfolio/equity fields from the public response; keep only `status`, `uptimeHours`, `tradingMode`, `circuitBreakerState`, `dataSource`, `dataIsLive`, `version`. Move the full snapshot behind a `/api/v1/health/full` route protected by `requireAuth()`.
+**Historical impact:** An attacker could probe system activity (and indirectly infer account size) without authentication.
 
 ## 11. No sanitization on Copilot markdown output
 
 **Where:** `src/app/api/v1/copilot/route.ts` + the copilot view rendering.
 
-**Impact:** The ZAI chat model's response is rendered as markdown via `react-markdown`. The CSP `default-src 'self'` blocks external resource loads, and `script-src 'unsafe-inline'` is the remaining XSS vector if the model emits a raw `<script>` tag.
+**Status:** ✅ FIXED — PR #176 (closes #158 / #159 / #160). `rehype-sanitize` is wired into the Copilot markdown pipeline (`react-markdown` + `rehype-sanitize`), stripping unsafe HTML before render. The default schema allows only safe inline formatting; links are forced to `rel="noopener noreferrer"` and open in a new tab. Companion fixes in the same PR: per-key rate limits on the AI endpoints (#159) and password-reset log redaction (#160).
 
-**Remediation:** Add `rehype-sanitize` to the `react-markdown` pipeline in `copilot-view.tsx`. Tighten CSP to nonce-based (see debt #6).
+**Historical impact:** The ZAI chat model's response was rendered as markdown via `react-markdown` without sanitization. The CSP `default-src 'self'` blocks external resource loads, and `script-src 'unsafe-inline'` was the remaining XSS vector if the model emitted a raw `<script>` tag.
 
 ## 12. No distributed rate-limit backend
 
