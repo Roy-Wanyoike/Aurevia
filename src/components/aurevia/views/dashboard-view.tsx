@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { useMarkets, usePortfolio, useHealth, useSignals, useTrends, useSparklines, useScanSignals } from "@/lib/aurevia/hooks";
+import { useMarkets, usePortfolio, useHealth, useSystemStats, useSignals, useTrends, useSparklines, useScanSignals } from "@/lib/aurevia/hooks";
 import { fmtPrice, fmtPct, fmtUsd, gainColor, accentColor, regimeColor, actionColor, decisionColor, fmtTime } from "@/lib/aurevia/format";
 import { StatTile } from "@/components/aurevia/charts/stat-tile";
 import { Sparkline } from "@/components/aurevia/charts/sparkline";
@@ -36,6 +36,13 @@ export function DashboardView() {
   const markets = useMarkets();
   const portfolio = usePortfolio();
   const health = useHealth();
+  // Issue #183 / R-13 — the public /api/v1/health no longer returns the
+  // operational fields (brokerConnected, marketDataLatencyMs, signals /
+  // backtests counters); fetch them from the authenticated admin/system
+  // snapshot instead. The basic status fields (tradingMode, breaker,
+  // uptime, dataSource) still come from /api/v1/health so the card renders
+  // even if the admin endpoint is unreachable for a viewer-role user.
+  const system = useSystemStats();
   const signals = useSignals();
   const trends = useTrends();
   const sparklines = useSparklines(30);
@@ -59,7 +66,9 @@ export function DashboardView() {
 
   // Tick every second so the "Updated Xs ago" badge under System Status
   // visibly ages between health refetches.
-  const lastUpdatedLabel = useAgeLabel(health.data?.lastTickAt);
+  const lastUpdatedLabel = useAgeLabel(
+    system.data?.health.lastTickAt ? Date.parse(system.data.health.lastTickAt) : undefined,
+  );
 
   return (
     <div className="space-y-6 p-6">
@@ -192,10 +201,10 @@ export function DashboardView() {
               value={health.data?.circuitBreakerState ?? "—"}
               accent={health.data?.circuitBreakerState === "NORMAL" ? "gain" : "loss"}
             />
-            <StatusRow label="Broker" value={health.data?.brokerConnected ? "Connected" : "Disconnected"} accent={health.data?.brokerConnected ? "gain" : "loss"} />
-            <StatusRow label="Mkt Data Latency" value={`${health.data?.marketDataLatencyMs ?? 0}ms`} accent="default" />
-            <StatusRow label="Signals Tracked" value={`${health.data?.signalsTracked ?? 0}`} accent="default" />
-            <StatusRow label="Backtests Run" value={`${health.data?.backtestsRun ?? 0}`} accent="default" />
+            <StatusRow label="Broker" value={system.data?.health.brokerConnected ? "Connected" : "Disconnected"} accent={system.data?.health.brokerConnected ? "gain" : "loss"} />
+            <StatusRow label="Mkt Data Latency" value={`${system.data?.health.marketDataLatencyMs ?? 0}ms`} accent="default" />
+            <StatusRow label="Signals Tracked" value={`${system.data?.store.signalsTracked ?? 0}`} accent="default" />
+            <StatusRow label="Backtests Run" value={`${system.data?.store.backtestsRun ?? 0}`} accent="default" />
             <StatusRow label="Uptime" value={`${health.data?.uptimeHours ?? 0}h`} accent="default" />
           </div>
           {/* "Updated Xs ago" — gives the card a heartbeat and tells the

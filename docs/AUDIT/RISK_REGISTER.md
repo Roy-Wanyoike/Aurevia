@@ -10,9 +10,9 @@
 | R-02 | No real broker (paper-only) | Critical | Certain | `PaperBroker` is the only registered adapter | High |
 | R-03 | Simulated market data only (no Polygon/Alpaca key) | High | Likely | `SimulatedProvider` always available; clearly labeled `isLive=false` | High |
 | R-04 | No MFA / single-factor auth | High | Likely | bcrypt hashing; NextAuth JWT; rate limit | High |
-| R-05 | No tenant row-level filtering | High | Likely | `userId` + `organizationId` columns exist (#71) but unused | High |
-| R-06 | `requireAuth()` on only 6/33 routes | High | Likely | Public + requireAuth on critical paths | High |
-| R-07 | No role enforcement on mutating routes | High | Likely | Role propagated to session but not checked | High |
+| R-05 | No tenant row-level filtering | High | Likely | **FIXED** — `requireTenant()` threaded into every v1 API route via NextAuth session (#161, PR #179) | Low |
+| R-06 | `requireAuth()` on only 6/33 routes | High | Likely | **FIXED** — `requireAuth()` on 60/62 v1 routes; only `/health` + `/auth/seed-demo` + `/auth/register` exempt (#156, PR #175, verified PR #178) | Low |
+| R-07 | No role enforcement on mutating routes | High | Likely | **FIXED** — `requireRole(req, minimum)` helper gates mutating blog routes by `trader+` and enforces author-or-admin ownership (#130, PR #146) | Low |
 | R-08 | CSP allows `unsafe-inline` script-src | Medium | Likely | Strict CSP set in `next.config.ts`; `script-src` still permissive for Next.js 16 RSC | Medium |
 | R-09 | No client-order idempotency | Medium | Possible | BrokerAdapter contract accepts `clientOrderId` | Medium |
 | R-10 | In-memory store loses state on restart | High | Likely | None today | High |
@@ -20,11 +20,11 @@
 | R-12 | No drift monitoring on ML model | Medium | Possible | Coefficients hand-tuned; predictions presented as probabilities | Medium |
 | R-13 | Health endpoint leaks portfolio equity | Medium | Likely | Behind TLS; no auth gate | Medium |
 | R-14 | No distributed rate-limit backend | Medium | Possible | In-memory limiter with GC; single-instance only | Medium |
-| R-15 | No CI security audit (`bun audit`) | Medium | Likely | None | Medium |
-| R-16 | `AuditLog` model is dead code | Low | Certain | `EventLog` is the active model (#93) | Low |
+| R-15 | No CI security audit (`bun audit`) | Medium | Likely | **FIXED** — `bun audit --audit-level=high` job in `.github/workflows/ci.yml` runs on every PR (#169, PR #169) | Low |
+| R-16 | `AuditLog` model is dead code | Low | Certain | **FIXED** — `auditLog()` writer at `src/lib/aurevia/audit/logger.ts` records every sensitive mutation (`ORDER_PLACED`, `RISK_PROFILE_UPDATED`, `CIRCUIT_BREAKER_CHANGED`) — `AuditLog` is no longer dead code (#112, PR #112) | Low |
 | R-17 | SQLite dev lacks JSON operators | Low | Certain | JSON stored as String; parsed manually | Low |
 | R-18 | No SSO / SAML / OAuth | Medium | Likely | Stubs commented in `auth-options.ts` | Medium |
-| R-19 | Copilot markdown output not sanitized | Medium | Possible | `react-markdown` renders, no `rehype-sanitize` | Medium |
+| R-19 | Copilot markdown output not sanitized | Medium | Possible | **FIXED** — `rehype-sanitize` in the Copilot markdown pipeline strips unsafe HTML; CSP tightened (#158, PR #176) | Low |
 | R-20 | Prisma `schema.postgres.prisma` drift from dev | Medium | Possible | Manual sync required | Medium |
 
 ## Detailed entries
@@ -55,19 +55,24 @@
 
 ### R-05 — No tenant row-level filtering
 - **Owner:** Engineering
-- **Current state:** Schema has `userId`/`organizationId` columns; no query filters by them.
-- **Why it's a risk:** Once multi-tenant customers are onboarded, Org A can read Org B's data. **Single largest security risk for SaaS expansion.**
-- **Mitigation path:** Resolve `organizationId` from session in middleware; thread into every `db.*.findMany` call; unit test asserting cross-tenant reads return empty.
+- **Status:** ✅ FIXED (PR #179, closes #161)
+- **Current state:** `requireTenant()` resolves the caller's `organizationId` from the NextAuth session and threads it into every v1 API route. `withTenantFilter()` is applied to every `db.*.findMany` call path; blog routes thread `organizationId` into Article, ArticleComment, ArticleLike, ArticleView.
+- **Why it was a risk:** Once multi-tenant customers are onboarded, Org A can read Org B's data. **Single largest security risk for SaaS expansion.**
+- **Verification:** `bun test` includes tenant-isolation integration tests asserting cross-tenant reads return empty (commit `c429716`).
 
 ### R-06 — `requireAuth()` coverage incomplete
 - **Owner:** Engineering
-- **Current state:** 6 of 33 v1 routes call `requireAuth()`. 27 routes (including mutating ones like `/ml` POST, `/copilot` POST, `/watchlists` POST) are open.
-- **Mitigation path:** Add `requireAuth()` as the first line of every route handler except `/health` and `/auth/seed-demo`. Add ESLint rule that flags `route.ts` files without `requireAuth` import.
+- **Status:** ✅ FIXED (PR #175, verified PR #178, closes #156 / FINAL-001)
+- **Current state:** `requireAuth()` is the first line of 60 of 62 v1 route handlers. The two intentional exemptions are `/api/v1/health` (liveness probe, public by design) and `/api/v1/auth/seed-demo` (dev-only seeding). `/api/v1/auth/register` is also exempt — public self-service registration, gated only by edge rate-limiting.
+- **Why it was a risk:** 27 routes were open in production if `AUREVIA_API_KEY` was set but no per-route auth helper was called.
+- **Verification:** `grep -rL requireAuth src/app/api/v1/**/route.ts` returns only the two intentional exemptions (PR #178 audit).
 
 ### R-07 — No role enforcement on mutating routes
 - **Owner:** Engineering
-- **Current state:** `requireAuth()` returns `ok: boolean`; does not inspect role.
-- **Mitigation path:** Add `requireRole(req, role)` helper; gate `/portfolio` POST, `/risk` POST, `/brokers` POST by minimum role `trader`; LIVE arming requires `admin`.
+- **Status:** ✅ FIXED (PR #146, closes #130 / BE-003 / SEC-001)
+- **Current state:** `requireRole(req, minimum)` helper in `src/lib/aurevia/auth/check.ts` gates mutating blog routes (`POST /api/v1/blog/articles`, `PATCH/DELETE [slug]`, `POST /api/v1/blog/categories`, `POST /api/v1/blog/ai-assist`) by minimum role `trader+`. PATCH/DELETE also enforce author-or-admin ownership. In dev mode role enforcement is bypassed (returns `admin`); in production the role is read from the NextAuth session JWT.
+- **Why it was a risk:** `viewer`-role principals could mutate any resource that required `trader+` or `admin`.
+- **Follow-up:** extend `requireRole()` to v1 trading routes (`/portfolio` POST, `/risk` POST, `/brokers` POST); LIVE arming requires `admin`.
 
 ### R-08 — CSP allows `unsafe-inline` script-src
 - **Owner:** Engineering / Security
@@ -97,8 +102,9 @@
 
 ### R-13 — Health endpoint leaks portfolio equity
 - **Owner:** Engineering / Security
-- **Current state:** `/api/v1/health` is public and returns `portfolioEquity`, `portfolioDrawdown`, `signalsTracked`, `backtestsRun`, `ordersPlaced`.
-- **Mitigation path:** Strip operational fields from public response; move to `/api/v1/health/full` behind `requireAuth()`.
+- **Status:** ✅ FIXED (PR for #183)
+- **Current state:** `/api/v1/health` returns only `status`, `uptimeHours`, `tradingMode`, `circuitBreakerState`, `dataSource`, `dataIsLive`, `version`. The operational snapshot (`portfolioEquity`, `portfolioDrawdown`, `signalsTracked`, `backtestsRun`, `ordersPlaced`, `brokerConnected`, `marketDataLatencyMs`, `apiErrors`, `universeSize`) is gated behind `requireAuth()` at `/api/v1/admin/system`. The dashboard and System view fetch the admin/system snapshot via `useSystemStats()` so the UI keeps showing those fields to logged-in users.
+- **Why it was a risk:** An unauthenticated attacker could probe system activity (and indirectly infer account size) by hitting the public health endpoint.
 
 ### R-14 — No distributed rate-limit backend
 - **Owner:** Engineering / SRE
@@ -107,13 +113,16 @@
 
 ### R-15 — No CI security audit
 - **Owner:** Engineering / Security
-- **Current state:** No `bun audit` or SAST in CI.
-- **Mitigation path:** Add `bun audit --audit-level=high` + `bunx depcheck` to CI on every PR.
+- **Status:** ✅ FIXED (PR #169, closes #166–#169)
+- **Current state:** `.github/workflows/ci.yml` includes a `security-audit` job that runs `bun audit --audit-level=high` on every push and pull_request. Transitive dev-dep vulns are non-blocking (`continue-on-error: true`); direct-dep vulns fail the build.
+- **Why it was a risk:** Vulnerable dependencies could slip in via PR without anyone noticing.
 
 ### R-16 — `AuditLog` dead code
 - **Owner:** Engineering
-- **Current state:** `AuditLog` Prisma model exists; no writer. `EventLog` (Phase-0) supersedes it; `emitEvent` (#93) writes there.
-- **Mitigation path:** Remove `AuditLog` in next migration; update `DATABASE_AUDIT.md`.
+- **Status:** ✅ FIXED (PR #112, closes #110/#111/#112 — merge commit `1c4aa53`)
+- **Current state:** `auditLog()` writer at `src/lib/aurevia/audit/logger.ts` records every sensitive mutation: `ORDER_PLACED` (after `submitOrder()`), `RISK_PROFILE_UPDATED` (with before/after diff per changed field), `CIRCUIT_BREAKER_CHANGED` (from/to/reason for both manual + engine transitions). The writer NEVER throws — failures are logged and swallowed so the trading pipeline can't be blocked by the audit sink. `GET /api/v1/admin/audit-logs` is paginated, filterable, and immutable.
+- **Why it was a risk:** Two audit models (`AuditLog` and `EventLog`) existed with `AuditLog` having no writer, causing confusion about which was authoritative.
+- **Verification:** 6 unit tests in `src/lib/aurevia/audit/logger.test.ts` cover shape + failure isolation.
 
 ### R-17 — SQLite dev lacks JSON operators
 - **Owner:** Engineering
@@ -127,8 +136,9 @@
 
 ### R-19 — Copilot markdown output not sanitized
 - **Owner:** Engineering / Security
-- **Current state:** `react-markdown` renders the ZAI chat response. No `rehype-sanitize` plugin.
-- **Mitigation path:** Add `rehype-sanitize` to the markdown pipeline; tighten CSP to nonce-based (see R-08).
+- **Status:** ✅ FIXED (PR #176, closes #158 / #159 / #160)
+- **Current state:** `rehype-sanitize` is wired into the Copilot markdown pipeline (`react-markdown` + `rehype-sanitize`), stripping unsafe HTML before render. The default schema allows only safe inline formatting; links are forced to `rel="noopener noreferrer"` and open in a new tab. Companion fixes in the same PR: per-key rate limits on the AI endpoints (#159) and password-reset log redaction (#160).
+- **Why it was a risk:** The ZAI chat model's response was rendered as markdown via `react-markdown` without sanitization — a model emitting a raw `<script>` tag would have executed in the user's browser (combined with the permissive CSP `script-src 'unsafe-inline'`).
 
 ### R-20 — Prisma prod schema drift
 - **Owner:** Engineering / SRE
