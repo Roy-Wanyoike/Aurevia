@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Sidebar, Topbar } from "@/components/aurevia/sidebar";
 import { QueryProvider } from "@/components/aurevia/query-provider";
@@ -55,8 +55,27 @@ const BlogDashboardView = dynamic(() => import("@/components/aurevia/views/blog-
 export default function Home() {
   const { view, selectedSymbol, selectedBacktestId, selectedArticleSlug, syncFromUrl } = useUI();
 
+  // Issue #180 — deep-link URL override.
+  // The store's default `view` is `"dashboard"`. On the first commit, React
+  // runs every `useEffect` in order with the closure captured during that
+  // first render — i.e. with `view="dashboard"` — even though `syncFromUrl()`
+  // (called by the mount effect just above) synchronously patches the store
+  // to the deep-linked view. That store update doesn't propagate into this
+  // render's closure, so the URL-sync effect below would `pushState`
+  // `?view=dashboard` over the user's deep link (`/?view=blog`) BEFORE the
+  // re-render with the correct `view` could land. The view never recovers.
+  //
+  // Fix: gate every effect that reads `view` on a `hasHydrated` flag that
+  // only flips true AFTER `syncFromUrl()` has committed. The first commit's
+  // effects see `hasHydrated=false` and skip; the second commit (with the
+  // hydrated `view`) runs them with the correct value. In-app sidebar nav
+  // (which calls `setView` directly) still updates the URL because by then
+  // `hasHydrated` is already true.
+  const [hasHydrated, setHasHydrated] = useState(false);
+
   useEffect(() => {
     syncFromUrl();
+    setHasHydrated(true);
     const onPop = () => syncFromUrl();
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
@@ -71,15 +90,31 @@ export default function Home() {
   // `view === "dashboard"` guard keeps the redirect from firing when the
   // user has explicitly navigated to a different view (e.g. via a deep link
   // like /?view=markets) — those should render as-is.
+  //
+  // `hasHydrated` guard (issue #180): skip on the first commit, where `view`
+  // is still the stale default `"dashboard"` — otherwise a deep link to
+  // `/?view=markets` for a not-yet-onboarded user would be redirected to
+  // /onboarding before `syncFromUrl()` had a chance to update `view`.
   useEffect(() => {
+    if (!hasHydrated) return;
     if (typeof window === "undefined") return;
     const onboarded = window.localStorage.getItem("aurevia:onboarded");
     if (!onboarded && view === "dashboard") {
       window.location.href = "/onboarding";
     }
-  }, [view]);
+  }, [hasHydrated, view]);
 
+  // URL <-> store sync. Writes the active view (and any sub-selection) back
+  // to the query string so the URL is shareable / bookmarkable. Reads happen
+  // via `syncFromUrl()` above (on mount + popstate).
+  //
+  // `hasHydrated` guard (issue #180): skip on the first commit so the stale
+  // default `view="dashboard"` can't `pushState` `?view=dashboard` over the
+  // user's deep link before `syncFromUrl()` propagates. After hydration, this
+  // effect runs on every `setView` / selection change and updates the URL
+  // normally (sidebar nav still works).
   useEffect(() => {
+    if (!hasHydrated) return;
     if (typeof window === "undefined") return;
     const params = new URLSearchParams();
     params.set("view", view);
@@ -93,7 +128,7 @@ export default function Home() {
     } else {
       window.history.pushState({}, "", newUrl);
     }
-  }, [view, selectedSymbol, selectedBacktestId, selectedArticleSlug]);
+  }, [hasHydrated, view, selectedSymbol, selectedBacktestId, selectedArticleSlug]);
 
   return (
     <QueryProvider>
