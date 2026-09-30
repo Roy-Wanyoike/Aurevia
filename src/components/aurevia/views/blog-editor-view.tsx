@@ -105,7 +105,7 @@ const AI_ACTIONS: Array<{
 ];
 
 export function BlogEditorView() {
-  const { selectedArticleSlug, setView, openArticle } = useUI();
+  const { selectedArticleSlug, setView, openArticle, openBlogEditor } = useUI();
   const isEditing = !!selectedArticleSlug;
 
   const articleQ = useArticle(selectedArticleSlug);
@@ -243,7 +243,10 @@ export function BlogEditorView() {
             if (publish) {
               openArticle(data.article.slug);
             } else {
-              openArticle(data.article.slug);
+              // Issue #192 / FE-002 — saving a new draft should keep the
+              // user in the editor with the newly-created draft loaded in
+              // edit mode, NOT navigate them out to the article reader.
+              openBlogEditor(data.article.slug);
             }
           },
           onError: (e: any) => {

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -102,7 +102,12 @@ export function BlogArticleView() {
   const [replyTo, setReplyTo] = useState<string | null>(null);
   const [hasTrackedView, setHasTrackedView] = useState(false);
   const [liked, setLiked] = useState(false);
-  const [isTyping, setIsTyping] = useState(false);
+  // Issue #195 / FE-008 — `isTyping` was both a dep of the typing-indicator
+  // effect AND mutated by it, creating an oscillation loop that spammed
+  // the socket with alternating typing=true/false every 1.5s. Replaced
+  // with a ref so the effect can track whether typing=true has been emitted
+  // since the last keystroke without re-triggering itself.
+  const typingEmittedRef = useRef(false);
 
   const article = articleQ.data;
 
@@ -132,20 +137,21 @@ export function BlogArticleView() {
   }, [slug, hasTrackedView, articleQ.isLoading, trackViewMut]);
 
   // Throttle typing indicator: when the user types in the draft box, emit
-  // `isTyping=true` immediately, then emit `isTyping=false` after 1.5s of
-  // inactivity.
+  // `typing=true` on the first keystroke of a burst, then emit `typing=false`
+  // after 1.5s of inactivity. The ref avoids the feedback loop where the
+  // effect both depended on `isTyping` and called `setIsTyping`.
   useEffect(() => {
     if (!slug || !draft) return;
-    if (!isTyping) {
-      setIsTyping(true);
+    if (!typingEmittedRef.current) {
+      typingEmittedRef.current = true;
       chat.sendTyping(slug, authorName || "Reader", true);
     }
     const t = setTimeout(() => {
-      setIsTyping(false);
+      typingEmittedRef.current = false;
       chat.sendTyping(slug, authorName || "Reader", false);
     }, 1500);
     return () => clearTimeout(t);
-  }, [draft, slug, authorName, chat, isTyping]);
+  }, [draft, slug, authorName, chat]);
 
   // Merge server-fetched comments with any live comments that arrived via
   // the websocket since page load. Dedup by id.
@@ -208,8 +214,9 @@ export function BlogArticleView() {
           chat.broadcastComment(slug, data.comment);
           setDraft("");
           setReplyTo(null);
-          // Clear typing indicator locally.
-          setIsTyping(false);
+          // Clear typing indicator locally — reset the ref so the next burst
+          // re-emits typing=true, and tell the chat service we stopped.
+          typingEmittedRef.current = false;
           chat.sendTyping(slug, authorName || "Reader", false);
         },
         onError: (e: any) => {
@@ -223,6 +230,11 @@ export function BlogArticleView() {
     if (!slug) return;
     setLiked((v) => !v);
     likeMut.mutate(slug, {
+      // Issue #193 / FE-003 — sync the liked state from the server response
+      // so the optimistic toggle is reconciled with the authoritative value
+      // returned by the API ({ liked, likeCount }). Without this, a stale
+      // optimistic state could drift from the real server state.
+      onSuccess: (data) => setLiked(data.liked),
       onError: () => setLiked((v) => !v),
     });
   };

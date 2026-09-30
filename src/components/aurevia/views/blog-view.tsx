@@ -346,6 +346,16 @@ function FeaturedCard({ article, onOpen }: { article: SerializedArticle; onOpen:
   return (
     <Card
       onClick={onOpen}
+      // Issue #194 / FE-005 — make the clickable Card keyboard-accessible
+      // by exposing it as a button to assistive tech and handling Enter / Space.
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
       className="group relative cursor-pointer overflow-hidden border-border/60 p-0 transition-all hover:border-primary/40 hover:shadow-md"
     >
       {article.coverImageUrl ? (
@@ -406,6 +416,16 @@ function ArticleRow({ article, onOpen }: { article: SerializedArticle; onOpen: (
   return (
     <Card
       onClick={onOpen}
+      // Issue #194 / FE-005 — make the clickable Card keyboard-accessible
+      // by exposing it as a button to assistive tech and handling Enter / Space.
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onOpen();
+        }
+      }}
       className="group flex cursor-pointer items-start gap-4 p-4 transition-all hover:border-primary/40 hover:bg-accent/30"
     >
       <div
