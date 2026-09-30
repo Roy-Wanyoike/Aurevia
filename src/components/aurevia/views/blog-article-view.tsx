@@ -486,6 +486,7 @@ export function BlogArticleView() {
                   value={authorName}
                   onChange={(e) => setAuthorName(e.target.value)}
                   placeholder="Your name (optional)"
+                  aria-label="Your name (optional)"
                   className="sm:max-w-[240px]"
                 />
               </div>
@@ -496,6 +497,9 @@ export function BlogArticleView() {
                   replyTo
                     ? "Write your reply..."
                     : "Share your thoughts on this research..."
+                }
+                aria-label={
+                  replyTo ? "Write your reply" : "Share your thoughts on this research"
                 }
                 rows={3}
               />

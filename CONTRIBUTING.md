@@ -37,7 +37,7 @@ Open http://localhost:3000
 ```bash
 bun run lint          # ESLint — must be clean
 npx tsc --noEmit      # TypeScript — must be 0 errors
-bun test              # 155 unit tests — must all pass
+bun test              # 423 unit tests — must all pass
 ```
 
 ## Branch Naming

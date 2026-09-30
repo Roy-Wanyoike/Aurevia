@@ -23,6 +23,7 @@
 // ---------------------------------------------------------------------------
 
 import { db } from "@/lib/db";
+import { logger } from "@/lib/aurevia/logger";
 
 export interface AuditLogParams {
   actor: string;
@@ -70,6 +71,11 @@ export async function auditLog(params: AuditLogParams): Promise<void> {
   } catch (e) {
     // Never let audit logging break the trading pipeline. Log loudly so ops
     // sees the missed record, but swallow the exception.
-    console.error("[aurevia] audit log failed:", e);
+    logger.error("Audit log write failed", {
+      actor: params.actor,
+      action: params.action,
+      entity: params.entity,
+      error: (e as Error)?.message ?? "unknown",
+    });
   }
 }

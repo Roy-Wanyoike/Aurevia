@@ -112,7 +112,7 @@ describe("auditLog — failure isolation", () => {
     ).resolves.toBeUndefined();
   });
 
-  it("logs the failure to stderr (so ops sees a missed audit record)", async () => {
+  it("logs the failure via the structured logger (so ops sees a missed audit record)", async () => {
     const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     createMock.mockRejectedValue(new Error("connection refused"));
     await auditLog({
@@ -122,13 +122,17 @@ describe("auditLog — failure isolation", () => {
       entityId: "ord-789",
       detail: "{}",
     });
-    // console.error is called with multiple args — join ALL args of every
-    // call so we capture both the prefix and the error object's toString().
-    const logged = errSpy.mock.calls
-      .map((c) => c.map((arg) => String(arg)).join(" "))
-      .join("\n");
-    expect(logged).toContain("audit log failed");
+    // The structured logger serializes the entry to JSON and writes it via
+    // `console.error(JSON.stringify(entry))`. Join every call's first
+    // argument so we can assert the structured fields the spec requires.
+    const logged = errSpy.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("Audit log write failed");
     expect(logged).toContain("connection refused");
+    // The structured logger MUST carry the audit context so ops can triage
+    // which audit record was missed (issue #197 / AUDIT-011).
+    expect(logged).toContain('"actor":"system"');
+    expect(logged).toContain('"action":"ORDER_PLACED"');
+    expect(logged).toContain('"entity":"order"');
   });
 
   it("does NOT throw when db.auditLog.create throws synchronously", async () => {

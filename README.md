@@ -11,7 +11,7 @@
 A production-grade platform for market intelligence, quantitative research, strategy backtesting, risk management, and controlled paper trading — built with strict engine boundaries and no look-ahead bias.
 
 [![CI](https://img.shields.io/badge/CI-passing-emerald)](https://github.com/Roy-Wanyoike/Aurevia/actions)
-[![Tests](https://img.shields.io/badge/tests-155%20passing-emerald)](https://github.com/Roy-Wanyoike/Aurevia)
+[![Tests](https://img.shields.io/badge/tests-423%20passing-emerald)](https://github.com/Roy-Wanyoike/Aurevia)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black)](https://nextjs.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
@@ -128,7 +128,7 @@ Open http://localhost:3000 — the dashboard renders with 18 assets, 7 strategie
 - **Monte Carlo** — resample a backtest's trade sequence to estimate return distribution + ruin probability
 
 ### Production Infrastructure
-- **155 unit tests** — indicators, risk engine, portfolio accounting, backtest metrics, strategies, formatting
+- **423 unit tests** — indicators, risk engine, portfolio accounting, backtest metrics, strategies, formatting
 - **GitHub Actions CI** — lint, typecheck, test, build on every PR
 - **Structured logging** — JSON logs with request IDs + correlation IDs
 - **Rate limiting** — 60 req/min per IP, 429 + Retry-After, memory-bounded (issue #79)

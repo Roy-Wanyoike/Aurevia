@@ -389,12 +389,14 @@ export function BlogEditorView() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Article title..."
+              aria-label="Article title"
               className="text-lg font-semibold"
             />
             <Input
               value={excerpt}
               onChange={(e) => setExcerpt(e.target.value)}
               placeholder="Excerpt — one-sentence summary shown in the list view (leave blank to use the AI-generated summary)..."
+              aria-label="Excerpt — one-sentence summary shown in the list view"
             />
 
             {previewMode ? (
@@ -429,6 +431,7 @@ export function BlogEditorView() {
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
                 placeholder={"Write your article in markdown...\n\n# Heading\n\n## Subheading\n\n- bullet\n- bullet\n\n```python\nprint('hello world')\n```\n\n| Col A | Col B |\n| --- | --- |\n| 1 | 2 |"}
+                aria-label="Article content in markdown"
                 className="min-h-[500px] resize-y font-mono text-sm leading-relaxed"
               />
             )}
@@ -598,6 +601,7 @@ export function BlogEditorView() {
                     value={topic}
                     onChange={(e) => setTopic(e.target.value)}
                     placeholder="Topic for draft generation..."
+                    aria-label="Topic for draft generation"
                     className="text-xs"
                   />
                 </div>

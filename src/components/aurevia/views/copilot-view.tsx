@@ -5,7 +5,6 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize, { defaultSchema } from "rehype-sanitize";
@@ -295,10 +294,9 @@ export function CopilotView() {
         </div>
       </div>
 
-      {/* Loading skeleton when initial render is hydrating */}
-      {!ask.isPending && messages.length === 0 && false && (
-        <Skeleton className="h-4 w-full" />
-      )}
+      {/* Loading skeleton removed — kept the messages.length === 0 check
+          for the empty-state hint, but the dead `&& false` branch made this
+          block unreachable. Removed per FE-009. */}
     </div>
   );
 }
@@ -349,7 +347,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
                   <code className="rounded bg-muted px-1 py-0.5 font-mono text-xs">{children}</code>
                 ),
                 strong: ({ children }) => <strong className="font-semibold">{children}</strong>,
-                a: ({ node, ...props }) => (
+                a: ({ node: _node, ...props }) => (
                   <a
                     {...props}
                     target="_blank"

@@ -21,8 +21,8 @@ export const dynamic = "force-dynamic";
 // `/api/v1/admin/system` (returns the same data plus process metrics).
 //
 // Also triggers live data initialization on first request (idempotent).
-export async function GET() {
-  const requestId = "health";
+export async function GET(req: Request) {
+  const requestId = req.headers.get("x-request-id") ?? "health";
   try {
     // Initialize live market data on first health check (idempotent)
     await store.initLiveData();

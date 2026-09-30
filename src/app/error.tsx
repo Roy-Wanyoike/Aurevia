@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { logger } from "@/lib/aurevia/logger";
 
 // ---------------------------------------------------------------------------
 // Aurevia global error boundary (issue #77).
@@ -12,6 +13,10 @@ import { useEffect } from "react";
 //
 // Per Next.js 16 App Router convention this MUST be a Client Component
 // ("use client") and accept `error` + `reset` props.
+//
+// `logger` is browser-safe — it only uses `console.log/error/warn` and reads
+// `process.env.LOG_LEVEL` (inlined at build time by Next.js), so it has no
+// Node-only dependencies and can be imported into a Client Component.
 // ---------------------------------------------------------------------------
 
 interface ErrorBoundaryProps {
@@ -20,11 +25,14 @@ interface ErrorBoundaryProps {
 }
 
 export default function Error({ error, reset }: ErrorBoundaryProps) {
-  // Log to console for dev visibility — production wires Sentry via the
+  // Log to structured logger for dev visibility + future Sentry wiring via
   // `SENTRY_DSN` env var (see .env.example). Keeping this defensive: any
   // error thrown here would otherwise loop the boundary.
   useEffect(() => {
-    console.error("[aurevia] error boundary:", error);
+    logger.error("error boundary", {
+      digest: error.digest,
+      message: error.message,
+    });
   }, [error]);
 
   return (

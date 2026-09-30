@@ -280,7 +280,7 @@ export function MobileSidebarTrigger() {
           <Menu className="h-5 w-5" />
         </Button>
       </SheetTrigger>
-      <SheetContent side="left" className="w-60 border-sidebar-border bg-sidebar p-0">
+      <SheetContent side="left" className="w-60 border-sidebar-border bg-sidebar p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]">
         <div className="flex h-14 items-center gap-2.5 border-b border-sidebar-border px-4">
           <button
             onClick={() => { setView("dashboard"); setOpen(false); }}
@@ -534,8 +534,13 @@ function timeAgo(iso: string): string {
 // ---------------------------------------------------------------------------
 
 function ThemeToggleButton({ collapsed }: { collapsed: boolean }) {
-  const { theme, setTheme } = useTheme();
-  const isDark = theme !== "light";
+  // Use `resolvedTheme` (the actual applied theme) rather than `theme` (which
+  // may be "system" pre-hydration). `resolvedTheme` is `undefined` until
+  // next-themes mounts on the client; we default to `true` (dark) so the
+  // initial render matches the `defaultTheme="dark"` configured in
+  // layout.tsx — avoiding a flash of the wrong icon. (Issue #127 / FE-007.)
+  const { resolvedTheme, setTheme } = useTheme();
+  const isDark = resolvedTheme === undefined ? true : resolvedTheme === "dark";
   return (
     <Button
       variant="ghost"

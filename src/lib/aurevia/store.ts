@@ -213,7 +213,11 @@ export class AureviaStore {
         }
       } catch (e: any) {
         // Log but continue — partial live data is better than none
-        console.warn(`[aurevia] Live data fetch failed for ${asset.symbol}:`, e?.message);
+        logger.warn("Live data fetch failed", {
+          provider: activeProvider?.id,
+          symbol: asset.symbol,
+          error: e?.message ?? "unknown",
+        });
       }
     }
 
@@ -240,7 +244,11 @@ export class AureviaStore {
           this.candleCache.set(`${asset.symbol}-60`, result.candles.slice(-60));
         }
       } catch (e: any) {
-        console.warn(`[aurevia] Live data refresh failed for ${asset.symbol}:`, e?.message);
+        logger.warn("Live data fetch failed", {
+          provider: activeProvider?.id,
+          symbol: asset.symbol,
+          error: e?.message ?? "unknown",
+        });
       }
     }
   }
