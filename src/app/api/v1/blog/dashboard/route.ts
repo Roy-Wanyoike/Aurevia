@@ -35,29 +35,28 @@ export async function GET(req: Request) {
   const baseArticleWhere = withTenantFilter<{ status: string }>({ status: "PUBLISHED" }, tenant);
 
   try {
-    // KPI tiles — denormalized counters on the article rows.
-    const articles = await db.article.findMany({
+    // KPI tiles — issue #190 / AUDIT-010. The previous implementation
+    // fetched EVERY published article row into memory (findMany + reduce)
+    // just to compute four KPI sums. On a mature blog that's thousands of
+    // rows transferred + a JS-side reduce on every dashboard load. The DB
+    // can compute all four sums in a single indexed aggregate query that
+    // touches only the denormalized counters on the article rows. The
+    // expensive `findMany` is now reserved for `topArticles` (top-6 by
+    // viewCount) and `tagCloud` (needs every article's `tags` JSON).
+    const kpis = await db.article.aggregate({
       where: baseArticleWhere,
-      select: {
-        id: true,
-        slug: true,
-        title: true,
-        excerpt: true,
-        coverImageUrl: true,
+      _sum: {
         viewCount: true,
         likeCount: true,
         commentCount: true,
-        tags: true,
-        categoryId: true,
-        publishedAt: true,
-        category: { select: { id: true, name: true, slug: true, color: true } },
       },
+      _count: true,
     });
 
-    const totalArticles = articles.length;
-    const totalViews = articles.reduce((s, a) => s + a.viewCount, 0);
-    const totalLikes = articles.reduce((s, a) => s + a.likeCount, 0);
-    const totalComments = articles.reduce((s, a) => s + a.commentCount, 0);
+    const totalArticles = kpis._count;
+    const totalViews = kpis._sum.viewCount ?? 0;
+    const totalLikes = kpis._sum.likeCount ?? 0;
+    const totalComments = kpis._sum.commentCount ?? 0;
 
     // 14-day views series — query the ArticleView rollup table.
     const days: string[] = [];
@@ -77,23 +76,40 @@ export async function GET(req: Request) {
     }
     const viewsSeries = days.map((d) => ({ day: d, views: viewsByDayMap.get(d) ?? 0 }));
 
-    // Top articles by views.
-    const topArticles = [...articles]
-      .sort((a, b) => b.viewCount - a.viewCount)
-      .slice(0, 6)
-      .map((a) => ({
-        id: a.id,
-        slug: a.slug,
-        title: a.title,
-        excerpt: a.excerpt,
-        coverImageUrl: a.coverImageUrl,
-        views: a.viewCount,
-        likes: a.likeCount,
-        comments: a.commentCount,
-        categoryName: a.category?.name ?? "Uncategorized",
-        categoryColor: a.category?.color ?? "#94a3b8",
-        publishedAt: a.publishedAt ? a.publishedAt.toISOString() : null,
-      }));
+    // Top articles by views — issue #190. The previous implementation loaded
+    // every article into memory, sorted in JS, then sliced the top 6. Let
+    // Postgres/SQLite do the work: an indexed ORDER BY viewCount DESC with
+    // take: 6 returns only 6 rows instead of the full table.
+    const topArticleRows = await db.article.findMany({
+      where: baseArticleWhere,
+      orderBy: { viewCount: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        slug: true,
+        title: true,
+        excerpt: true,
+        coverImageUrl: true,
+        viewCount: true,
+        likeCount: true,
+        commentCount: true,
+        publishedAt: true,
+        category: { select: { id: true, name: true, slug: true, color: true } },
+      },
+    });
+    const topArticles = topArticleRows.map((a) => ({
+      id: a.id,
+      slug: a.slug,
+      title: a.title,
+      excerpt: a.excerpt,
+      coverImageUrl: a.coverImageUrl,
+      views: a.viewCount,
+      likes: a.likeCount,
+      comments: a.commentCount,
+      categoryName: a.category?.name ?? "Uncategorized",
+      categoryColor: a.category?.color ?? "#94a3b8",
+      publishedAt: a.publishedAt ? a.publishedAt.toISOString() : null,
+    }));
 
     // Categories distribution.
     // Issue #189 / AUDIT-009 — the `_count` filter on `articles` previously
@@ -145,9 +161,18 @@ export async function GET(req: Request) {
       createdAt: c.createdAt.toISOString(),
     }));
 
-    // Tag cloud — flatten all article tags and count.
+    // Tag cloud — flatten all article tags and count. Issue #190: this is
+    // the second remaining findMany that legitimately needs every published
+    // article row (because the tag cloud is computed from the per-article
+    // `tags` JSON array, which the DB can't group by natively). The select
+    // is trimmed to ONLY the `tags` column so we transfer one small column
+    // per row instead of the entire KPI payload the old query returned.
+    const tagArticleRows = await db.article.findMany({
+      where: baseArticleWhere,
+      select: { tags: true },
+    });
     const tagCounts = new Map<string, number>();
-    for (const a of articles) {
+    for (const a of tagArticleRows) {
       for (const t of parseTags(a.tags)) {
         tagCounts.set(t, (tagCounts.get(t) ?? 0) + 1);
       }

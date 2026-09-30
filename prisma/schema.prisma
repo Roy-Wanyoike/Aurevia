@@ -61,6 +61,12 @@ model Session {
   userId       String
   expires      DateTime
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Issue #191 / AUDIT-012-015 — missing indexes. NextAuth's adapter
+  // looks up sessions by `userId` (per-user session list) and reaps expired
+  // sessions with a range scan on `expires`. Both queries were table scans.
+  @@index([userId])
+  @@index([expires])
 }
 
 model VerificationToken {
@@ -280,6 +286,14 @@ model ApiKey {
   createdAt  DateTime  @default(now())
   revokedAt  DateTime?
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Issue #191 / AUDIT-012-015 — missing index. The API-key auth
+  // middleware lists a user's active keys (revokedAt IS NULL) on every
+  // authenticated request. Without a composite index on (userId, revokedAt)
+  // that query scans every ApiKey row. NULLs sort first in SQLite/Postgres,
+  // so the composite index serves both the "all active keys for user" and
+  // "all revoked keys for user" access patterns.
+  @@index([userId, revokedAt])
 }
 
 model Notification {
@@ -382,6 +396,12 @@ model ArticleComment {
   @@index([articleId, createdAt])
   @@index([parentId])
   @@index([organizationId])
+  // Issue #191 / AUDIT-012-015 — missing index. The dashboard's recent-
+  // activity feed and the comment-moderation queue both filter by
+  // (organizationId, status, createdAt DESC) on every request. The single-
+  // column (organizationId) index forced a filesort on createdAt. The
+  // composite index serves the most-common access pattern directly.
+  @@index([organizationId, status, createdAt])
 }
 
 model ArticleLike {
@@ -415,6 +435,11 @@ model ArticleView {
   @@index([articleId, day])
   @@index([day])
   @@index([organizationId])
+  // Issue #191 / AUDIT-012-015 — missing index. The dashboard's 14-day
+  // views series groups by `day` after filtering by `organizationId`. The
+  // composite (organizationId, day) index lets that groupBy run as an index
+  // range scan instead of a full table scan + sort per tenant.
+  @@index([organizationId, day])
 }
 
 model AuditLog {
