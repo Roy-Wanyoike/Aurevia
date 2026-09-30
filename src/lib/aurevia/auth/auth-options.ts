@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcryptjs";
 import { db } from "@/lib/db";
+import { logger } from "@/lib/aurevia/logger";
 
 // ---------------------------------------------------------------------------
 // Aurevia NextAuth configuration.
@@ -45,11 +46,12 @@ function getNextAuthSecret(): string {
   if (secret) return secret;
   if (process.env.NODE_ENV === "production") {
     // Fail-closed — never sign JWTs with the dev placeholder in prod.
-    // Logged server-side; the throw bubbles up to NextAuth's error handler.
-    console.error(
-      "[auth] CRITICAL: NEXTAUTH_SECRET not set in production. " +
-        "Refusing to sign JWTs with the dev placeholder. Set NEXTAUTH_SECRET in your environment.",
-    );
+    // Logged server-side via the structured logger so the event is
+    // correlated to a request and emitted as JSON (AUDIT-006 / Issue #187);
+    // the throw bubbles up to NextAuth's error handler.
+    logger.error("CRITICAL: NEXTAUTH_SECRET not set in production — refusing to sign JWTs", {
+      code: "AUTH_SECRET_MISSING",
+    });
     throw new Error("NEXTAUTH_SECRET is required in production");
   }
   return "dev-secret-change-in-production";

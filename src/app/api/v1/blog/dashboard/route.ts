@@ -96,12 +96,20 @@ export async function GET(req: Request) {
       }));
 
     // Categories distribution.
+    // Issue #189 / AUDIT-009 — the `_count` filter on `articles` previously
+    // used only `{ status: "PUBLISHED" }`, which counts articles across ALL
+    // tenants for each category. That leaks cross-tenant article counts to
+    // every dashboard viewer. Thread the tenant filter through so only the
+    // caller's org's published articles are counted (the `tenant` variable
+    // is resolved at the top of the handler via `requireTenant()`).
     const categories = await db.category.findMany({
       orderBy: { name: "asc" },
       include: {
         _count: {
           select: {
-            articles: { where: { status: "PUBLISHED" } },
+            articles: {
+              where: withTenantFilter({ status: "PUBLISHED" }, tenant),
+            },
           },
         },
       },
