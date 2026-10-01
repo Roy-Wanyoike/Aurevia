@@ -83,3 +83,4 @@ server.log
 /download/*.pdf
 /download/*.csv
 /download/*.jsonstart-detached.sh
+/download/README.md
