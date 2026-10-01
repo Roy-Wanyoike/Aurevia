@@ -7,9 +7,10 @@ import { Server } from "socket.io";
 // Mini-service running on port 3004 that powers two realtime surfaces:
 //
 //   1. Per-article live comments — when a reader posts a comment via the
-//      POST /api/v1/blog/articles/[slug]/comments route, the frontend
-//      also emits a `blog:comment` event here so all other readers on the
-//      same article see the comment appear without a refetch. Typing
+//      POST /api/v1/blog/articles/[slug]/comments route, the server (Next.js
+//      REST API or a co-located emitter) broadcasts a `blog:comment` event
+//      to this service, which fans it out to every other reader on the same
+//      article so they see the comment appear without a refetch. Typing
 //      indicators (`blog:typing`) broadcast the same way.
 //
 //   2. A general "Research Lounge" chat room — a global chat for
@@ -22,9 +23,15 @@ import { Server } from "socket.io";
 // (comment rows in SQLite) happens via the REST API; this service only
 // fans events out to connected sockets.
 //
-// In production, you'd add an auth check on the socket handshake (cookie
-// or Bearer token); in dev we leave it open to match the rest of the
-// platform's dev-bypass posture.
+// Issue #201 — socket handshake auth is enforced via `io.use()` middleware:
+// in production a JWT MUST be present in `socket.handshake.auth.token` or
+// the connection is rejected. In dev, connections without a token are
+// allowed (dev bypass) so local development against any localhost port
+// keeps working. The client-emitted `blog:comment` handler has been removed
+// — clients can no longer inject arbitrary comment payloads; only the
+// server-side broadcast path (REST API → this service) may emit comments.
+// Full JWT signature verification is a follow-up task that depends on the
+// auth system becoming production-ready (see `auth/check.ts`).
 // ---------------------------------------------------------------------------
 
 const PORT = 3004;
@@ -72,6 +79,104 @@ function presenceFor(slug?: string) {
   // Online names (deduped, capped at 12 for the UI).
   const names = Array.from(new Set(all.map((r) => r.name))).slice(0, 12);
   return { total, onArticle, names, ts: now };
+}
+
+// ---------------------------------------------------------------------------
+// Issue #201 — socket handshake auth gate.
+//
+// Both mini-services used to accept unauthenticated socket connections, which
+// let any web page open a socket against the service. Worse, this service
+// accepted client-emitted `blog:comment` events and rebroadcast them —
+// bypassing the REST API's validation, rate-limiting (issue #141), and XSS
+// sanitization (issue #200). That let a malicious client inject fake
+// comments with arbitrary HTML into other readers' views.
+//
+// This middleware closes the door:
+//   - In production: a JWT MUST be supplied via `socket.handshake.auth.token`.
+//     We do NOT verify the signature here — that wiring depends on the auth
+//     system becoming production-ready (per `src/lib/aurevia/auth/check.ts`).
+//     For now this is a presence gate: if no token is provided, the
+//     connection is rejected. When the auth system lands, swap this for
+//     `jwt.verify(token, secret)` and stamp the decoded user on
+//     `socket.data.user`.
+//   - In dev: connections without a token are allowed (dev bypass) — matches
+//     the rest of the platform's posture. A one-shot warning is logged so
+//     developers don't forget to wire auth up before deploying.
+//
+// Frontend clients pass the token via `io(..., { auth: { token: jwtString } })`.
+// ---------------------------------------------------------------------------
+
+let warnedUnauthenticatedDev = false;
+
+io.use((socket, next) => {
+  const isProd = process.env.NODE_ENV === "production";
+  const handshakeAuth = (socket.handshake.auth ?? {}) as { token?: unknown };
+  const token = handshakeAuth.token;
+  const hasToken = typeof token === "string" && token.trim().length > 0;
+
+  if (!isProd) {
+    if (!hasToken && !warnedUnauthenticatedDev) {
+      warnedUnauthenticatedDev = true;
+      console.warn(
+        "[aurevia-blog-chat] Dev-mode socket auth bypassed — supply `auth.token` before deploy (issue #201)",
+      );
+    }
+    socket.data.authenticated = hasToken;
+    return next();
+  }
+
+  if (!hasToken) {
+    return next(new Error("unauthorized: missing auth.token"));
+  }
+  // TODO(#201): full JWT signature verification once the auth system is
+  // production-ready. For now this is a presence gate — see header comment.
+  socket.data.authenticated = true;
+  return next();
+});
+
+// ---------------------------------------------------------------------------
+// Issue #201 — server-side broadcast helper.
+//
+// The client-emitted `socket.on("blog:comment", ...)` handler was removed
+// (see the comment block inside `io.on("connection")` below) because it let
+// any connected client bypass REST validation, rate-limiting, and XSS
+// sanitization. The REST API (Next.js server) is now the only legitimate
+// source of `blog:comment` events.
+//
+// When the Next.js server creates a comment via
+// POST /api/v1/blog/articles/[slug]/comments, it should emit `blog:comment`
+// to the article room via this helper. The wiring path is one of:
+//   - HTTP POST to an internal endpoint on this service (e.g. /internal/broadcast)
+//   - Redis pubsub subscription in this service
+//   - Direct in-process call if co-located with the Next.js server
+// That wiring is a follow-up task tracked separately; it depends on the auth
+// system landing first so the internal endpoint can be authenticated.
+//
+// The helper is exported so a future internal HTTP endpoint (or pubsub
+// subscriber) added to this file can call it directly. It is intentionally
+// uncalled today — the client-side `useBlogChat().broadcastComment()` callsite
+// in `src/lib/aurevia/hooks/use-blog-chat.ts` is now a no-op until the
+// server-side wiring lands.
+// ---------------------------------------------------------------------------
+
+interface BlogCommentPayload {
+  slug: string;
+  comment: {
+    id: string;
+    authorName: string;
+    content: string;
+    parentId: string | null;
+    createdAt: string;
+  };
+}
+
+export function broadcastBlogComment(payload: BlogCommentPayload) {
+  if (!payload?.slug || !payload?.comment) return;
+  io.to(`article:${payload.slug}`).emit("blog:comment", {
+    slug: payload.slug,
+    comment: payload.comment,
+    ts: Date.now(),
+  });
 }
 
 io.on("connection", (socket) => {
@@ -154,30 +259,32 @@ io.on("connection", (socket) => {
   });
 
   // -----------------------------------------------------------------
-  // Live comment broadcast — emitted by the client immediately after
-  // a successful POST to /api/v1/blog/articles/[slug]/comments. We
-  // fan it out to the article room so other readers see the new
-  // comment without polling. The comment row itself is the source of
-  // truth — this event is just a "refresh now" signal with the data
-  // pre-attached to avoid an extra round-trip.
+  // Issue #201 — client-emitted `blog:comment` is intentionally NOT
+  // handled. The previous handler accepted arbitrary payloads from any
+  // connected client and rebroadcast them, bypassing the REST API's
+  // validation, rate-limiting (5/min per article per IP — issue #141),
+  // and XSS sanitization (issue #200). That let a malicious client inject
+  // fake comments with arbitrary HTML into other readers' views.
+  //
+  // Correct flow (the REST API is the source of truth):
+  //   1. Client POSTs to /api/v1/blog/articles/[slug]/comments
+  //   2. REST API creates the comment row (validated, sanitized, rate-limited)
+  //   3. REST API (or the Next.js server) emits `blog:comment` to this
+  //      service via a server-side transport (HTTP endpoint on this
+  //      service, Redis pubsub, etc.) — NOT from the client socket.
+  //   4. This service fans the event out to the article room via
+  //      `broadcastBlogComment()` (defined above).
+  //
+  // The server-broadcast capability is preserved (see the
+  // `broadcastBlogComment()` export above) — `io.to(articleRoom).emit(...)`
+  // is still callable from server-side code in this process. The wiring
+  // to trigger it from the Next.js server side is a follow-up task
+  // tracked separately; it depends on the auth system landing first so
+  // the internal endpoint can be authenticated.
+  //
+  // Clients that attempt to emit `blog:comment` directly will be silently
+  // ignored (no handler registered) — the event simply has no listener.
   // -----------------------------------------------------------------
-  socket.on("blog:comment", (payload: {
-    slug: string;
-    comment: {
-      id: string;
-      authorName: string;
-      content: string;
-      parentId: string | null;
-      createdAt: string;
-    };
-  }) => {
-    if (!payload?.slug || !payload?.comment) return;
-    io.to(`article:${payload.slug}`).emit("blog:comment", {
-      slug: payload.slug,
-      comment: payload.comment,
-      ts: Date.now(),
-    });
-  });
 
   // -----------------------------------------------------------------
   // Typing indicator — broadcasts to the article room only. The
