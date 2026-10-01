@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireAuth } from "@/lib/aurevia/auth/check";
+import { requireAuth, requireRole } from "@/lib/aurevia/auth/check";
 import { logger } from "@/lib/aurevia/logger";
 import { getAllFlags } from "@/lib/aurevia/config/feature-flags";
 
@@ -24,6 +24,10 @@ export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
   const auth = requireAuth(req);
   if (!auth.ok) return auth.response;
+
+  // GO-LIVE-B3 / #202 — admin-only endpoint
+  const role = await requireRole(req, "admin");
+  if (!role.ok) return role.response!;
 
   try {
     const flags = getAllFlags();

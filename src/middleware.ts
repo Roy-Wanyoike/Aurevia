@@ -43,7 +43,9 @@ const PUBLIC_PATHS = [
   // gate on top of `requireAuth()`.
   "/api/auth",            // NextAuth callback paths
   "/api/v1/health",       // uptime probe
-  "/api/v1/health/",      // liveness/readiness probes
+  "/api/v1/health/live",   // liveness (k8s probe)
+  "/api/v1/health/ready",  // readiness (k8s probe)
+  "/api/v1/health/",      // liveness/readiness sub-paths
   "/_next",
   "/favicon.ico",
   "/branding",

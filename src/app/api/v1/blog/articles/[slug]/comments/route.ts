@@ -9,6 +9,22 @@ import { resolveCurrentUserId } from "@/lib/aurevia/blog/shared";
 
 export const dynamic = "force-dynamic";
 
+// GO-LIVE-B1 / #200 — strip dangerous HTML from comment content before storage.
+// React escapes content in JSX ({comment.content}) so rendering is safe, but
+// the socket broadcast path (blog:comment) may render differently. Defense-in-depth:
+// sanitize at storage so no consumer can accidentally render raw HTML.
+function sanitizeCommentContent(raw: string): string {
+  return raw
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")  // strip <script> blocks
+    .replace(/<script[^>]*\/?>/gi, "")                   // strip unclosed <script>
+    .replace(/on\w+\s*=\s*["'][^"']*["']/gi, "")         // strip onerror=, onclick=, etc.
+    .replace(/javascript:/gi, "")                         // strip javascript: URLs
+    .replace(/<iframe[^>]*>[\s\S]*?<\/iframe>/gi, "")    // strip iframes
+    .trim();
+}
+
+
+
 // ---------------------------------------------------------------------------
 // GET /api/v1/blog/articles/[slug]/comments
 //
@@ -181,7 +197,7 @@ export async function POST(
           articleId: article.id,
           authorName,
           authorId,
-          content: data.content.trim(),
+          content: sanitizeCommentContent(data.content.trim()),
           parentId: data.parentId ?? null,
           // Issue #137 — stamp the article's org on the comment row.
           organizationId: article.organizationId,

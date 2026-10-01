@@ -1,0 +1,46 @@
+# Aurevia — Production Caddyfile
+# Usage: caddy run --config Caddyfile.production
+# Requires: Caddy v2.6+
+
+{
+	email admin@aurevia.io
+}
+
+# Main application
+aurevia.io {
+	encode zstd gzip
+
+	reverse_proxy localhost:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+		header_up X-Real-IP {remote_host}
+		flush_interval -1
+	}
+
+	header {
+		Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		# CSP is owned by next.config.ts — don't duplicate
+	}
+}
+
+# WebSocket streaming service
+stream.aurevia.io {
+	reverse_proxy localhost:3003 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		flush_interval -1
+	}
+}
+
+# Blog realtime chat service
+chat.aurevia.io {
+	reverse_proxy localhost:3004 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		flush_interval -1
+	}
+}
