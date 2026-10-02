@@ -21,7 +21,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-categories-list";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   try {
@@ -76,7 +76,7 @@ const CreateCategorySchema = z.object({
 
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-category-create";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #130 / BE-003 / SEC-001 — require trader+ to create categories.

@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // GET /api/v1/ml — list ML models + recent predictions
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);
@@ -43,7 +43,7 @@ const PredictSchema = z.object({
 // POST /api/v1/ml — run a specific model on a specific symbol
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

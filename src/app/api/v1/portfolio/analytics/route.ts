@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 // Read-only — never mutates portfolio / risk / order state. Returns 422 when
 // there are no open positions to compute returns from. (Issue #52.)
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   const requestId = "portfolio-analytics";
   try {

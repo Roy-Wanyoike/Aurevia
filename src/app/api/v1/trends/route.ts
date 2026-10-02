@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // GET /api/v1/trends — trend distribution + per-asset trend snapshot.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const rows = store.assetCatalog.map((a) => {

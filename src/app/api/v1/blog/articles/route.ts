@@ -36,7 +36,7 @@ const VALID_SORTS = new Set(["newest", "oldest", "popular", "liked", "az"]);
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-articles-list";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #137 — resolve tenant context for multi-tenant scoping. In dev
@@ -194,7 +194,7 @@ const CreateArticleSchema = z.object({
 
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-articles-create";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #130 / BE-003 / SEC-001 — require trader+ to create articles.

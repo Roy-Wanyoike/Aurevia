@@ -106,8 +106,19 @@ export function middleware(req: NextRequest) {
   // don't need rate limiting (the auth check above is their gate). Behind
   // Caddy/load balancer the client IP is in `x-forwarded-for` (first hop).
   // Fall back to the NextRequest `ip` and then to a synthetic "unknown" key.
+  //
+  // CRITICAL: /api/auth/* routes are EXEMPT from rate limiting. NextAuth
+  // polls /api/auth/session on every page load (sometimes multiple times
+  // per render via TanStack Query's useSession). With 76+ dashboard hooks
+  // firing on mount, a single page load can generate 10+ API calls. The
+  // 60/min global limit is exhausted in 6 page loads, blocking the session
+  // check itself — which means the user can't even log in.
+  //
+  // The per-route limiters on blog/engagement endpoints (like 10/min,
+  // comment 5/min, view 30/min) are independent and still apply.
   const isApiRoute = pathname === "/api" || pathname.startsWith("/api/");
-  if (isApiRoute) {
+  const isAuthRoute = pathname.startsWith("/api/auth/");
+  if (isApiRoute && !isAuthRoute) {
     const xff = req.headers.get("x-forwarded-for");
     const ip =
       (xff && xff.split(",")[0]?.trim()) ||

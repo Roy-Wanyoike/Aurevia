@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // can render real price trends without 18 separate fetches.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);

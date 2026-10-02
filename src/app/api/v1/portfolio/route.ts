@@ -34,7 +34,7 @@ const OrderSchema = z
 // GET /api/v1/portfolio — current paper-trading portfolio state.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   // Issue #97 — resolve tenant context at the API boundary. The store is
   // currently a singleton, so `tenant` is a passthrough here; the contract
@@ -58,7 +58,7 @@ export async function GET(req: Request) {
 // POST /api/v1/portfolio — operator actions: reset, or place a manual order.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

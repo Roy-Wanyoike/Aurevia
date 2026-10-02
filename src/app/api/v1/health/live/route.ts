@@ -10,7 +10,7 @@ export const dynamic = "force-dynamic";
 // All heavy dependency checking belongs in /api/v1/health/ready so a slow
 // downstream (e.g. market-data provider) doesn't cause a cascading restart.
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   return NextResponse.json({ status: "alive", timestamp: Date.now() });
 }

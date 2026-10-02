@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 // Returns overall analytics (trades by regime, by strategy, total count) so
 // the view can render the same summaries server-side. (Issue #54.)
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   const requestId = "journal";
   try {

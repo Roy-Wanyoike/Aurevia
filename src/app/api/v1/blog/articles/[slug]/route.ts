@@ -31,7 +31,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const requestId = req.headers.get("x-request-id") ?? "blog-article-get";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #137 — tenant scoping.
@@ -116,7 +116,7 @@ export async function PATCH(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const requestId = req.headers.get("x-request-id") ?? "blog-article-patch";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #130 / BE-003 / SEC-001 — require trader+ to update articles.
@@ -261,7 +261,7 @@ export async function DELETE(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const requestId = req.headers.get("x-request-id") ?? "blog-article-delete";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #130 / BE-003 / SEC-001 — require trader+ to delete articles.

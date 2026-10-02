@@ -108,6 +108,28 @@ export function getAuthOptions(): NextAuthOptions {
         if (user) {
           token.id = user.id;
           token.role = (user as any).role ?? "trader";
+
+          // Issue #161 — populate organizationId at sign-in time (not on
+          // every session read). This runs ONCE when the user logs in;
+          // the value is cached in the JWT token. The session callback
+          // reads from token.organizationId — no DB query per request.
+          //
+          // Previously this was in the session callback, which meant every
+          // /api/auth/session call (polled by NextAuth on every page load)
+          // hit the DB. With 76+ dashboard hooks firing on mount, this
+          // was 10+ DB queries per page load just for the session check.
+          const userId = user.id;
+          if (userId) {
+            try {
+              const membership = await db.membership.findFirst({
+                where: { userId },
+                select: { organizationId: true },
+              });
+              token.organizationId = membership?.organizationId ?? null;
+            } catch {
+              token.organizationId = null;
+            }
+          }
         }
         return token;
       },
@@ -115,30 +137,11 @@ export function getAuthOptions(): NextAuthOptions {
         if (session.user) {
           (session.user as any).id = token.id;
           (session.user as any).role = token.role;
-
-          // Issue #161 — populate organizationId from the user's primary
-          // Membership so requireTenant() can enforce tenant isolation in
-          // production. Without this, every prod session reported
-          // organizationId: null, making withTenantFilter(...) a no-op and
-          // cross-tenant isolation decorative.
-          //
-          // We look this up on every session read (not just at sign-in) so
-          // the value stays fresh if the user is added to / removed from an
-          // org. Single indexed query on Membership(userId) — cheap relative
-          // to the rest of the request.
-          const userId = token.id as string | undefined;
-          if (userId) {
-            const membership = await db.membership.findFirst({
-              where: { userId },
-              include: {
-                organization: { select: { id: true, name: true, slug: true } },
-              },
-            });
-            (session.user as any).organizationId =
-              membership?.organizationId ?? null;
-          } else {
-            (session.user as any).organizationId = null;
-          }
+          // Read from JWT token — no DB query. The value was set at sign-in
+          // by the jwt callback above. If the user's org changes mid-session,
+          // they need to re-login to pick it up (acceptable trade-off for
+          // eliminating the per-request DB query).
+          (session.user as any).organizationId = token.organizationId ?? null;
         }
         return session;
       },

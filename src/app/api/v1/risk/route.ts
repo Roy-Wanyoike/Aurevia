@@ -26,7 +26,7 @@ const RiskSchema = z
 // GET /api/v1/risk — risk profile + recent risk events + portfolio risk snapshot.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const portfolio = store.getPortfolio();
@@ -46,7 +46,7 @@ export async function GET(req: Request) {
 // POST /api/v1/risk — mutate risk profile or control circuit breaker.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

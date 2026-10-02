@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 //                   on 64-bit boxes; 500 MiB is a conservative ceiling that
 //                   catches runaway growth before the V8 OOM killer fires.
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   const checks: { name: string; ok: boolean }[] = [];
   // Check market data — always ok (simulated fallback always available;

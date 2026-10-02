@@ -49,7 +49,7 @@ const SYSTEM_PROMPT =
 
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-ai-assist";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #136 / BE-004 / SEC-001 — require trader+ to invoke AI assist

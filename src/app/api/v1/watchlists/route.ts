@@ -87,7 +87,7 @@ function buildRows(symbols: string[]): WatchlistQuoteRow[] {
 // GET /api/v1/watchlists — all watchlists, each with live quotes per symbol.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const payload: WatchlistResponse[] = getWatchlists().map((wl) => ({
@@ -107,7 +107,7 @@ export async function GET(req: Request) {
 // POST /api/v1/watchlists — action-based mutations on the watchlist set.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

@@ -103,7 +103,7 @@ function buildRow(symbol: string): ScreenerRow | null {
 // POST /api/v1/screener — multi-factor asset filter.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));
@@ -161,7 +161,7 @@ export async function POST(req: Request) {
 // (issue #29 — no hardcoded lists).
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const assetTypes = new Set<string>();

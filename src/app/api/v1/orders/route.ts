@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 // compatible — the existing hooks and tests use the unpaginated shape).
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const url = new URL(req.url);

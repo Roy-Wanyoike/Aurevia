@@ -33,7 +33,7 @@ import { requireAuth } from "@/lib/aurevia/auth/check";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   // Increment a self-referential counter so the endpoint is never empty —
   // useful for smoke tests + proves the Prometheus exposition format renders.

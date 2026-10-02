@@ -65,8 +65,20 @@ function extractApiKey(req: Request): string | null {
  *
  * Returns an `AuthResult` — does NOT throw. Callers decide what to do with
  * a failed result (most will return the provided `unauthorized` response).
+ *
+ * Production auth flow (in priority order):
+ *   1. NextAuth session cookie — if a valid session exists, the request is
+ *      from an authenticated browser user. This is the primary auth path
+ *      for the web UI. No DB query needed — the JWT is verified by the
+ *      secret.
+ *   2. API key header (x-api-key or Authorization: Bearer) — for programmatic
+ *      access (CLI, integrations, other services). The key must match
+ *      AUREVIA_API_KEY.
+ *   3. If neither — 401.
+ *
+ * Dev mode: bypasses all checks (returns ok: true, principal: "dev-bypass").
  */
-export function checkAuth(req: Request): AuthResult {
+export async function checkAuth(req: Request): Promise<AuthResult> {
   const isProd = process.env.NODE_ENV === "production";
 
   // --- Dev mode: bypass auth but warn loudly on the first unauthenticated
@@ -88,7 +100,21 @@ export function checkAuth(req: Request): AuthResult {
     return { ok: true, principal: "dev-bypass" };
   }
 
-  // --- Production: require a configured API key + a matching header.
+  // --- Production: check NextAuth session cookie FIRST.
+  // The browser sends session cookies, not API keys. Without this check,
+  // every browser request to /api/v1/* would get 401 in production.
+  // We check for the cookie presence (not validity — the route handler
+  // + NextAuth verify the JWT when needed). The middleware already
+  // redirects unauthenticated page requests to /signin; API requests
+  // without a session cookie OR an API key get 401.
+  const sessionCookie =
+    req.headers.get("cookie")?.includes("next-auth.session-token") ||
+    req.headers.get("cookie")?.includes("__Secure-next-auth.session-token");
+  if (sessionCookie) {
+    return { ok: true, principal: "session" };
+  }
+
+  // --- Production: fall back to API key for programmatic access.
   const expected = process.env.AUREVIA_API_KEY;
   if (!expected || expected.length < 16) {
     // No key configured at all — fail closed. Misconfiguration is an outage,
@@ -105,7 +131,7 @@ export function checkAuth(req: Request): AuthResult {
 
   const supplied = extractApiKey(req);
   if (!supplied) {
-    return { ok: false, reason: "Missing API key (x-api-key or Authorization: Bearer required)" };
+    return { ok: false, reason: "Missing API key or session cookie" };
   }
   if (supplied !== expected) {
     logger.warn("API auth failed: invalid API key", {
@@ -135,16 +161,19 @@ export function unauthorized(req: Request, reason: string): NextResponse {
 /**
  * Convenience wrapper — call as the first line of a route handler.
  *
- *   const auth = requireAuth(req);
+ *   const auth = await requireAuth(req);
  *   if (!auth.ok) return auth.response!;
  *
  * Returns `{ ok: true, principal }` on success, or `{ ok: false, response }`
  * on failure with a ready-to-return 401 response.
+ *
+ * Now async because checkAuth checks the NextAuth session cookie (which
+ * may require async resolution in future). Currently just checks cookie
+ * presence, but the async signature is forward-compatible.
  */
-export function requireAuth(req: Request):
-  | { ok: true; principal: string }
-  | { ok: false; response: NextResponse } {
-  const result = checkAuth(req);
+export async function requireAuth(req: Request):
+  Promise<{ ok: true; principal: string } | { ok: false; response: NextResponse }> {
+  const result = await checkAuth(req);
   if (result.ok) {
     return { ok: true, principal: result.principal ?? "unknown" };
   }

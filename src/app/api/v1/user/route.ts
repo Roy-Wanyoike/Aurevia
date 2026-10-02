@@ -87,7 +87,7 @@ function toResponse(user: NonNullable<Awaited<ReturnType<typeof resolveCurrentUs
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const user = await resolveCurrentUser();
@@ -117,7 +117,7 @@ const PatchSchema = z.object({
 
 export async function PATCH(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // GET /api/v1/regimes — regime distribution across the tradeable universe.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const dist: Record<string, { symbol: string; regime: string; price: number; changePct: number }[]> = {};

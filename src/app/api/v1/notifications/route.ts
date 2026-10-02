@@ -41,7 +41,7 @@ async function resolveCurrentUserId(): Promise<string | null> {
 // GET /api/v1/notifications — newest first, capped at LIST_LIMIT.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   try {
@@ -83,7 +83,7 @@ const MarkReadSchema = z.object({
 // POST /api/v1/notifications — mark all of the caller's notifications as read.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   try {

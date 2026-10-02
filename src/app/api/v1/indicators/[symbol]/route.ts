@@ -12,7 +12,7 @@ export async function GET(
   { params }: { params: Promise<{ symbol: string }> }
 ) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const { symbol } = await params;

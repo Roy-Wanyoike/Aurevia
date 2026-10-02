@@ -25,7 +25,7 @@ import { requireAuth } from "@/lib/aurevia/auth/check";
 export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   const spec = {
     openapi: "3.0.3",

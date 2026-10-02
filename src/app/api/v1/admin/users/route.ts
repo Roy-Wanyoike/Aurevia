@@ -22,7 +22,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // GO-LIVE-B3 / #202 — admin-only endpoint

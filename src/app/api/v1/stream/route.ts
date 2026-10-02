@@ -37,7 +37,7 @@ const HEARTBEAT_INTERVAL_MS = 15_000;
 const TICK_ASSET_COUNT = 6;
 
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   const encoder = new TextEncoder();
 

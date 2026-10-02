@@ -26,7 +26,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "blog-dashboard";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #137 — tenant scoping. The dashboard only shows articles / comments

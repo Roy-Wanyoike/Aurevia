@@ -62,7 +62,7 @@ async function resolveCurrentUser(): Promise<{ id: string; email: string } | nul
 // GET /api/v1/api-keys — list the caller's non-revoked keys.
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   try {
@@ -108,7 +108,7 @@ const CreateSchema = z.object({
 // POST /api/v1/api-keys — generate a new key. Returns the plaintext ONCE.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   try {

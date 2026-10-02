@@ -69,7 +69,7 @@ function serialize(a: Alert) {
 
 // GET /api/v1/alerts — list all alerts, fire any newly-satisfied ones.
 export async function GET(req: Request) {
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   const requestId = "alerts";
   try {
@@ -105,7 +105,7 @@ export async function GET(req: Request) {
 // POST /api/v1/alerts — action-based mutations.
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

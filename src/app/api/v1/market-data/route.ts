@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // GET /api/v1/market-data — returns the current data source status
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const ds = store.getDataSource();
@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 // POST /api/v1/market-data — refresh live data (fetch latest candles from provider)
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     await store.initLiveData();  // ensures first-time init

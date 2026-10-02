@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // GET /api/v1/brokers — list registered brokers + routing info
 export async function GET(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const brokers = store.listBrokers();
@@ -40,7 +40,7 @@ const ConnectSchema = z.object({
 // POST /api/v1/brokers — connect/disconnect a broker or query routing
 export async function POST(req: Request) {
   const requestId = req.headers.get("x-request-id") ?? "unknown";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
   try {
     const body = await req.json().catch(() => ({}));

@@ -38,7 +38,7 @@ export async function GET(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const requestId = req.headers.get("x-request-id") ?? "blog-comments-list";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #137 — tenant scoping.
@@ -114,7 +114,7 @@ export async function POST(
   { params }: { params: Promise<{ slug: string }> },
 ) {
   const requestId = req.headers.get("x-request-id") ?? "blog-comment-create";
-  const auth = requireAuth(req);
+  const auth = await requireAuth(req);
   if (!auth.ok) return auth.response;
 
   // Issue #137 — tenant scoping.
